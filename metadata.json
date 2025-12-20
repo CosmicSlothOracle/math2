@@ -1,0 +1,8 @@
+{
+  "name": "MathMaster Neun - Geometrie Lernplattform",
+  "description": "Eine spielerische Lernplattform für Mathematik der 9. Klasse, spezialisiert auf Geometrie. Enthält interaktive Kacheln, ein Belohnungssystem mit MathCoins und detaillierte Erklärungen basierend auf dem Rahmenlehrplan.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

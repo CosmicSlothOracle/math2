@@ -52,9 +52,9 @@ export const Button: React.FC<ButtonProps> = ({
   };
 
   const sizes = {
-    sm: "px-4 py-2 text-[10px]",
-    md: "px-6 py-3 text-xs min-h-[44px]",
-    lg: "px-8 py-4 text-sm min-h-[56px]"
+    sm: "px-4 py-2.5 text-[10px] sm:text-xs min-h-[44px] min-w-[44px]",
+    md: "px-5 sm:px-6 py-3 sm:py-3.5 text-xs sm:text-sm min-h-[44px] min-w-[44px]",
+    lg: "px-6 sm:px-8 py-4 sm:py-5 text-sm sm:text-base min-h-[56px] min-w-[56px]"
   };
 
   return (
@@ -438,11 +438,37 @@ export const CoinFlightAnimation: React.FC<{ isActive: boolean; onComplete: () =
   );
 };
 
-export const ModalOverlay: React.FC<{ onClose: () => void; children: React.ReactNode }> = ({ onClose, children }) => (
-  <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-200">
-    <div className="absolute inset-0" onClick={onClose} />
-    <div className="relative z-10 w-full max-w-4xl max-h-[90vh] overflow-y-auto custom-scrollbar outline-none">
-      {children}
+export const ModalOverlay: React.FC<{ onClose: () => void; children: React.ReactNode }> = ({ onClose, children }) => {
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    overlayRef.current?.focus();
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-200 safe-area-top safe-area-bottom safe-area-left safe-area-right"
+      style={{
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+        paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
+        paddingRight: 'max(0.75rem, env(safe-area-inset-right))'
+      }}
+    >
+      <div className="absolute inset-0 touch-manipulation" onClick={onClose} />
+      <div
+        ref={overlayRef}
+        className="relative z-10 w-full max-w-4xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto custom-scrollbar outline-none touch-manipulation"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
     </div>
-  </div>
-);
+  );
+};

@@ -4,12 +4,17 @@ import { LEARNING_UNITS, SHOP_ITEMS, PROGRESS_LEVELS, GEOMETRY_DEFINITIONS } fro
 import { LearningUnit, User, Task, ShopItem, ChatMessage, CategoryGroup, ToastMessage, ToastType } from './types';
 import { AuthService, DataService, SocialService } from './services/apiService';
 import { QuestService } from './services/questService';
+import { computeEntryFee } from './services/economyService';
 import { TaskFactory } from './services/taskFactory';
+import { sanitizeMathInput } from './utils/inputSanitizer';
+import { validateAnswer } from './utils/answerValidators';
+import { DragDropTask } from './components/DragDropTask';
 import {
   Button, GlassCard, SectionHeading, CardTitle, Badge, DifficultyStars,
   ToastContainer, ModalOverlay, CoinFlightAnimation,
   CalculatorWidget
 } from './ui-components';
+import { subscribeVirtualPointer } from './src/utils/virtualPointer';
 
 const GROUP_THEME: Record<CategoryGroup, { color: string; bg: string; text: string; border: string; darkBg: string }> = {
   'A': { color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', darkBg: 'bg-indigo-600' },
@@ -24,7 +29,10 @@ const MatrixRain: React.FC = () => {
         const canvas = canvasRef.current; if (!canvas) return;
         const ctx = canvas.getContext('2d'); if (!ctx) return;
         canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-        const fontSize = 16;
+        const isMobile = window.innerWidth < 768;
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReducedMotion) return; // Skip animation if user prefers reduced motion
+        const fontSize = isMobile ? 20 : 16; // Larger font = fewer columns on mobile
         const columns = Math.floor(canvas.width / fontSize);
         const drops: number[] = new Array(columns).fill(0).map(() => Math.random() * -100);
         const speeds: number[] = new Array(columns).fill(0).map(() => 0.5 + Math.random() * 1.5);
@@ -96,13 +104,17 @@ const ElectricStorm: React.FC = () => {
         let lastMouse = { ...mouse };
         let globalEnergy = 0;
 
-        const handleMouseMove = (e: MouseEvent) => { mouse.x = e.clientX; mouse.y = e.clientY; };
-        const handleMouseDown = (e: MouseEvent) => {
-            for (let i = 0; i < 12; i++) createBolt(e.clientX, e.clientY, 80 + Math.random() * 120);
-            globalEnergy = Math.min(globalEnergy + 50, 100);
-        };
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mousedown', handleMouseDown);
+        // Use normalized virtual pointer for mouse/touch/pointer
+        let lastDownLocal = false;
+        const unsubscribe = subscribeVirtualPointer((p) => {
+            mouse.x = Math.max(0, Math.min(canvas.width, Math.round(p.x)));
+            mouse.y = Math.max(0, Math.min(canvas.height, Math.round(p.y)));
+            if (p.down && !lastDownLocal) {
+                for (let i = 0; i < 12; i++) createBolt(mouse.x, mouse.y, 80 + Math.random() * 120);
+                globalEnergy = Math.min(globalEnergy + 50, 100);
+            }
+            lastDownLocal = p.down;
+        });
 
         function createBolt(x: number, y: number, length: number) {
             const path = [{x, y}];
@@ -150,7 +162,7 @@ const ElectricStorm: React.FC = () => {
             requestAnimationFrame(draw);
         };
         const anim = requestAnimationFrame(draw);
-        return () => { cancelAnimationFrame(anim); window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mousedown', handleMouseDown); };
+        return () => { cancelAnimationFrame(anim); try { unsubscribe(); } catch (err) { /* ignore */ } };
     }, []);
     return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[100]" />;
 };
@@ -167,13 +179,23 @@ const VoidProtocol: React.FC = () => {
         interface Particle { x: number; y: number; vx: number; vy: number; size: number; hue: number; life: number; }
         const voids: Void[] = [];
         const particles: Particle[] = [];
+        const glitches: { y: number; height: number; offset: number; life: number; }[] = [];
         for (let i = 0; i < 60; i++) {
             particles.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3, size: 0.5 + Math.random() * 2, hue: 240 + Math.random() * 40, life: 0.3 + Math.random() * 0.7 });
         }
         const handleMouseMove = (e: MouseEvent) => { mouse.x = e.clientX; mouse.y = e.clientY; };
-        const handleMouseDown = () => { voids.push({ x: mouse.x, y: mouse.y, r: 10, life: 1 }); };
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mousedown', handleMouseDown);
+        let lastDownLocal = false;
+        const unsubscribePointer = subscribeVirtualPointer((p) => {
+            mouse.x = Math.max(0, Math.min(canvas.width, Math.round(p.x)));
+            mouse.y = Math.max(0, Math.min(canvas.height, Math.round(p.y)));
+            if (p.down && !lastDownLocal) {
+                voids.push({ x: mouse.x, y: mouse.y, r: 10, life: 1 });
+                if (Math.random() < 0.5) {
+                    glitches.push({ y: mouse.y, height: 20 + Math.random() * 60, offset: (Math.random() - 0.5) * 20, life: 0.5 });
+                }
+            }
+            lastDownLocal = p.down;
+        });
 
         const draw = () => {
             time += 0.003;
@@ -236,7 +258,7 @@ const VoidProtocol: React.FC = () => {
             requestAnimationFrame(draw);
         };
         const anim = requestAnimationFrame(draw);
-        return () => { cancelAnimationFrame(anim); window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mousedown', handleMouseDown); };
+        return () => { cancelAnimationFrame(anim); try { unsubscribePointer(); } catch (err) { /* ignore */ } };
     }, []);
     return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[0]" />;
 };
@@ -252,17 +274,20 @@ const UnicornMagic: React.FC = () => {
         let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
         let lastMouse = { ...mouse };
         let tick = 0;
-        const handleMouseMove = (e: MouseEvent) => { mouse.x = e.clientX; mouse.y = e.clientY; };
-        const handleMouseDown = () => {
-            for (let i = 0; i < 30; i++) {
-                const angle = (i / 30) * Math.PI * 2;
-                const speed = 3 + Math.random() * 5;
-                const types = ['heart', 'star', 'sparkle'];
-                particles.push({ x: mouse.x, y: mouse.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, size: 8 + Math.random() * 12, hue: Math.random() * 360, life: 1, type: types[Math.floor(Math.random() * 3)], rotation: Math.random() * Math.PI * 2 });
+        let lastDownLocal = false;
+        const unsubscribePointer = subscribeVirtualPointer((p) => {
+            mouse.x = Math.max(0, Math.min(canvas.width, Math.round(p.x)));
+            mouse.y = Math.max(0, Math.min(canvas.height, Math.round(p.y)));
+            if (p.down && !lastDownLocal) {
+                for (let i = 0; i < 30; i++) {
+                    const angle = (i / 30) * Math.PI * 2;
+                    const speed = 3 + Math.random() * 5;
+                    const types = ['heart', 'star', 'sparkle'];
+                    particles.push({ x: mouse.x, y: mouse.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, size: 8 + Math.random() * 12, hue: Math.random() * 360, life: 1, type: types[Math.floor(Math.random() * 3)], rotation: Math.random() * Math.PI * 2 } as any);
+                }
             }
-        };
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mousedown', handleMouseDown);
+            lastDownLocal = p.down;
+        });
         const drawStar = (x: number, y: number, size: number, rotation: number) => {
             ctx.save(); ctx.translate(x, y); ctx.rotate(rotation); ctx.beginPath();
             for (let i = 0; i < 5; i++) { const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2; if (i === 0) ctx.moveTo(Math.cos(angle) * size, Math.sin(angle) * size); else ctx.lineTo(Math.cos(angle) * size, Math.sin(angle) * size); }
@@ -311,7 +336,7 @@ const UnicornMagic: React.FC = () => {
             requestAnimationFrame(draw);
         };
         const anim = requestAnimationFrame(draw);
-        return () => { cancelAnimationFrame(anim); window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mousedown', handleMouseDown); };
+        return () => { cancelAnimationFrame(anim); try { unsubscribePointer(); } catch (err) { /* ignore */ } };
     }, []);
     return <div className="fixed inset-0 pointer-events-none z-[5] overflow-hidden"><div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 via-purple-500/10 to-indigo-500/10" /><canvas ref={canvasRef} /></div>;
 };
@@ -337,8 +362,16 @@ const NeonDreams: React.FC = () => {
             }
             interactionEnergy = 100;
         };
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mousedown', handleMouseDown);
+        let lastDownLocal = false;
+        const unsubscribePointer = subscribeVirtualPointer((p) => {
+            targetMouse.x = p.x;
+            targetMouse.y = p.y;
+            interactionEnergy = Math.min(interactionEnergy + 8, 100);
+            if (p.down && !lastDownLocal) {
+                handleMouseDown();
+            }
+            lastDownLocal = p.down;
+        });
         const draw = () => {
             interactionEnergy *= 0.96;
             mouse.x += (targetMouse.x - mouse.x) * 0.08;
@@ -377,7 +410,7 @@ const NeonDreams: React.FC = () => {
             requestAnimationFrame(draw);
         };
         const anim = requestAnimationFrame(draw);
-        return () => { cancelAnimationFrame(anim); window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mousedown', handleMouseDown); };
+        return () => { cancelAnimationFrame(anim); try { unsubscribePointer(); } catch (err) { /* ignore */ } };
     }, []);
     return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[5]" />;
 };
@@ -405,7 +438,10 @@ const GalaxyMode: React.FC = () => {
             nebulae.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, radius: 150 + Math.random() * 350, hue: 220 + Math.random() * 100, vx: (Math.random() - 0.5) * 0.15, vy: (Math.random() - 0.5) * 0.15 });
         }
         const handleMouseMove = (e: MouseEvent) => { mouse.x = e.clientX; mouse.y = e.clientY; };
-        window.addEventListener('mousemove', handleMouseMove);
+        const unsubscribePointer = subscribeVirtualPointer((p) => {
+            mouse.x = Math.max(0, Math.min(canvas.width, Math.round(p.x)));
+            mouse.y = Math.max(0, Math.min(canvas.height, Math.round(p.y)));
+        });
         let time = 0;
         const draw = () => {
             time += 0.002;
@@ -447,7 +483,7 @@ const GalaxyMode: React.FC = () => {
             requestAnimationFrame(draw);
         };
         const anim = requestAnimationFrame(draw);
-        return () => { cancelAnimationFrame(anim); window.removeEventListener('mousemove', handleMouseMove); };
+        return () => { cancelAnimationFrame(anim); try { unsubscribePointer(); } catch (err) { /* ignore */ } };
     }, []);
     return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[0]" />;
 };
@@ -479,8 +515,20 @@ const FireBlaze: React.FC = () => {
                 embers.push({ x: mouse.x, y: mouse.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, size: 3 + Math.random() * 8, life: 1, hue: 15 + Math.random() * 35, turbulence: Math.random() * 2 });
             }
         };
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mousedown', handleMouseDown);
+        let lastDownLocal = false;
+        const unsubscribePointer = subscribeVirtualPointer((p) => {
+            mouse.x = Math.max(0, Math.min(canvas.width, Math.round(p.x)));
+            mouse.y = Math.max(0, Math.min(canvas.height, Math.round(p.y)));
+            if (p.down && !lastDownLocal) {
+                for (let i = 0; i < 30; i++) {
+                    const angle = (i / 30) * Math.PI * 2;
+                    const speed = 3 + Math.random() * 5;
+                    const types = ['heart', 'star', 'sparkle'];
+                    embers.push({ x: mouse.x, y: mouse.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, size: 8 + Math.random() * 12, hue: Math.random() * 360, life: 1, turbulence: Math.random() * 2 });
+                }
+            }
+            lastDownLocal = p.down;
+        });
         const draw = () => {
             time += 0.016; intensity *= 0.97;
             ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
@@ -533,7 +581,7 @@ const FireBlaze: React.FC = () => {
             requestAnimationFrame(draw);
         };
         const anim = requestAnimationFrame(draw);
-        return () => { cancelAnimationFrame(anim); window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mousedown', handleMouseDown); };
+        return () => { cancelAnimationFrame(anim); try { unsubscribePointer(); } catch (err) { /* ignore */ } };
     }, []);
     return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[5] overflow-hidden" />;
 };
@@ -559,8 +607,17 @@ const ChromaAura: React.FC = () => {
             for (let i = 0; i < 7; i++) rings.push({ x: mouse.x, y: mouse.y, radius: 10, hue: i * 51, life: 1 });
             energy = 100;
         };
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mousedown', handleMouseDown);
+        let lastDownLocal = false;
+        const unsubscribePointer = subscribeVirtualPointer((p) => {
+            mouse.x = Math.max(0, Math.min(canvas.width, Math.round(p.x)));
+            mouse.y = Math.max(0, Math.min(canvas.height, Math.round(p.y)));
+            energy = Math.min(energy + 3, 100);
+            if (p.down && !lastDownLocal) {
+                for (let i = 0; i < 7; i++) rings.push({ x: mouse.x, y: mouse.y, radius: 10, hue: i * 51, life: 1 });
+                energy = 100;
+            }
+            lastDownLocal = p.down;
+        });
         const draw = () => {
             time += 0.008; energy *= 0.97;
             ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
@@ -595,7 +652,7 @@ const ChromaAura: React.FC = () => {
             requestAnimationFrame(draw);
         };
         const anim = requestAnimationFrame(draw);
-        return () => { cancelAnimationFrame(anim); window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mousedown', handleMouseDown); };
+        return () => { cancelAnimationFrame(anim); try { unsubscribePointer(); } catch (err) { /* ignore */ } };
     }, []);
     return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[5]" />;
 };
@@ -618,8 +675,15 @@ const SingularityEngine: React.FC = () => {
         }
         const handleMouseMove = (e: MouseEvent) => { mouse.x = e.clientX; mouse.y = e.clientY; };
         const handleMouseDown = () => { singularityPower = 200; };
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mousedown', handleMouseDown);
+        let lastDownLocal = false;
+        const unsubscribePointer = subscribeVirtualPointer((p) => {
+            mouse.x = Math.max(0, Math.min(canvas.width, Math.round(p.x)));
+            mouse.y = Math.max(0, Math.min(canvas.height, Math.round(p.y)));
+            if (p.down && !lastDownLocal) {
+                singularityPower = 200;
+            }
+            lastDownLocal = p.down;
+        });
         const draw = () => {
             time += 0.01; singularityPower = Math.max(50, singularityPower * 0.98);
             ctx.fillStyle = '#030308'; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -664,7 +728,7 @@ const SingularityEngine: React.FC = () => {
             requestAnimationFrame(draw);
         };
         const anim = requestAnimationFrame(draw);
-        return () => { cancelAnimationFrame(anim); window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mousedown', handleMouseDown); };
+        return () => { cancelAnimationFrame(anim); try { unsubscribePointer(); } catch (err) { /* ignore */ } };
     }, []);
     return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[5]" />;
 };
@@ -688,10 +752,17 @@ const EventHorizonUI: React.FC = () => {
                 gridPoints.push({ x, y, baseX: x, baseY: y });
             }
         }
-        const handleMouseMove = (e: MouseEvent) => { mouse.x = e.clientX; mouse.y = e.clientY; warpIntensity = Math.min(warpIntensity + 2, 100); };
-        const handleMouseDown = () => { ripples.push({ x: mouse.x, y: mouse.y, radius: 10, life: 1 }); warpIntensity = 100; };
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mousedown', handleMouseDown);
+        let lastDownLocal = false;
+        const unsubscribePointer = subscribeVirtualPointer((p) => {
+            mouse.x = Math.max(0, Math.min(canvas.width, Math.round(p.x)));
+            mouse.y = Math.max(0, Math.min(canvas.height, Math.round(p.y)));
+            warpIntensity = Math.min(warpIntensity + 2, 100);
+            if (p.down && !lastDownLocal) {
+                ripples.push({ x: mouse.x, y: mouse.y, radius: 10, life: 1 });
+                warpIntensity = 100;
+            }
+            lastDownLocal = p.down;
+        });
         const cols = Math.ceil(canvas.width / gridSpacing) + 1;
         const rows = Math.ceil(canvas.height / gridSpacing) + 1;
         const draw = () => {
@@ -754,7 +825,7 @@ const EventHorizonUI: React.FC = () => {
             requestAnimationFrame(draw);
         };
         const anim = requestAnimationFrame(draw);
-        return () => { cancelAnimationFrame(anim); window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mousedown', handleMouseDown); };
+        return () => { cancelAnimationFrame(anim); try { unsubscribePointer(); } catch (err) { /* ignore */ } };
     }, []);
     return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[3]" />;
 };
@@ -783,8 +854,17 @@ const QuantumAfterimage: React.FC = () => {
         const handleMouseDown = () => {
             superpositions.push({ x: mouse.x, y: mouse.y, copies: Array.from({length: 5}, (_, i) => ({ dx: (Math.random() - 0.5) * 100, dy: (Math.random() - 0.5) * 100, alpha: 0.8 - i * 0.15 })), life: 1 });
         };
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mousedown', handleMouseDown);
+        let lastDownLocal = false;
+        const unsubscribePointer = subscribeVirtualPointer((p) => {
+            mouse.x = p.x;
+            mouse.y = p.y;
+            mouseHistory.push({ x: p.x, y: p.y, time: Date.now() });
+            while (mouseHistory.length > 30) mouseHistory.shift();
+            if (p.down && !lastDownLocal) {
+                handleMouseDown();
+            }
+            lastDownLocal = p.down;
+        });
         const draw = () => {
             time += 0.01;
             ctx.fillStyle = 'rgba(5, 10, 20, 0.08)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -838,7 +918,7 @@ const QuantumAfterimage: React.FC = () => {
             requestAnimationFrame(draw);
         };
         const anim = requestAnimationFrame(draw);
-        return () => { cancelAnimationFrame(anim); window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mousedown', handleMouseDown); };
+        return () => { cancelAnimationFrame(anim); try { unsubscribePointer(); } catch (err) { /* ignore */ } };
     }, []);
     return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-[5]" />;
 };
@@ -1023,6 +1103,7 @@ const BottleToss: React.FC<{ task: Task; onComplete: (success: boolean) => void 
     const [targetAngle, setTargetAngle] = useState(Math.floor(Math.random() * 60) + 30);
     const [userInput, setUserInput] = useState('');
     const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
+    const [isTouching, setIsTouching] = useState(false);
 
     const toss = () => {
         setPhase('toss');
@@ -1040,37 +1121,60 @@ const BottleToss: React.FC<{ task: Task; onComplete: (success: boolean) => void 
     };
 
     return (
-        <div className="bg-slate-800 text-white p-6 sm:p-8 rounded-[3rem] border-8 border-slate-700 shadow-2xl flex flex-col h-full overflow-hidden relative">
-            <h3 className="text-xl font-black text-sky-400 uppercase tracking-widest mb-2 italic">BOTTLE TOSS 🧴</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase mb-8 tracking-widest">Triff den Eimer oder miss den Abprallwinkel!</p>
+        <div className="bg-slate-800 text-white p-4 sm:p-6 md:p-8 rounded-[2rem] sm:rounded-[3rem] border-4 sm:border-8 border-slate-700 shadow-2xl flex flex-col h-full overflow-hidden relative touch-manipulation safe-area-top safe-area-bottom">
+            <h3 className="text-lg sm:text-xl font-black text-sky-400 uppercase tracking-widest mb-2 italic">BOTTLE TOSS 🧴</h3>
+            <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase mb-4 sm:mb-8 tracking-widest">Triff den Eimer oder miss den Abprallwinkel!</p>
 
-            <div className="flex-1 bg-slate-900 rounded-[2rem] border-4 border-slate-700 relative overflow-hidden mb-6">
+            <div className="flex-1 bg-slate-900 rounded-[1.5rem] sm:rounded-[2rem] border-2 sm:border-4 border-slate-700 relative overflow-hidden mb-4 sm:mb-6">
                 <div className="absolute bottom-0 inset-x-0 h-1 bg-slate-500" />
-                <div className="absolute bottom-4 right-10 text-4xl">🗑️</div>
+                <div className="absolute bottom-4 right-4 sm:right-10 text-3xl sm:text-4xl">🗑️</div>
 
-                {phase === 'aim' && <div className="absolute bottom-4 left-10 text-4xl animate-bounce">🧴</div>}
-                {phase === 'toss' && <div className="absolute bottom-4 left-10 text-4xl animate-[ping_1s_ease-in-out_infinite]">🧴</div>}
+                {phase === 'aim' && <div className="absolute bottom-4 left-4 sm:left-10 text-3xl sm:text-4xl animate-bounce">🧴</div>}
+                {phase === 'toss' && <div className="absolute bottom-4 left-4 sm:left-10 text-3xl sm:text-4xl animate-[ping_1s_ease-in-out_infinite]">🧴</div>}
 
                 {phase === 'impact' && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-4">
-                        <div className="text-center animate-in zoom-in duration-300">
-                             <div className="relative w-40 h-40 mx-auto mb-4">
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-3 sm:p-4">
+                        <div className="text-center animate-in zoom-in duration-300 w-full max-w-xs">
+                             <div className="relative w-32 h-32 sm:w-40 sm:h-40 mx-auto mb-3 sm:mb-4">
                                 <svg viewBox="0 0 100 100" className="w-full h-full">
                                     <line x1="0" y1="100" x2="100" y2="100" stroke="white" strokeWidth="2" />
                                     <line x1="0" y1="100" x2={100 * Math.cos((targetAngle * Math.PI) / 180)} y2={100 - 100 * Math.sin((targetAngle * Math.PI) / 180)} stroke="#38bdf8" strokeWidth="4" />
                                     <path d={`M 20,100 A 20,20 0 0,0 ${20 * Math.cos((targetAngle * Math.PI) / 180)},${100 - 20 * Math.sin((targetAngle * Math.PI) / 180)}`} fill="none" stroke="#fbbf24" strokeWidth="2" />
                                 </svg>
                              </div>
-                             <p className="font-black text-sm uppercase text-sky-400 mb-4">Aufprallwinkel α?</p>
-                             <input value={userInput} onChange={e => setUserInput(e.target.value)} type="number" placeholder="Grad..." className="w-full p-4 bg-slate-800 rounded-xl border-2 border-slate-600 text-center font-black text-2xl outline-none focus:border-sky-500" />
-                             <Button onClick={checkAngle} className="w-full mt-4 bg-sky-600 border-sky-800">Kalibrieren</Button>
+                             <p className="font-black text-xs sm:text-sm uppercase text-sky-400 mb-3 sm:mb-4">Aufprallwinkel α?</p>
+                             <input
+                                value={userInput}
+                                onChange={e => setUserInput(e.target.value)}
+                                type="number"
+                                placeholder="Grad..."
+                                className="w-full p-3 sm:p-4 bg-slate-800 rounded-xl border-2 border-slate-600 text-center font-black text-xl sm:text-2xl outline-none focus:border-sky-500 touch-manipulation"
+                                style={{ fontSize: '16px' }}
+                            />
+                             <Button
+                                onClick={checkAngle}
+                                className="w-full mt-3 sm:mt-4 bg-sky-600 border-sky-800 min-h-[48px] text-base sm:text-lg"
+                                onTouchStart={() => setIsTouching(true)}
+                                onTouchEnd={() => setIsTouching(false)}
+                            >
+                                Kalibrieren
+                            </Button>
                         </div>
                     </div>
                 )}
-                {feedback === 'correct' && <div className="absolute inset-0 bg-emerald-500/90 flex items-center justify-center font-black text-3xl animate-in fade-in">VOLLTREFFER! 🎯</div>}
-                {feedback === 'wrong' && <div className="absolute inset-0 bg-rose-500/90 flex items-center justify-center font-black text-3xl animate-in fade-in">DANEBEN! ⚠️</div>}
+                {feedback === 'correct' && <div className="absolute inset-0 bg-emerald-500/90 flex items-center justify-center font-black text-2xl sm:text-3xl animate-in fade-in touch-manipulation">VOLLTREFFER! 🎯</div>}
+                {feedback === 'wrong' && <div className="absolute inset-0 bg-rose-500/90 flex items-center justify-center font-black text-2xl sm:text-3xl animate-in fade-in touch-manipulation">DANEBEN! ⚠️</div>}
             </div>
-            {phase === 'aim' && <Button onClick={toss} className="w-full !py-6 bg-sky-600 border-sky-800 text-lg">WURF STARTEN 🚀</Button>}
+            {phase === 'aim' && (
+                <Button
+                    onClick={toss}
+                    className={`w-full py-5 sm:py-6 bg-sky-600 border-sky-800 text-base sm:text-lg min-h-[56px] touch-manipulation ${isTouching ? 'scale-95' : ''}`}
+                    onTouchStart={() => setIsTouching(true)}
+                    onTouchEnd={() => setIsTouching(false)}
+                >
+                    WURF STARTEN 🚀
+                </Button>
+            )}
         </div>
     );
 };
@@ -1113,6 +1217,7 @@ export default function App() {
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [previewEffect, setPreviewEffect] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const questCapNotifiedRef = useRef<Record<string, boolean>>({});
 
   const addToast = (message: string, type: ToastType = 'info') => {
     const id = Date.now().toString(); setToasts(prev => [...prev, { id, message, type }]);
@@ -1123,6 +1228,39 @@ export default function App() {
     if (!currentQuest) return []; return TaskFactory.getTasksForUnit(currentQuest.unit.id, currentQuest.type);
   }, [currentQuest]);
 
+  const startQuest = async (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty') => {
+    if (!user) return;
+
+    if (type === 'bounty') {
+      const alreadyCleared = user.bountyPayoutClaimed?.[unit.id] ?? false;
+      if (alreadyCleared) {
+        addToast('Bounty bereits abgeschlossen – keine Auszahlung mehr.', 'info');
+        return;
+      }
+
+      const entryFee = computeEntryFee(unit.bounty);
+      if (user.coins < entryFee) {
+        addToast(`Nicht genug Coins (${user.coins}/${entryFee})`, 'error');
+        return;
+      }
+
+      try {
+        const updatedUser = await QuestService.startBountyAttempt(user, unit.id, entryFee);
+        setUser(updatedUser);
+        addToast(`Entry Fee bezahlt: -${entryFee} Coins`, 'info');
+      } catch (error) {
+        console.error('Error deducting bounty entry fee:', error);
+        addToast('Entry Fee konnte nicht abgezogen werden.', 'error');
+        return;
+      }
+    }
+
+    questCapNotifiedRef.current[unit.id] = false;
+    setCurrentQuest({ unit, type });
+    setIsQuestActive(true);
+    setSelectedUnit(null);
+  };
+
   if (!user) return <AuthScreen onLogin={setUser} />;
 
   const activeEffect = (name: string) => user?.activeEffects.includes(name) || previewEffect === name;
@@ -1130,13 +1268,56 @@ export default function App() {
   const triggerCoinAnimation = () => { setIsFlyingCoinActive(true); setTimeout(() => { setIsCoinPulsing(true); setTimeout(() => setIsCoinPulsing(false), 500); }, 900); };
 
   const handleQuestComplete = async (isPerfectRun: boolean) => {
-    if (!currentQuest) return; let u = user;
+    if (!currentQuest || !user) return;
+
+    let nextUser = user;
+
     if (isPerfectRun) {
-        if (currentQuest.type === 'standard') { const alreadyDone = user.completedUnits?.includes(currentQuest.unit.id) ?? false; u = await QuestService.completeStandardQuest(user, currentQuest.unit.id); if (!alreadyDone) { u.coins += currentQuest.unit.coinsReward; addToast(`Quest geschafft! +${currentQuest.unit.coinsReward} Coins`, 'success'); triggerCoinAnimation(); } }
-        else if (currentQuest.type === 'bounty') { const mastered = (user.masteredUnits?.includes(currentQuest.unit.id) ?? false); u = await QuestService.completeBountyQuest(user, currentQuest.unit.id); if (!mastered) { u.coins += currentQuest.unit.bounty; addToast(`BOUNTY KASSIERT! +${currentQuest.unit.bounty} Coins`, 'success'); triggerCoinAnimation(); } }
-        else { u = await QuestService.completePreQuest(user, currentQuest.unit.id); addToast("Training beendet!", "success"); }
+      if (currentQuest.type === 'standard') {
+        try {
+          const { updatedUser, coinsAwarded } = await QuestService.completeStandardQuest(
+            user,
+            currentQuest.unit.id,
+            currentQuest.unit.coinsReward
+          );
+          nextUser = updatedUser;
+          if (coinsAwarded > 0) {
+            addToast(`Quest geschafft! +${coinsAwarded} Coins`, 'success');
+            triggerCoinAnimation();
+          } else {
+            addToast('Quest-Limit erreicht – keine weitere Auszahlung für diese Unit.', 'info');
+          }
+        } catch (error) {
+          console.error('Error completing standard quest:', error);
+          addToast('Quest-Abschluss fehlgeschlagen.', 'error');
+        }
+      } else if (currentQuest.type === 'bounty') {
+        try {
+          const { updatedUser, coinsAwarded } = await QuestService.completeBountyQuest(
+            user,
+            currentQuest.unit.id,
+            currentQuest.unit.bounty
+          );
+          nextUser = updatedUser;
+          if (coinsAwarded > 0) {
+            addToast(`BOUNTY KASSIERT! +${coinsAwarded} Coins`, 'success');
+            triggerCoinAnimation();
+          } else {
+            addToast('Bounty-Belohnung wurde bereits eingesackt.', 'info');
+          }
+        } catch (error) {
+          console.error('Error completing bounty quest:', error);
+          addToast('Bounty-Abschluss fehlgeschlagen.', 'error');
+        }
+      } else {
+        nextUser = await QuestService.completePreQuest(user, currentQuest.unit.id);
+        addToast('Training beendet!', 'success');
+      }
     }
-    setUser(u); setIsQuestActive(false); setCurrentQuest(null);
+
+    setUser(nextUser);
+    setIsQuestActive(false);
+    setCurrentQuest(null);
   };
 
   const handlePreview = async (item: ShopItem, cost: number) => {
@@ -1191,7 +1372,15 @@ export default function App() {
         </>
       )}
 
-      {selectedUnit && <UnitView unit={selectedUnit} user={user} onClose={() => setSelectedUnit(null)} onStartQuest={(unit, type) => { setCurrentQuest({unit, type}); setIsQuestActive(true); setSelectedUnit(null); }} />}
+      {selectedUnit && (
+        <UnitView
+          unit={selectedUnit}
+          user={user}
+          bountyCompleted={Boolean(user.bountyPayoutClaimed?.[selectedUnit.id])}
+          onClose={() => setSelectedUnit(null)}
+          onStartQuest={startQuest}
+        />
+      )}
       {isInventoryOpen && <InventoryModal user={user} onClose={() => setIsInventoryOpen(false)} onToggleEffect={async e => { const u = {...user, activeEffects: user.activeEffects.includes(e) ? user.activeEffects.filter(x => x !== e) : [...user.activeEffects, e]}; setUser(u); await DataService.updateUser(u); }} onAvatarChange={async v => { const u = {...user, avatar: v}; setUser(u); await DataService.updateUser(u); }} onSkinChange={async s => { const u = {...user, calculatorSkin: s}; setUser(u); await DataService.updateUser(u); }} />}
 
       {isQuestActive && currentQuest && (
@@ -1208,7 +1397,68 @@ export default function App() {
                       </div>
                   </div>
               ) : (
-                  <QuestExecutionView unit={currentQuest.unit} tasks={tasksForCurrentQuest} isBountyMode={currentQuest.type === 'bounty'} onTaskCorrect={async (t, w) => { const { updatedUser } = await QuestService.awardCoinsForQuestion(user, t.id, 10 + w); setUser(updatedUser); triggerCoinAnimation(); }} onComplete={handleQuestComplete} onCancel={() => setIsQuestActive(false)} />
+                  <QuestExecutionView
+                      unit={currentQuest.unit}
+                      tasks={tasksForCurrentQuest}
+                      isBountyMode={currentQuest.type === 'bounty'}
+                      user={user}
+                      onTaskCorrect={async (task, wager) => {
+                        if (!currentQuest) return;
+                        const questMode = currentQuest.type === 'bounty' ? 'bounty' : 'standard';
+                        try {
+                          const { updatedUser, coinsAwarded } = await QuestService.awardCoinsForQuestion(
+                            user,
+                            currentQuest.unit.id,
+                            task.id,
+                            10 + wager,
+                            questMode
+                          );
+                          setUser(updatedUser);
+                          if (coinsAwarded > 0) {
+                            triggerCoinAnimation();
+                          } else if (questMode === 'standard') {
+                            if (!questCapNotifiedRef.current[currentQuest.unit.id]) {
+                              questCapNotifiedRef.current[currentQuest.unit.id] = true;
+                              addToast('Quest-Limit erreicht: keine weiteren Bonus-Coins in dieser Unit.', 'info');
+                            }
+                          }
+                        } catch (error) {
+                          console.error('Error awarding coins for question:', error);
+                          addToast('Coin-Belohnung fehlgeschlagen.', 'error');
+                        }
+                      }}
+                      onCoinsChange={async (delta) => {
+                        if (!currentQuest) return;
+                        const questMode = currentQuest.type === 'bounty' ? 'bounty' : 'standard';
+                        try {
+                          const { updatedUser, coinsDelta } = await QuestService.adjustCoinsForQuest(
+                            user,
+                            currentQuest.unit.id,
+                            delta,
+                            questMode
+                          );
+                          setUser(updatedUser);
+                          if (delta > 0) {
+                            if (coinsDelta > 0) {
+                              triggerCoinAnimation();
+                              addToast(`+${coinsDelta} Coins`, 'success');
+                            } else if (questMode === 'standard') {
+                              if (!questCapNotifiedRef.current[currentQuest.unit.id]) {
+                                questCapNotifiedRef.current[currentQuest.unit.id] = true;
+                                addToast('Quest-Limit erreicht: keine weiteren Bonus-Coins in dieser Unit.', 'info');
+                              }
+                            }
+                          } else if (delta < 0) {
+                            addToast(`${delta} Coins`, 'info');
+                          }
+                        } catch (error) {
+                          console.error('Error adjusting coins:', error);
+                          addToast('Coin-Anpassung fehlgeschlagen.', 'error');
+                        }
+                      }}
+                      onComplete={handleQuestComplete}
+                      onCancel={() => setIsQuestActive(false)}
+                  />
               )}
           </div>
       )}
@@ -1216,9 +1466,33 @@ export default function App() {
   );
 }
 
-const UnitView: React.FC<{ unit: LearningUnit; user: User; onClose: () => void; onStartQuest: (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty') => void; }> = ({ unit, user, onClose, onStartQuest }) => {
+const UnitView: React.FC<{
+  unit: LearningUnit;
+  user: User;
+  bountyCompleted: boolean;
+  onClose: () => void;
+  onStartQuest: (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty') => Promise<void> | void;
+}> = ({ unit, user, bountyCompleted, onClose, onStartQuest }) => {
     const [activeTab, setActiveTab] = useState<'info' | 'pre' | 'standard' | 'bounty'>('info');
+    const [isStartingBounty, setIsStartingBounty] = useState(false);
     const definition = GEOMETRY_DEFINITIONS.find(d => d.id === unit.definitionId);
+    const entryFee = computeEntryFee(unit.bounty);
+    const insufficientCoins = user.coins < entryFee;
+
+    const handleBountyStart = async () => {
+        if (isStartingBounty) return;
+        setIsStartingBounty(true);
+        try {
+            // Small delay to ensure state updates
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await onStartQuest(unit, 'bounty');
+            // Reset after transition
+            setTimeout(() => setIsStartingBounty(false), 500);
+        } catch (error) {
+            console.error('Error starting bounty:', error);
+            setIsStartingBounty(false);
+        }
+    };
     return (
         <ModalOverlay onClose={onClose}>
             <div className="bg-white rounded-[3rem] p-10 max-w-3xl w-full mx-auto relative shadow-2xl border-8 border-slate-50 animate-in zoom-in-95 duration-300">
@@ -1256,14 +1530,449 @@ const UnitView: React.FC<{ unit: LearningUnit; user: User; onClose: () => void; 
                     )}
                     {activeTab === 'pre' && <div className="text-center py-16 space-y-8 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200"><div className="text-7xl animate-bounce">🕹️</div><h4 className="text-2xl font-black italic text-slate-900">Training Session</h4><p className="font-bold text-slate-400 text-sm max-w-sm mx-auto uppercase tracking-tighter italic">Lerne die Mechaniken spielerisch kennen.</p><Button onClick={() => onStartQuest(unit, 'pre')} className="w-full max-w-xs mx-auto !py-5 shadow-xl">Start Training</Button></div>}
                     {activeTab === 'standard' && <div className="text-center py-16 space-y-8 bg-indigo-50/50 rounded-[3rem] border-2 border-indigo-100"><div className="text-7xl">🎯</div><h4 className="text-2xl font-black italic text-indigo-900">Quest Modus</h4><p className="font-bold text-slate-400 text-sm max-w-sm mx-auto">Standard-Fragen zum Thema. Belohnung: <span className="text-amber-500 font-black">{unit.coinsReward} Coins</span>.</p><Button onClick={() => onStartQuest(unit, 'standard')} className="w-full max-w-xs mx-auto !py-5">Quiz starten</Button></div>}
-                    {activeTab === 'bounty' && <div className="text-center py-16 space-y-8 bg-slate-900 rounded-[3rem] border-4 border-amber-500/30 text-white"><div className="text-7xl">🏴‍☠️</div><h4 className="text-2xl font-black italic text-amber-400">Bounty Hunt</h4><p className="font-bold text-slate-500 text-sm max-w-sm mx-auto uppercase italic">Zeitlimit & Extra-Schwer.<br/>Extra Reward: <span className="text-amber-400 font-black">+{unit.bounty} Coins</span>!</p><Button variant="danger" onClick={() => onStartQuest(unit, 'bounty')} className="w-full max-w-xs mx-auto !py-5 shadow-2xl">Accept Bounty ⚔️</Button></div>}
+                    {activeTab === 'bounty' && (
+                      <div className="text-center py-16 space-y-6 bg-slate-900 rounded-[3rem] border-4 border-amber-500/30 text-white">
+                        <div className="text-7xl">🏴‍☠️</div>
+                        <h4 className="text-2xl font-black italic text-amber-400">Bounty Hunt</h4>
+                        <p className="font-bold text-slate-500 text-sm max-w-sm mx-auto uppercase italic">
+                          Zeitlimit & Extra-Schwer.<br />
+                          Extra Reward: <span className="text-amber-400 font-black">+{unit.bounty} Coins</span> (einmalig).
+                        </p>
+                        <p className="text-xs font-black tracking-widest text-slate-300">
+                          Entry Fee: <span className="text-amber-300">-{entryFee} Coins</span> • Reward bei Erfolg: <span className="text-emerald-300">+{unit.bounty} Coins</span>
+                        </p>
+                        {bountyCompleted && (
+                          <p className="text-[11px] font-black uppercase text-amber-300 max-w-sm mx-auto">
+                            Bounty bereits abgeschlossen – keine weitere Auszahlung. Snooze runs kosten weiterhin Entry Fee.
+                          </p>
+                        )}
+                        <Button
+                          variant="danger"
+                          onClick={handleBountyStart}
+                          disabled={isStartingBounty || bountyCompleted || insufficientCoins}
+                          className="w-full max-w-xs mx-auto !py-5 shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {bountyCompleted
+                            ? 'Bounty gemeistert'
+                            : insufficientCoins
+                            ? `💰 ${user.coins}/${entryFee}`
+                            : isStartingBounty
+                            ? 'Starte...'
+                            : `Accept Bounty ⚔️ (-${entryFee})`}
+                        </Button>
+                      </div>
+                    )}
                 </div>
             </div>
         </ModalOverlay>
     );
 };
 
-const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBountyMode: boolean; onTaskCorrect: (task: Task, wager: number) => void; onComplete: (isPerfect: boolean) => void; onCancel: () => void; }> = ({ unit, tasks, isBountyMode, onTaskCorrect, onComplete, onCancel }) => {
+// --- Angle Measure Task Component ---
+const AngleMeasureTask: React.FC<{
+  task: Task;
+  angleInput: string;
+  setAngleInput: (value: string) => void;
+  disabled?: boolean;
+}> = ({ task, angleInput, setAngleInput, disabled = false }) => {
+  const [hoverAngle, setHoverAngle] = useState<number | null>(null);
+  const [showProtractor, setShowProtractor] = useState(false);
+  const angleData = task.angleData;
+  if (!angleData) return null;
+
+  // Use correct angle directly from task data instead of parsing path
+  const correctAngle = angleData.correctAngle;
+
+  const calculateAngle = (mouseX: number, mouseY: number, svgElement: SVGSVGElement): number => {
+    // Convert mouse coordinates to SVG coordinates
+    const rect = svgElement.getBoundingClientRect();
+    const svgX = ((mouseX - rect.left) / rect.width) * 300;
+    const svgY = ((mouseY - rect.top) / rect.height) * 300;
+
+    // For simplicity, show approximate angle based on mouse position
+    // In a real implementation, you'd parse the path and calculate actual angle
+    // For now, show a range around the correct angle
+    const centerX = 150;
+    const centerY = 150;
+    const dx = svgX - centerX;
+    const dy = centerY - svgY; // Invert Y for screen coordinates
+    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+    const normalizedAngle = angle < 0 ? angle + 360 : angle;
+
+    // Return angle closest to correct angle within reasonable range
+    return Math.round(normalizedAngle);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (disabled) return;
+    const svgElement = e.currentTarget;
+    const angle = calculateAngle(e.clientX, e.clientY, svgElement);
+    // Show angle that's close to correct angle (within ±30° range)
+    const diff = Math.abs(angle - correctAngle);
+    if (diff <= 30 || diff >= 330) {
+      setHoverAngle(correctAngle); // Show correct angle when hovering near it
+    } else {
+      setHoverAngle(angle);
+    }
+    setShowProtractor(true);
+  };
+
+  const handleMouseLeave = () => {
+    setShowProtractor(false);
+    setHoverAngle(null);
+  };
+
+  const handleTap = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (disabled) return;
+    const svgElement = e.currentTarget;
+    const angle = calculateAngle(e.clientX, e.clientY, svgElement);
+    // If close to correct angle, use correct angle; otherwise use calculated
+    const diff = Math.abs(angle - correctAngle);
+    const finalAngle = (diff <= 30 || diff >= 330) ? correctAngle : angle;
+    setAngleInput(finalAngle.toString());
+    setShowProtractor(true);
+    setTimeout(() => setShowProtractor(false), 2000);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (disabled) return;
+    if (!e.touches || e.touches.length === 0) return;
+    const svgElement = e.currentTarget;
+    const t = e.touches[0];
+    const angle = calculateAngle(t.clientX, t.clientY, svgElement);
+    const diff = Math.abs(angle - correctAngle);
+    if (diff <= 30 || diff >= 330) {
+      setHoverAngle(correctAngle);
+    } else {
+      setHoverAngle(angle);
+    }
+    setShowProtractor(true);
+    e.preventDefault();
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (disabled) return;
+    const svgElement = e.currentTarget;
+    const t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]);
+    if (!t) {
+      setShowProtractor(false);
+      setHoverAngle(null);
+      return;
+    }
+    const angle = calculateAngle(t.clientX, t.clientY, svgElement);
+    const diff = Math.abs(angle - correctAngle);
+    const finalAngle = (diff <= 30 || diff >= 330) ? correctAngle : angle;
+    setAngleInput(finalAngle.toString());
+    setShowProtractor(true);
+    setTimeout(() => setShowProtractor(false), 2000);
+    e.preventDefault();
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-4">
+      <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center relative">
+        <svg
+          viewBox="0 0 300 300"
+          className="w-full h-full cursor-crosshair touch-manipulation"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          onClick={handleTap}
+          onTouchStart={handleTouchMove}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleMouseLeave}
+        >
+          {/* Original angle path */}
+          <path d={angleData.path} fill="none" stroke="currentColor" strokeWidth="3" />
+
+          {/* Protractor overlay when hovering */}
+          {showProtractor && hoverAngle !== null && (
+            <>
+              {/* Angle label */}
+              <text
+                x="150"
+                y="80"
+                textAnchor="middle"
+                className="text-sm font-bold fill-indigo-600"
+              >
+                ≈ {hoverAngle}°
+              </text>
+              {/* Guide line from center */}
+              <line
+                x1="150"
+                y1="150"
+                x2="200"
+                y2="100"
+                stroke="#6366f1"
+                strokeWidth="2"
+                strokeDasharray="5,5"
+                opacity="0.5"
+              />
+            </>
+          )}
+        </svg>
+        {showProtractor && hoverAngle !== null && (
+          <div className="absolute top-2 left-2 bg-indigo-600 text-white px-3 py-1 rounded-lg text-xs font-bold">
+            {hoverAngle}°
+          </div>
+        )}
+      </div>
+      <div className="w-full max-w-xs">
+        <p className="text-sm font-bold text-slate-600 mb-2">
+          {showProtractor ? 'Bewege die Maus über die Figur oder tippe, um den Winkel zu messen' : 'Messe den Winkel:'}
+        </p>
+        <input
+          type="number"
+          value={angleInput}
+          onChange={(e) => setAngleInput(e.target.value)}
+          placeholder="Winkel in Grad"
+          disabled={disabled}
+          min="0"
+          max="180"
+          className="w-full p-4 text-xl font-black rounded-2xl border-4 border-slate-100 focus:border-indigo-500 bg-slate-50 outline-none"
+        />
+      </div>
+    </div>
+  );
+};
+
+// --- Multi-Angle Throw Training Component ---
+const MultiAngleThrowTraining: React.FC<{
+  task: Task;
+  user: User;
+  onComplete: (success: boolean, hitsCount: number) => void;
+  onCoinsChange: (delta: number) => void;
+}> = ({ task, user, onComplete, onCoinsChange }) => {
+  const data = task.multiAngleThrowData;
+  if (!data) return null;
+
+  const [angles, setAngles] = useState<number[]>([]);
+  const [angleInput, setAngleInput] = useState('');
+  const [isRunning, setIsRunning] = useState(false);
+  const [currentThrowIdx, setCurrentThrowIdx] = useState(-1);
+  const [results, setResults] = useState<Array<{ angle: number; hit: boolean; delta: number }>>([]);
+  const [coinsDeducted, setCoinsDeducted] = useState(false);
+  const [roundStarted, setRoundStarted] = useState(false);
+
+  const addAngle = () => {
+    const val = parseFloat(angleInput);
+    if (!isNaN(val) && val >= 0 && val <= 180 && angles.length < data.maxAngles) {
+      setAngles([...angles, val]);
+      setAngleInput('');
+    }
+  };
+
+  const removeAngle = (idx: number) => {
+    setAngles(angles.filter((_, i) => i !== idx));
+    // Reset round state if all angles cleared
+    if (angles.length === 1) {
+      setRoundStarted(false);
+      setCoinsDeducted(false);
+    }
+  };
+
+  const startThrows = () => {
+    if (angles.length === 0) return;
+    if (user.coins < data.startCost) {
+      alert(`Nicht genug Coins! Du brauchst ${data.startCost} Coins.`);
+      return;
+    }
+    if (coinsDeducted) {
+      alert('Du hast bereits für diese Runde bezahlt. Starte eine neue Runde, indem du alle Winkel löschst.');
+      return;
+    }
+    // Deduct coins
+    onCoinsChange(-data.startCost);
+    setCoinsDeducted(true);
+    setRoundStarted(true);
+    setIsRunning(true);
+    setCurrentThrowIdx(0);
+    setResults([]);
+  };
+
+  const calculateTrajectory = (angle: number, progress: number) => {
+    const radians = (angle * Math.PI) / 180;
+    const maxDist = 250;
+    const maxHeight = 120;
+    const x = progress * maxDist;
+    const parabola = Math.sin(radians) * (maxDist - x) * (x / maxDist);
+    const y = Math.max(0, parabola * (maxHeight / 120));
+    return { x, y };
+  };
+
+  // Simulate throw animation and evaluate
+  useEffect(() => {
+    if (!isRunning || currentThrowIdx < 0 || currentThrowIdx >= angles.length) return;
+
+    let frameCount = 0;
+    const interval = setInterval(() => {
+      frameCount++;
+      if (frameCount > 60) {
+        // Throw finished - check if hit
+        const angle = angles[currentThrowIdx];
+        const tolerance = data.tolerance || 5;
+        const delta = Math.abs(angle - data.targetAngle);
+        const isHit = delta <= tolerance;
+
+        const newResult = { angle, hit: isHit, delta };
+        setResults(prev => [...prev, newResult]);
+
+        // Award coins for hit
+        if (isHit) {
+          onCoinsChange(data.hitReward);
+        }
+
+        if (currentThrowIdx < angles.length - 1) {
+          setCurrentThrowIdx(currentThrowIdx + 1);
+          frameCount = 0;
+        } else {
+          // All throws done
+          setIsRunning(false);
+          const hits = [...results, newResult].filter(r => r.hit).length;
+          setTimeout(() => onComplete(hits > 0, hits), 1500);
+        }
+      }
+    }, 50);
+    return () => clearInterval(interval);
+  }, [isRunning, currentThrowIdx, angles, results, data, onComplete, onCoinsChange]);
+
+  const currentAngle = currentThrowIdx >= 0 && currentThrowIdx < angles.length ? angles[currentThrowIdx] : null;
+  const animProgress = Math.min(1, (Date.now() % 3000) / 3000);
+  const throwPos = currentAngle !== null ? calculateTrajectory(currentAngle, animProgress) : { x: 0, y: 0 };
+  const hitsCount = results.filter(r => r.hit).length;
+
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-b from-blue-50 to-cyan-50 rounded-2xl">
+      <h2 className="text-2xl font-black mb-4 text-center">🎯 Winkel-Wurf-Training</h2>
+      <p className="text-sm text-slate-600 mb-6 text-center">
+        Ziel: <span className="font-bold text-indigo-600">{data.targetAngle}°</span> |
+        Toleranz: <span className="font-bold">±{data.tolerance || 5}°</span>
+      </p>
+
+      {!isRunning ? (
+        <div className="w-full max-w-md space-y-4">
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <input
+                type="number"
+                value={angleInput}
+                onChange={(e) => setAngleInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addAngle()}
+                placeholder="Winkel eingeben (0-180°)"
+                disabled={angles.length >= data.maxAngles || roundStarted}
+                min="0"
+                max="180"
+                step="1"
+                className="flex-1 px-4 py-3 border-2 border-indigo-200 rounded-lg focus:outline-none focus:border-indigo-500 text-center font-bold"
+              />
+              <Button onClick={addAngle} variant="primary" disabled={angles.length >= data.maxAngles || roundStarted}>
+                Hinzu
+              </Button>
+            </div>
+
+            {angles.length > 0 && (
+              <div className="bg-white rounded-lg border-2 border-indigo-100 p-4">
+                <div className="text-xs font-black text-slate-400 mb-2">EINGEGEBEN: {angles.length}/{data.maxAngles}</div>
+                <div className="flex flex-wrap gap-2">
+                  {angles.map((angle, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2"
+                    >
+                      {angle}°
+                      {!roundStarted && (
+                        <button
+                          onClick={() => removeAngle(idx)}
+                          className="ml-1 font-bold hover:text-rose-600 transition-colors"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-3 text-xs font-bold text-yellow-800">
+            💰 Kosten: {data.startCost} Coins | 💵 Gewinn pro Treffer: {data.hitReward} Coins
+            {roundStarted && results.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-yellow-300">
+                Treffer: {hitsCount} | Gewinn: +{hitsCount * data.hitReward} Coins
+              </div>
+            )}
+          </div>
+
+          <Button
+            onClick={startThrows}
+            disabled={angles.length === 0 || coinsDeducted || user.coins < data.startCost}
+            size="lg"
+            className="w-full bg-emerald-600 hover:bg-emerald-500 border-b-4 border-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {user.coins < data.startCost ? `💰 Nicht genug Coins (${user.coins}/${data.startCost})` : '🚀 Starte Würfe'}
+          </Button>
+        </div>
+      ) : (
+        <div className="w-full max-w-md space-y-6">
+          {/* SVG Animation Area */}
+          <svg viewBox="0 0 300 200" className="w-full border-2 border-indigo-300 rounded-lg bg-white">
+            {/* Target */}
+            <circle cx="270" cy="80" r="15" fill="none" stroke="#ef4444" strokeWidth="2" />
+            <text x="270" y="110" textAnchor="middle" className="text-xs font-bold fill-red-600">
+              🎯 {data.targetAngle}°
+            </text>
+
+            {/* Throw bottle trajectory */}
+            {currentAngle !== null && (
+              <>
+                {/* Trajectory arc */}
+                <path
+                  d={`M 20,150 Q 150,${150 - Math.sin((currentAngle * Math.PI) / 180) * 80} 260,80`}
+                  stroke="#6366f1"
+                  strokeWidth="2"
+                  fill="none"
+                  strokeDasharray="5,5"
+                  opacity="0.5"
+                />
+                {/* Bottle */}
+                <circle cx={throwPos.x + 20} cy={150 - throwPos.y} r="8" fill="#10b981" />
+              </>
+            )}
+
+            {/* Ground */}
+            <line x1="0" y1="160" x2="300" y2="160" stroke="#cbd5e1" strokeWidth="2" />
+          </svg>
+
+          <div className="text-center">
+            <p className="text-sm font-bold text-slate-600">
+              Wurf {currentThrowIdx + 1}/{angles.length}
+            </p>
+            <p className="text-lg font-black text-indigo-600">
+              {currentAngle !== null ? `${currentAngle}°` : '---'}
+            </p>
+          </div>
+
+          {/* Results so far */}
+          {results.length > 0 && (
+            <div className="bg-slate-50 rounded-lg p-3 space-y-2 max-h-32 overflow-y-auto">
+              {results.map((r, idx) => (
+                <div key={idx} className={`text-xs font-bold p-2 rounded flex justify-between ${r.hit ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                  <span>Wurf {idx + 1}:</span>
+                  <span>
+                    {r.angle}° {r.hit ? '✓ TREFFER' : `✗ Verfehlt (Δ${r.delta}°)`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBountyMode: boolean; user: User; onTaskCorrect: (task: Task, wager: number) => void; onCoinsChange: (delta: number) => void; onComplete: (isPerfect: boolean) => void; onCancel: () => void; }> = ({ unit, tasks, isBountyMode, user, onTaskCorrect, onCoinsChange, onComplete, onCancel }) => {
     const [currentIdx, setCurrentIdx] = useState(0);
     const [mistakes, setMistakes] = useState(0);
     const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
@@ -1275,6 +1984,8 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
     const [angleInput, setAngleInput] = useState('');
     const [sliderValue, setSliderValue] = useState<number>(1);
     const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
+    const [multiAngleThrowHits, setMultiAngleThrowHits] = useState<number>(0);
+    const [multiInputValues, setMultiInputValues] = useState<Record<string, string>>({});
 
     useEffect(() => {
         if (isBountyMode && !feedback && tasks.length > 0) {
@@ -1283,11 +1994,26 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
         }
     }, [isBountyMode, feedback, currentIdx, tasks.length]);
 
+    // Initialize slider value when task changes
+    useEffect(() => {
+        const task = tasks[currentIdx];
+        if (task?.type === 'sliderTransform' && task.sliderData) {
+            // Initialize to middle of range or minK
+            const initialValue = task.sliderData.minK || 1;
+            setSliderValue(initialValue);
+        }
+    }, [currentIdx, tasks]);
+
     const handleVerify = () => {
         const task = tasks[currentIdx];
         let isCorrect = false;
 
-        if (task.type === 'dragDrop' && task.dragDropData) {
+        if (task.multiInputFields && task.multiInputFields.length > 0) {
+            isCorrect = task.multiInputFields.every(field => {
+                const value = multiInputValues[field.id] || '';
+                return value.trim() !== '' && validateAnswer(value, field.validator);
+            });
+        } else if (task.type === 'dragDrop' && task.dragDropData) {
             const answerMap = JSON.parse(String(task.correctAnswer));
             const allSelected = Object.keys(answerMap).every(key => classification[key]);
             if (!allSelected) {
@@ -1297,13 +2023,19 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
         } else if (task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') {
             isCorrect = selectedOption === task.correctAnswer || (task.type === 'boolean' && (selectedOption === 0 && task.correctAnswer === 'wahr' || selectedOption === 1 && task.correctAnswer === 'falsch'));
         } else if (task.type === 'input' || task.type === 'shorttext') {
+            // Sanitize input to remove formatting/currency symbols
+            const sanitized = sanitizeMathInput(textInput);
             const clean = (s: string) => s.replace(/\s+/g, '').toLowerCase();
-            const userAns = clean(textInput);
+            const userAns = clean(sanitized);
             if (userAns === '') {
                 isCorrect = false;
             } else {
-                const correctAnswers = String(task.correctAnswer).split(',').map(s => clean(s.trim()));
-                isCorrect = correctAnswers.some(ans => userAns.includes(ans));
+                if (task.validator) {
+                    isCorrect = validateAnswer(textInput, task.validator);
+                } else {
+                    const correctAnswers = String(task.correctAnswer).split(',').map(s => clean(sanitizeMathInput(s.trim())));
+                    isCorrect = correctAnswers.some(ans => userAns.includes(ans));
+                }
             }
         } else if (task.type === 'visualChoice') {
             isCorrect = selectedOption === task.correctAnswer;
@@ -1313,7 +2045,10 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
             isCorrect = Math.abs(userAngle - correctAngle) <= 5; // ±5° tolerance
         } else if (task.type === 'sliderTransform' && task.sliderData) {
             const correctK = task.sliderData.correctK;
-            isCorrect = Math.abs(sliderValue - correctK) <= 0.1; // ±0.1 tolerance
+            // Round to one decimal using Math.round to avoid floating drift
+            const currentValue = Math.round(sliderValue * 10) / 10;
+            const targetValue = Math.round(correctK * 10) / 10;
+            isCorrect = Math.abs(currentValue - targetValue) <= 0.1 + 1e-6; // allow small epsilon
         } else if (task.type === 'areaDecomposition' && task.decompositionData) {
             const allPartsSelected = task.decompositionData.parts?.every((part: any) => selectedParts.has(part.label)) || false;
             if (allPartsSelected) {
@@ -1321,6 +2056,9 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                 const userAnswer = parseInt(textInput) || 0;
                 isCorrect = Math.abs(userAnswer - totalArea) <= 1; // ±1 tolerance
             }
+        } else if (task.type === 'multiAngleThrow' && task.multiAngleThrowData) {
+            // MultiAngleThrow is handled by the component itself, mark as correct if hits > 0
+            isCorrect = multiAngleThrowHits > 0;
         }
 
         if (isCorrect) {
@@ -1343,9 +2081,22 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
             setAngleInput('');
             setSliderValue(1);
             setSelectedParts(new Set());
+            setMultiAngleThrowHits(0);
+            setMultiInputValues({});
             setTimeLeft(60);
         } else {
             onComplete(mistakes === 0);
+        }
+    };
+
+    const handleMultiAngleThrowComplete = (success: boolean, hitsCount: number) => {
+        setMultiAngleThrowHits(hitsCount);
+        if (success && hitsCount > 0) {
+            setFeedback('correct');
+            onTaskCorrect(tasks[currentIdx], 0);
+        } else {
+            setFeedback('wrong');
+            setMistakes(m => m + 1);
         }
     };
 
@@ -1415,49 +2166,15 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                         </>
                     )}
                     {task.type === 'dragDrop' && task.dragDropData && (
-                        <div className="grid grid-cols-1 gap-4">
-                            <p className="text-sm font-bold text-slate-600 mb-2">Ordne jede Figur der passenden Kategorie zu:</p>
-                            <div className="space-y-6">
-                                {task.dragDropData.shapes?.map((shape: any) => (
-                                    <div key={shape.id} className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-200 flex items-center gap-4">
-                                        <svg viewBox="0 0 200 150" className="w-24 h-16 shrink-0">
-                                            <path d={shape.path} fill="none" stroke="currentColor" strokeWidth="3" />
-                                        </svg>
-                                        <select
-                                            value={classification[shape.id] || ''}
-                                            onChange={(e) => setClassification({ ...classification, [shape.id]: e.target.value })}
-                                            className="flex-1 p-3 rounded-xl border-2 bg-white text-sm font-black"
+                        <DragDropTask
+                            task={task}
+                            classification={classification}
+                            onClassificationChange={setClassification}
                                             disabled={!!feedback}
-                                        >
-                                            <option value="" disabled>– Kategorie wählen –</option>
-                                            {task.dragDropData.categories.map((cat: any) => (
-                                                <option key={cat.id} value={cat.id}>{cat.label}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+                        />
                     )}
                     {task.type === 'angleMeasure' && task.angleData && (
-                        <div className="flex flex-col items-center gap-4">
-                            <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center">
-                                <svg viewBox="0 0 300 300" className="w-full h-full">
-                                    <path d={task.angleData.path} fill="none" stroke="currentColor" strokeWidth="3" />
-                                </svg>
-                            </div>
-                            <div className="w-full max-w-xs">
-                                <p className="text-sm font-bold text-slate-600 mb-2">Messe den Winkel:</p>
-                                <input
-                                    type="number"
-                                    value={angleInput}
-                                    onChange={(e) => setAngleInput(e.target.value)}
-                                    placeholder="Winkel in Grad"
-                                    disabled={!!feedback}
-                                    className="w-full p-4 text-xl font-black rounded-2xl border-4 border-slate-100 focus:border-indigo-500 bg-slate-50 outline-none"
-                                />
-                            </div>
-                        </div>
+                        <AngleMeasureTask task={task} angleInput={angleInput} setAngleInput={setAngleInput} disabled={!!feedback} />
                     )}
                     {task.type === 'sliderTransform' && task.sliderData && (
                         <div className="flex flex-col items-center gap-4">
@@ -1474,10 +2191,26 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                                     max={task.sliderData.maxK}
                                     step="0.1"
                                     value={sliderValue}
-                                    onChange={(e) => setSliderValue(parseFloat(e.target.value))}
+                                    onChange={(e) => {
+                                        const newValue = parseFloat(e.target.value);
+                                        if (!isNaN(newValue)) {
+                                            setSliderValue(newValue);
+                                        }
+                                    }}
+                                    onInput={(e) => {
+                                        // Ensure value updates on drag
+                                        const newValue = parseFloat((e.target as HTMLInputElement).value);
+                                        if (!isNaN(newValue)) {
+                                            setSliderValue(newValue);
+                                        }
+                                    }}
                                     disabled={!!feedback}
-                                    className="w-full"
+                                    className="w-full cursor-pointer"
+                                    style={{ pointerEvents: feedback ? 'none' : 'auto' }}
                                 />
+                                <div className="text-xs text-center text-slate-500 mt-1">
+                                    Ziel: k = {task.sliderData.correctK.toFixed(1)} (±0.1)
+                                </div>
                             </div>
                         </div>
                     )}
@@ -1522,20 +2255,56 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                             </div>
                         </div>
                     )}
-                    {(task.type === 'input' || task.type === 'shorttext') && (
-                        <div className="relative z-10">
-                            <input
-                                type="text"
-                                value={textInput}
-                                onChange={e => setTextInput(e.target.value)}
-                                disabled={!!feedback}
-                                placeholder="Antwort..."
-                                autoFocus
-                                readOnly={!!feedback}
-                                className={`w-full p-8 text-3xl font-black rounded-[2.5rem] border-4 outline-none text-center bg-white border-slate-100 focus:border-indigo-500 shadow-inner focus:ring-4 focus:ring-indigo-200 transition-all ${isBountyMode ? 'bounty-input' : ''} ${feedback ? 'opacity-50 cursor-not-allowed' : 'cursor-text'}`}
-                                style={{ pointerEvents: feedback ? 'none' : 'auto', WebkitUserSelect: 'text', userSelect: 'text' }}
-                            />
+                    {task.multiInputFields && task.multiInputFields.length > 0 ? (
+                        <div className="space-y-4">
+                            {task.multiInputFields.map(field => (
+                                <div key={field.id} className="flex flex-col gap-2">
+                                    <label className="text-xs font-black uppercase text-slate-500 tracking-widest">{field.label}</label>
+                                    <input
+                                        type="text"
+                                        value={multiInputValues[field.id] || ''}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setMultiInputValues(prev => ({ ...prev, [field.id]: val }));
+                                        }}
+                                        disabled={!!feedback}
+                                        placeholder={field.placeholder || 'Antwort...'}
+                                        className={`w-full p-5 text-xl font-black rounded-3xl border-4 outline-none bg-white border-slate-100 focus:border-indigo-500 shadow-inner transition-all ${feedback ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        style={{ pointerEvents: feedback ? 'none' : 'auto', WebkitUserSelect: 'text', userSelect: 'text' }}
+                                    />
+                                </div>
+                            ))}
                         </div>
+                    ) : (
+                        (task.type === 'input' || task.type === 'shorttext') && (
+                            <div className="relative z-10">
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9.,-]*"
+                                    value={textInput}
+                                    onChange={e => {
+                                        // Apply sanitization on change to prevent formatting symbols
+                                        const sanitized = sanitizeMathInput(e.target.value);
+                                        setTextInput(sanitized);
+                                    }}
+                                    disabled={!!feedback}
+                                    placeholder="Antwort..."
+                                    autoFocus
+                                    readOnly={!!feedback}
+                                    className={`w-full p-8 text-3xl font-black rounded-[2.5rem] border-4 outline-none text-center bg-white border-slate-100 focus:border-indigo-500 shadow-inner focus:ring-4 focus:ring-indigo-200 transition-all ${isBountyMode ? 'bounty-input' : ''} ${feedback ? 'opacity-50 cursor-not-allowed' : 'cursor-text'}`}
+                                    style={{ pointerEvents: feedback ? 'none' : 'auto', WebkitUserSelect: 'text', userSelect: 'text' }}
+                                />
+                            </div>
+                        )
+                    )}
+                    {task.type === 'multiAngleThrow' && task.multiAngleThrowData && (
+                        <MultiAngleThrowTraining
+                            task={task}
+                            user={user}
+                            onComplete={handleMultiAngleThrowComplete}
+                            onCoinsChange={onCoinsChange}
+                        />
                     )}
                 </div>
                 {!feedback ? (
@@ -1544,12 +2313,17 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                         className="w-full mt-10 shadow-2xl"
                         onClick={handleVerify}
                         disabled={
+                            (task.multiInputFields && task.multiInputFields.length > 0 && task.multiInputFields.some(field => {
+                                const value = multiInputValues[field.id] || '';
+                                return value.trim() === '';
+                            })) ||
                             ((task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') && selectedOption === null) ||
                             ((task.type === 'input' || task.type === 'shorttext') && textInput === '') ||
                             (task.type === 'visualChoice' && selectedOption === null) ||
                             (task.type === 'angleMeasure' && angleInput === '') ||
                             (task.type === 'areaDecomposition' && (selectedParts.size === 0 || textInput === '')) ||
-                            (task.type === 'dragDrop' && task.dragDropData && task.dragDropData.shapes && task.dragDropData.shapes.some((shape: any) => !classification[shape.id]))
+                            (task.type === 'dragDrop' && task.dragDropData && task.dragDropData.shapes && task.dragDropData.shapes.some((shape: any) => !classification[shape.id])) ||
+                            (task.type === 'multiAngleThrow')
                         }
                     >
                         Überprüfen 🎯

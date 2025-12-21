@@ -1,0 +1,19 @@
+## Bounty Expansion Plan
+
+### Phase 0 Snapshot
+- **Task storage**: Standard quests and placeholder bounty questions are generated in `services/taskFactory.ts`. A richer catalog with `preTasks`/`bountyTasks` already lives in `services/segments.ts`, but it is not yet wired into the quest flow. `QuestExecutionView` currently consumes whatever `TaskFactory.getTasksForUnit()` returns.
+- **Progress tracking**: The `User` object (see `types.ts`) persists via `DataService`/localStorage (`services/apiService.ts`). Fields such as `completedUnits`, `masteredUnits`, `solvedQuestionIds`, and `questionCoins` gate access to quests/bounties.
+- **Coin persistence**: Per-question payouts go through `QuestService.awardCoinsForQuestion`, which updates `user.coins` and `totalEarned` before syncing through `DataService`. Quest/Bounty lump rewards are applied inside `App.tsx` when `handleQuestComplete` fires; new caps/fees must hook into this pipeline so both `user` state and storage stay consistent.
+
+### Planned Additions by Unit
+| Unit | Existing bounty question(s) | Additions (A/B/Special) | Reward (coins) | Entry fee (coins) | Validator focus |
+| --- | --- | --- | --- | --- | --- |
+| **u1 – Figuren/Vierecke** | Single multiple-choice prompt from `TaskFactory.generateBountyTask` (“Welches Statement ist präzise?”). | **A:** Multi-part classification (identify Raute + cite non-guaranteed property).<br>**B:** Truth-value correction about Parallelogramme inkl. kurze Begründung + korrekte Aussage.<br>**Special:** Coordinate geometry – find D for Parallelogramm ABCD (A(1\|1), B(4\|2), C(6\|5)). | 300 | 45 | Multi-field keyword matching (synonyms + negations) and coordinate pair parser with exact match. |
+| **u2 – Winkel & Beziehungen** | Single input task (rechtwinkliges Dreieck, Winkel ergänzen). | **A:** Parallel lines & Querlinie – Neben-, Scheitel-, Stufenwinkel aus 38° bestimmen.<br>**B:** Gleichschenkliges Dreieck mit Scheitelwinkel 40° → Basiswinkel.<br>**Special:** Thales-Szenario: ∠CAB=20° auf Halbkreis, ∠CBA berechnen. | 320 | 48 | Ordered numeric tuples with tolerance for variant answers; scalar numeric sanitize with optional degree sign handling. |
+| **u3 – Flächen & Terme** | Single input: Rechteck mit Seiten (x+2) & (x−1). | **A:** Gartenfläche: Gleichung x(x+5)=300 + positive Lösung.<br>**B:** Multiple-choice Rahmenfläche (richtiger Term 4x² + 140x).<br>**Special:** Gleichsetzung Rechteck vs. rechtwinkliges Dreieck (x=2). | 350 | 53 | Equation normalizer + numeric solver (positive root only); standard choice validator; scalar numeric with zero tolerance. |
+| **u4 – Körper & Oberflächen** | Single input: Würfelvolumen (4 cm). | **A:** Zylindervolumen zu Litern (r=1 m, h=2 m, π≈3,14) → 6280 L mit ±10 L Toleranz.<br>**B:** Multiple-choice Skalierung Würfelkante verdoppeln (V×8, O×4).<br>**Special:** Oberfläche Quader nach Ausfräsung (404 cm²). | 400 | 60 | Numeric tolerance validator (absolute delta), multiple-choice, composite surface computation with integer check. |
+| **u5 – Ähnlichkeit & Maßstab** | Single input: Karte 1:25 000, 4 cm → 1 km. | **A:** Ähnliche Dreiecke AB=6, AC=9, DE=4 → DF=6.<br>**B:** Maßstab 1:50 000, 7 cm → 3,5 km.<br>**Special:** Spiegel/Strahlensatz Baumhöhe (6,4 m). | 380 | 57 | Ratio-based numeric validator allowing fractional/decimal equivalents; enforce rounding to one decimal where specified. |
+| **u6 – Kontext & Anwendung** | Single input: Pythagoras a=6, b=8 → c=10. | **A:** Koordinatenabstand S(2\|3) – B(8\|12) auf 0,1 km genau (10,8 km).<br>**B:** Leiter an Wand (5 m bei 3 m Abstand) multiple choice (4 m).<br>**Special:** Dachfläche zweier Schrägen (100 m²). | 350 | 53 | Distance formula with rounding tolerance ±0,1; multiple-choice; numeric validator with integer answer. |
+
+> _Entry fees use `computeEntryFee(reward) = clamp(round(reward * 0.15), 10, 60)` per unit._
+

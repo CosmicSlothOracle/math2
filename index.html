@@ -76,6 +76,21 @@
         }
       }
 
+      /* Respect user's motion preferences */
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+          scroll-behavior: auto !important;
+        }
+        canvas {
+          display: none !important;
+        }
+      }
+
       /* Safe area support */
       .safe-area-top {
         padding-top: env(safe-area-inset-top);
@@ -88,6 +103,15 @@
       }
       .safe-area-right {
         padding-right: env(safe-area-inset-right);
+      }
+      /* Apply safe area to main containers on mobile */
+      @media (max-width: 768px) {
+        body {
+          padding-top: env(safe-area-inset-top);
+          padding-bottom: env(safe-area-inset-bottom);
+          padding-left: env(safe-area-inset-left);
+          padding-right: env(safe-area-inset-right);
+        }
       }
 
       /* Prevent text selection on mobile during interactions */

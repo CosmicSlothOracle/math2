@@ -11,7 +11,23 @@ export const AuthService = {
     let users = db.get('mm_users') || [];
     let user = users.find((u: User) => u.username === username);
     if (!user) {
-      user = { id: Math.random().toString(36).substr(2, 9), username, avatar: '👤', coins: 250, totalEarned: 250, completedUnits: [], masteredUnits: [], preClearedUnits: [], unlockedItems: ['av_1', 'calc_default'], activeEffects: [], calculatorSkin: 'default', xp: 0, solvedQuestionIds: [] };
+      user = {
+        id: Math.random().toString(36).substr(2, 9),
+        username,
+        avatar: '👤',
+        coins: 250,
+        totalEarned: 250,
+        completedUnits: [],
+        masteredUnits: [],
+        preClearedUnits: [],
+        unlockedItems: ['av_1', 'calc_default'],
+        activeEffects: [],
+        calculatorSkin: 'default',
+        xp: 0,
+        solvedQuestionIds: [],
+        questCoinsEarnedByUnit: {},
+        bountyPayoutClaimed: {},
+      };
       users.push(user); db.set('mm_users', users);
     }
     db.set('mm_current_user', user); return user;

@@ -15,6 +15,35 @@ export type CategoryGroup = 'A' | 'B' | 'C';
  */
 export type TileStatus = 'locked' | 'gold_unlocked' | 'bounty_cleared';
 
+export type ValidatorType =
+  | 'keywords'
+  | 'boolean'
+  | 'numeric'
+  | 'numericTolerance'
+  | 'coordinatePair'
+  | 'equation';
+
+export interface InputValidatorConfig {
+  type: ValidatorType;
+  keywordsAny?: string[];
+  keywordsAll?: string[];
+  requireNegation?: boolean;
+  acceptedNumbers?: number[];
+  numericAnswer?: number;
+  tolerance?: number;
+  booleanExpected?: 'true' | 'false';
+  coordinateAnswer?: { x: number; y: number };
+  coordinateTolerance?: number;
+  equationPatterns?: string[];
+}
+
+export interface MultiInputField {
+  id: string;
+  label: string;
+  placeholder?: string;
+  validator: InputValidatorConfig;
+}
+
 export interface Task {
   id: string;
   question: string;
@@ -30,6 +59,9 @@ export interface Task {
   sliderData?: { basePath: string, shapeType: string, minK: number, maxK: number, correctK: number }; // For transformations
   decompositionData?: { complexPath: string, parts: Array<{path: string, label: string}> }; // For area decomposition
   multiAngleThrowData?: { targetAngle: number, maxAngles: number, startCost: number, hitReward: number, tolerance?: number }; // For multi-angle throw training
+  validator?: InputValidatorConfig;
+  multiInputFields?: MultiInputField[];
+  difficultyLevel?: 'Mittel' | 'Schwer';
 }
 
 /**
@@ -212,6 +244,16 @@ export interface User {
    *             → Nochmal im Hardmode richtig → Keine Coins (bereits "hardmode" vorhanden)
    */
   questionCoins?: Record<string, string[]>;
+
+  /**
+   * Summe der bereits verdienten Quest-Coins pro Unit (für Cap-Logik)
+   */
+  questCoinsEarnedByUnit?: Record<string, number>;
+
+  /**
+   * Merker, ob eine Bounty-Belohnung bereits ausgezahlt wurde
+   */
+  bountyPayoutClaimed?: Record<string, boolean>;
 
   unlockedItems: string[];
   activeEffects: string[];

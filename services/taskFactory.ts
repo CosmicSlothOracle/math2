@@ -1,5 +1,6 @@
 
 import { Task } from '../types';
+import { getBountyTasks } from './bountyCatalog';
 
 const getRandomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -25,8 +26,8 @@ export const TaskFactory = {
         // Standard-Aufgaben aus dem Task-Pool
         return this.generateTasks(unitId, 5);
       case 'bounty':
-        // Bounty-Aufgaben aus segments.ts kommen später, erstmal einfache Bounty
-        return [this.generateBountyTask(unitId)];
+        const bountyTasks = getBountyTasks(unitId);
+        return bountyTasks.length > 0 ? bountyTasks : [this.generateBountyTask(unitId)];
       default:
         return [];
     }
@@ -73,7 +74,9 @@ export const TaskFactory = {
         this.createAngleTask(2, seed),
         this.createVisualAngleTask(1, seed),
         this.createVisualAngleTask(2, seed),
-        this.createAngleMeasurementTask(0, seed) // Animierte Winkel-Messung
+        this.createAngleMeasurementTask(0, seed), // Animierte Winkel-Messung
+        this.createParallelLinesTask(0, seed), // Parallel lines + transversal
+        this.createThalesTask(0, seed) // Thales theorem
       ];
       case 'u3': return [
         this.createAreaTask(0, seed),
@@ -81,14 +84,19 @@ export const TaskFactory = {
         this.createAreaTask(2, seed),
         this.createAreaTask(3, seed), // Extra variation
         this.createAreaTask(4, seed),
-        this.createAreaDecompositionTask(0, seed) // Interaktive Flächen-Zerlegung
+        this.createAreaDecompositionTask(0, seed), // Interaktive Flächen-Zerlegung
+        this.createCircleTask(0, seed), // Circle circumference/area
+        this.createAlgebraGeometryTask(0, seed) // Algebra-geometry terms
       ];
       case 'u4': return [
         this.createVolumeTask(0, seed),
         this.createVolumeTask(1, seed),
         this.createVolumeTask(2, seed),
         this.createVolumeTask(3, seed),
-        this.createVolumeTask(4, seed)
+        this.createVolumeTask(4, seed),
+        this.createNetTask(0, seed), // Nets
+        this.createCylinderTask(0, seed), // Cylinder surface/volume
+        this.createCompositeBodyTask(0, seed) // Composite bodies
       ];
       case 'u5': return [
         this.createVisualSimilarityTask(0, seed),
@@ -98,7 +106,9 @@ export const TaskFactory = {
         this.createScalingLogicTask(2, seed),
         this.createScalingLogicTask(3, seed),
         this.createTransformTask(0, seed),
-        this.createSliderTransformationTask(0, seed) // Vergleichsansicht mit Slider
+        this.createSliderTransformationTask(0, seed), // Vergleichsansicht mit Slider
+        this.createSimilarityTask(0, seed), // Similar triangles
+        this.createStrahlensatzTask(0, seed) // Strahlensatz
       ];
       case 'u6': return [
         this.createContextTask(0, seed),
@@ -289,9 +299,9 @@ export const TaskFactory = {
         ]
       },
       {
-        q: "Welche Form hat ein typisches Smartphone-Display?",
+        q: "Welche Form hat eine typische Tür (von vorne betrachtet)?",
         ans: 'rect',
-        expl: 'Smartphone-Displays sind Rechtecke mit vier rechten Winkeln.',
+        expl: 'Türen sind Rechtecke mit vier rechten Winkeln.',
         data: [
             {
               id: 'square',
@@ -304,9 +314,9 @@ export const TaskFactory = {
             {
               id: 'rect',
               label: 'Rechteck',
-              path: 'M 30,25 H 170 V 125 H 30 Z',
+              path: 'M 30,20 H 170 V 130 H 30 Z',
               shapeType: 'rectangle',
-              context: 'phone',
+              context: 'door',
               showAngles: true
             },
             {
@@ -531,10 +541,10 @@ export const TaskFactory = {
         e: "Ein 'schiefes Quadrat' nennt man Raute. Alle Seiten sind gleich lang, aber die Winkel sind keine 90° mehr."
       },
       {
-        q: "Welche geometrische Form hat ein typisches Smartphone-Display?",
+        q: "Welche geometrische Form hat eine typische Kreditkarte?",
         o: ["Raute", "Rechteck", "Trapez", "Drachenviereck"],
         a: 1,
-        e: "Displays sind Rechtecke. Sie haben vier rechte Winkel."
+        e: "Kreditkarten sind Rechtecke. Sie haben vier rechte Winkel und gegenüberliegende Seiten sind parallel."
       }
     ];
     const s = questions[index % questions.length];
@@ -794,6 +804,219 @@ export const TaskFactory = {
       },
       correctAnswer: '7200', // 4800 + 2400
       explanation: 'Die Gesamtfläche ist die Summe der Teilflächen: 4800 cm² + 2400 cm² = 7200 cm².'
+    };
+  },
+
+  // --- NEW: Parallel Lines + Transversal Task ---
+  createParallelLinesTask(index: number, seed: number): Task {
+    const id = `u2-parallel-${index}-${seed}`;
+    const givenAngle = getRandomInt(40, 60);
+    const tasks = [
+      {
+        q: `Zwei parallele Geraden werden von einer Querlinie geschnitten. Ein Winkel beträgt ${givenAngle}°. Berechne alle weiteren Winkel.`,
+        correctAnswer: `${180 - givenAngle},${givenAngle},${180 - givenAngle}`,
+        explanation: `Nebenwinkel: 180° - ${givenAngle}° = ${180 - givenAngle}°. Scheitelwinkel: ${givenAngle}°. Stufenwinkel: ${givenAngle}° und ${180 - givenAngle}°.`,
+        placeholder: 'Winkel durch Komma getrennt (z.B. 142,38,142)'
+      }
+    ];
+    const t = tasks[index % tasks.length];
+    return {
+      id,
+      type: 'input',
+      question: t.q,
+      correctAnswer: t.correctAnswer,
+      explanation: t.explanation,
+      placeholder: t.placeholder
+    };
+  },
+
+  // --- NEW: Thales Theorem Task ---
+  createThalesTask(index: number, seed: number): Task {
+    const id = `u2-thales-${index}-${seed}`;
+    const a = getRandomInt(3, 6);
+    const b = getRandomInt(4, 8);
+    const c = Math.sqrt(a * a + b * b);
+    return {
+      id,
+      type: 'input',
+      question: `Ein rechtwinkliges Dreieck hat die Katheten a=${a}cm und b=${b}cm. Berechne die Hypotenuse c mit dem Satz des Pythagoras.`,
+      correctAnswer: Math.round(c).toString(),
+      explanation: `Satz des Pythagoras: c² = a² + b² = ${a}² + ${b}² = ${a*a} + ${b*b} = ${a*a + b*b}. Also c = √${a*a + b*b} ≈ ${Math.round(c)}cm.`,
+      placeholder: 'cm'
+    };
+  },
+
+  // --- NEW: Circle Task ---
+  createCircleTask(index: number, seed: number): Task {
+    const id = `u3-circle-${index}-${seed}`;
+    const r = getRandomInt(3, 8);
+    const type = index % 2;
+    if (type === 0) {
+      // Circumference
+      const circumference = Math.round(2 * Math.PI * r * 100) / 100;
+      return {
+        id,
+        type: 'input',
+        question: `Ein Kreis hat den Radius r=${r}cm. Berechne den Umfang (π≈3,14).`,
+        correctAnswer: Math.round(circumference).toString(),
+        explanation: `Umfang U = 2πr = 2 × 3,14 × ${r} = ${circumference.toFixed(2)}cm ≈ ${Math.round(circumference)}cm`,
+        placeholder: 'cm'
+      };
+    } else {
+      // Area
+      const area = Math.round(Math.PI * r * r * 100) / 100;
+      return {
+        id,
+        type: 'input',
+        question: `Ein Kreis hat den Radius r=${r}cm. Berechne den Flächeninhalt (π≈3,14).`,
+        correctAnswer: Math.round(area).toString(),
+        explanation: `Fläche A = πr² = 3,14 × ${r}² = 3,14 × ${r*r} = ${area.toFixed(2)}cm² ≈ ${Math.round(area)}cm²`,
+        placeholder: 'cm²'
+      };
+    }
+  },
+
+  // --- NEW: Algebra-Geometry Task ---
+  createAlgebraGeometryTask(index: number, seed: number): Task {
+    const id = `u3-algebra-${index}-${seed}`;
+    const x = getRandomInt(3, 7);
+    const tasks = [
+      {
+        q: `Ein Rechteck hat die Seitenlängen (x+2) und (x-1). Berechne die Fläche für x=${x}.`,
+        correctAnswer: ((x + 2) * (x - 1)).toString(),
+        expl: `Fläche = (x+2)(x-1) = x² + x - 2. Für x=${x}: ${x}² + ${x} - 2 = ${x*x} + ${x} - 2 = ${(x+2)*(x-1)}cm²`
+      },
+      {
+        q: `Ein Dreieck hat die Grundseite x und die Höhe 8. Berechne die Fläche für x=${x}.`,
+        correctAnswer: ((x * 8) / 2).toString(),
+        expl: `Fläche = (x × 8) / 2 = 4x. Für x=${x}: 4 × ${x} = ${(x*8)/2}cm²`
+      }
+    ];
+    const t = tasks[index % tasks.length];
+    return {
+      id,
+      type: 'input',
+      question: t.q,
+      correctAnswer: t.correctAnswer,
+      explanation: t.expl,
+      placeholder: 'cm²'
+    };
+  },
+
+  // --- NEW: Net Task ---
+  createNetTask(index: number, seed: number): Task {
+    const id = `u4-net-${index}-${seed}`;
+    return {
+      id,
+      type: 'visualChoice',
+      question: 'Welches Netz gehört zu einem Würfel?',
+      visualData: [
+        {
+          id: 'wrong1',
+          label: 'Netz A',
+          path: 'M 20,20 H 80 V 80 H 20 Z M 80,20 H 140 V 80 H 80 Z M 140,20 H 200 V 80 H 140 Z M 80,80 H 140 V 140 H 80 Z',
+          shapeType: 'net_wrong'
+        },
+        {
+          id: 'correct',
+          label: 'Netz B',
+          path: 'M 20,20 H 80 V 80 H 20 Z M 80,20 H 140 V 80 H 80 Z M 140,20 H 200 V 80 H 140 Z M 20,80 H 80 V 140 H 20 Z M 80,140 H 140 V 200 H 80 Z M 140,80 H 200 V 140 H 140 Z',
+          shapeType: 'net_cube'
+        },
+        {
+          id: 'wrong2',
+          label: 'Netz C',
+          path: 'M 20,20 H 80 V 80 H 20 Z M 80,20 H 140 V 80 H 80 Z M 20,80 H 80 V 140 H 20 Z',
+          shapeType: 'net_wrong'
+        }
+      ],
+      correctAnswer: 'correct',
+      explanation: 'Ein Würfelnetz hat genau 6 Quadrate, die so angeordnet sind, dass sie einen Würfel bilden können.'
+    };
+  },
+
+  // --- NEW: Cylinder Task ---
+  createCylinderTask(index: number, seed: number): Task {
+    const id = `u4-cylinder-${index}-${seed}`;
+    const r = getRandomInt(2, 5);
+    const h = getRandomInt(5, 10);
+    const type = index % 2;
+    if (type === 0) {
+      // Volume
+      const volume = Math.round(Math.PI * r * r * h * 100) / 100;
+      return {
+        id,
+        type: 'input',
+        question: `Ein Zylinder hat den Radius r=${r}cm und die Höhe h=${h}cm. Berechne das Volumen (π≈3,14).`,
+        correctAnswer: Math.round(volume).toString(),
+        explanation: `Volumen V = πr²h = 3,14 × ${r}² × ${h} = 3,14 × ${r*r} × ${h} = ${volume.toFixed(2)}cm³ ≈ ${Math.round(volume)}cm³`,
+        placeholder: 'cm³'
+      };
+    } else {
+      // Surface
+      const surface = Math.round((2 * Math.PI * r * r + 2 * Math.PI * r * h) * 100) / 100;
+      return {
+        id,
+        type: 'input',
+        question: `Ein Zylinder hat den Radius r=${r}cm und die Höhe h=${h}cm. Berechne die Oberfläche (π≈3,14).`,
+        correctAnswer: Math.round(surface).toString(),
+        explanation: `Oberfläche O = 2πr² + 2πrh = 2×3,14×${r}² + 2×3,14×${r}×${h} = ${surface.toFixed(2)}cm² ≈ ${Math.round(surface)}cm²`,
+        placeholder: 'cm²'
+      };
+    }
+  },
+
+  // --- NEW: Composite Body Task ---
+  createCompositeBodyTask(index: number, seed: number): Task {
+    const id = `u4-composite-${index}-${seed}`;
+    const a = getRandomInt(3, 5);
+    const b = getRandomInt(4, 6);
+    const h = getRandomInt(5, 8);
+    const volume = a * a * a + b * b * h;
+    return {
+      id,
+      type: 'input',
+      question: `Ein zusammengesetzter Körper besteht aus einem Würfel (Kantenlänge ${a}cm) und einem Quader (Grundfläche ${b}×${b}cm, Höhe ${h}cm). Berechne das Gesamtvolumen.`,
+      correctAnswer: volume.toString(),
+      explanation: `Volumen = Würfel + Quader = ${a}³ + ${b}×${b}×${h} = ${a*a*a} + ${b*b*h} = ${volume}cm³`,
+      placeholder: 'cm³'
+    };
+  },
+
+  // --- NEW: Similarity Task ---
+  createSimilarityTask(index: number, seed: number): Task {
+    const id = `u5-similarity-${index}-${seed}`;
+    const a1 = getRandomInt(3, 6);
+    const b1 = getRandomInt(4, 8);
+    const k = getRandomInt(2, 3);
+    const a2 = a1 * k;
+    const b2 = b1 * k;
+    const c1 = Math.sqrt(a1 * a1 + b1 * b1);
+    const c2 = c1 * k;
+    return {
+      id,
+      type: 'input',
+      question: `Zwei ähnliche Dreiecke: Das erste hat die Seiten a=${a1}cm, b=${b1}cm. Das zweite ist ${k}-mal so groß. Wie lang ist Seite c im zweiten Dreieck, wenn c im ersten Dreieck ${Math.round(c1)}cm ist?`,
+      correctAnswer: Math.round(c2).toString(),
+      explanation: `Bei Ähnlichkeit werden alle Seiten mit dem gleichen Faktor k=${k} gestreckt. Also c₂ = c₁ × k = ${Math.round(c1)} × ${k} = ${Math.round(c2)}cm`,
+      placeholder: 'cm'
+    };
+  },
+
+  // --- NEW: Strahlensatz Task ---
+  createStrahlensatzTask(index: number, seed: number): Task {
+    const id = `u5-strahlensatz-${index}-${seed}`;
+    const h1 = getRandomInt(150, 180);
+    const s1 = getRandomInt(200, 250);
+    const s2 = getRandomInt(800, 1200);
+    const h2 = Math.round((h1 * s2) / s1);
+    return {
+      id,
+      type: 'input',
+      question: `Ein Mensch (${h1}cm) wirft einen Schatten von ${s1}cm. Ein Turm wirft einen Schatten von ${s2}cm. Wie hoch ist der Turm? (Strahlensatz)`,
+      correctAnswer: h2.toString(),
+      explanation: `Strahlensatz: ${h1}cm / ${s1}cm = Turmhöhe / ${s2}cm. Also Turmhöhe = (${h1} × ${s2}) / ${s1} = ${h2}cm`,
+      placeholder: 'cm'
     };
   },
 

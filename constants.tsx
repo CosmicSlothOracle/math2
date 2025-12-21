@@ -209,7 +209,7 @@ export const LEARNING_UNITS: LearningUnit[] = [
     detailedInfo: 'Werde zum Profi im Identifizieren von Vierecken. Verstehe, warum jedes Quadrat ein Rechteck ist, aber nicht jedes Rechteck ein Quadrat.',
     examples: ['Quadrat = Rechteck + Raute'],
     keywords: ['form', 'viereck', 'eigenschaft', 'klassifikation', 'viereckshaus'],
-    difficulty: 'Einfach', coinsReward: 50, bounty: 150,
+    difficulty: 'Einfach', coinsReward: 50, bounty: 300,
     definitionId: 'shapes',
     tasks: []
   },
@@ -219,7 +219,7 @@ export const LEARNING_UNITS: LearningUnit[] = [
     detailedInfo: 'Lerne die Geheimsprache der Geradenkreuzungen. Nutze den Thaleskreis, um perfekte rechte Winkel zu finden.',
     examples: ['Nebenwinkel = 180°', 'Thales: γ = 90°'],
     keywords: ['winkel', 'thales', 'nebenwinkel', 'grad', 'kreis'],
-    difficulty: 'Mittel', coinsReward: 60, bounty: 200,
+    difficulty: 'Mittel', coinsReward: 60, bounty: 320,
     definitionId: 'angles',
     tasks: []
   },
@@ -229,7 +229,7 @@ export const LEARNING_UNITS: LearningUnit[] = [
     detailedInfo: 'Trapeze und Parallelogramme lauern überall. Lerne, wie man sie mit einfachen Formeln bändigt.',
     examples: ['A(Trapez) = m * h'],
     keywords: ['fläche', 'trapez', 'zerlegung', 'cm2'],
-    difficulty: 'Mittel', coinsReward: 80, bounty: 250,
+    difficulty: 'Mittel', coinsReward: 80, bounty: 350,
     definitionId: 'areas',
     tasks: []
   },
@@ -239,7 +239,7 @@ export const LEARNING_UNITS: LearningUnit[] = [
     detailedInfo: 'Stell dir vor, du baust eine Dose. Wie viel Blech brauchst du? Wie viel Limo passt rein? Hier erfährst du es.',
     examples: ['V = G * h', 'M = u * h'],
     keywords: ['volumen', 'zylinder', 'prisma', 'oberfläche', '3d'],
-    difficulty: 'Schwer', coinsReward: 100, bounty: 350,
+    difficulty: 'Schwer', coinsReward: 100, bounty: 400,
     definitionId: 'volumes',
     tasks: []
   },
@@ -249,7 +249,7 @@ export const LEARNING_UNITS: LearningUnit[] = [
     detailedInfo: 'Entdecke die Macht des Streckfaktors k. Wenn du eine Pizza doppelt so breit machst, hast du viermal so viel Belag! Lerne, warum das so ist.',
     examples: ['Länge * k', 'Fläche * k²'],
     keywords: ['ähnlichkeit', 'streckung', 'maßstab', 'faktor', 'verhältnis'],
-    difficulty: 'Mittel', coinsReward: 70, bounty: 300,
+    difficulty: 'Mittel', coinsReward: 70, bounty: 380,
     definitionId: 'transform',
     tasks: []
   },
@@ -259,7 +259,7 @@ export const LEARNING_UNITS: LearningUnit[] = [
     detailedInfo: 'Hausbau, Poolbefüllung oder Zeltlager – hier zeigst du, dass du Geometrie im Griff hast.',
     examples: ['Verschnitt berechnen', 'Füllmengen'],
     keywords: ['sachaufgabe', 'transfer', 'modell', 'alltag'],
-    difficulty: 'Schwer', coinsReward: 120, bounty: 500,
+    difficulty: 'Schwer', coinsReward: 120, bounty: 350,
     definitionId: 'context',
     tasks: []
   }

@@ -1,3 +1,107 @@
+# Quest- & Bounty-Übersicht (Dez 2025 Update)
+
+Dieses Dokument fasst alle relevanten Quest- und Bounty-Informationen nach der Wirtschaftsumstellung (Quest-Caps, Entry Fees, einmalige Bounty-Payouts) zusammen. Fokus: prüfungsrelevante Geometrie für Klasse 9/10 (Gymnasium Brandenburg).
+
+---
+
+## Economy Rules
+
+- **Quest-Cap pro Unit**:
+  u1/u2/u6 → 100 Coins, u3/u4/u5 → 120 Coins. Jede Quest-Vergütung (pro Frage + Abschlussbonus) wird auf den verbleibenden Cap gekürzt.
+- **Bounty Entry Fee**: Beim Klick auf „Accept Bounty“ wird 15 % (min 10, max 60) des Bounty-Rewards als Startgebühr abgezogen.
+- **Einmalige Bounty-Payouts**: Pro Unit nur eine Auszahlung möglich. Nach perfektem Durchlauf wird `bountyPayoutClaimed[unit] = true` und weitere Runs bleiben „for practice only“.
+
+| Unit | Reward | Entry Fee | Themenfokus |
+| --- | --- | --- | --- |
+| u1 | 300 Coins | 45 Coins | Figurenhierarchie & Koordinaten |
+| u2 | 320 Coins | 48 Coins | Winkelbeziehungen & Thales |
+| u3 | 350 Coins | 53 Coins | Flächen-Terme & Gleichsetzungen |
+| u4 | 400 Coins | 60 Coins | Volumen/Oberfläche (3D) |
+| u5 | 380 Coins | 57 Coins | Ähnlichkeit & Maßstab |
+| u6 | 350 Coins | 53 Coins | Kontextaufgaben (Distanz/Modelle) |
+
+---
+
+## Unit u1 – Figuren verstehen
+
+### Quest Highlights
+- Wager („Jedes Quadrat ist ein Rechteck?“), Visual-Choice (Kreditkarte, Rampe, Tür), Drag&Drop „Haus der Vierecke“.
+
+### Bounty-Set
+1. **Klassenlogik** – Zwei Textfelder (Figurenklasse + Eigenschaft, die nicht zwingend gilt). Validator prüft Keywords („Raute/Rhombus“) sowie Negation zu „rechten Winkeln“.
+2. **Aussage-Check** – Drei Felder (Wahr/Falsch, Begründung, korrekte Aussage). Boolean + Keyword-Vergleich („rechte Winkel fehlen“, „Jedes Rechteck ist Parallelogramm“).
+3. **Special: Koordinaten-Parallelogramm** – Eingabe eines Koordinatenpaars (D = (3\|4)), Parser akzeptiert `3|4`, `(3,4)` etc.
+
+---
+
+## Unit u2 – Winkel & Beziehungen
+
+### Quest Highlights
+- Multi-Angle Throw (Startkosten 10 Coins, 5 Coins pro Treffer), Visual-Winkel, Neben-/Scheitelwinkel, Winkelmessung (±5°).
+
+### Bounty-Set
+1. **Parallele Linien** – Drei numerische Felder (Nebenwinkel 142°, Scheitel 38°, Stufenwinkel 38°/142°).
+2. **Gleichschenkliges Dreieck** – Einfacher Zahlen-Validator (Basiswinkel 70°).
+3. **Special: Thales** – Numerischer Validator (∠CBA = 70°).
+
+---
+
+## Unit u3 – Flächen & Terme
+
+### Quest Highlights
+- Rechteck/Dreieck-Flächen, Kreisumfang/-fläche (π≈3,14), Flächenzerlegung mit Klick-Parts.
+
+### Bounty-Set
+1. **Garten-Gleichung** – Multi-Input (Gleichung `x(x+5)=300` oder äquivalent, Lösung x=15).
+2. **Rahmenterm** – Multiple-Choice („4x² + 140x“).
+3. **Special: Gleiche Flächen** – Numeric (x=2) für Rechteck vs. rechtwinkliges Dreieck.
+
+---
+
+## Unit u4 – Körper & Oberflächen
+
+### Quest Highlights
+- Volumenaufgaben (dm³→Liter), Cylinder/Oberfläche, Netze, zusammengesetzte Körper.
+
+### Bounty-Set
+1. **Zylindervolumen** – Input mit Toleranz ±10 L (6280 L).
+2. **Skalierung** – Choice („V×8; O×4“).
+3. **Special: Gefräste Oberfläche** – Numeric 404 cm².
+
+---
+
+## Unit u5 – Ähnlichkeit & Maßstab
+
+### Quest Highlights
+- Visual Similarity/Scale, Skalierungslogik, Transform-Slider, Strahlensatz-Aufgaben.
+
+### Bounty-Set
+1. **Ähnliche Dreiecke** – Numeric (DF = 6 cm).
+2. **Maßstab** – Numeric mit Dezimal (3,5 km).
+3. **Special: Spiegel/Strahlensatz** – Numeric 6,4 m (Toleranz ±0,1).
+
+---
+
+## Unit u6 – Kontext & Anwendung
+
+### Quest Highlights
+- Kontext-Szenarien (Parabel, Drohnenflug, Funktionsgrafen, Pythagoras in Alltag).
+
+### Bounty-Set
+1. **Distanz im Koordinatensystem** – Numeric ±0,1 km (≈10,8 km).
+2. **Leiter an der Wand** – Choice („4,0 m“).
+3. **Special: Dachfläche** – Numeric 100 m².
+
+---
+
+### Validator-Bausteine
+- `sanitizeNumberInput` (ersetzt Komma → Punkt, entfernt Sonderzeichen).
+- `matchKeywords` + Negationscheck (für textuelle Begründungen).
+- `parseCoordinatePair` (extrahiert zwei Zahlen – akzeptiert `|`, `;`, `,`, Leerzeichen).
+- `validateAnswer` orchestriert Keywords, Boolean, numeric tolerance, equation patterns.
+
+### Testing
+- `npm test` (Vitest) deckt Sanitizer, Keyword-, Koordinaten- und Toleranzlogik ab (23 Specs).
 # Quest- und Bounty-Aufgaben Übersicht
 
 Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ihren Fragen, Typen, Optionen und richtigen Lösungen auf.
@@ -48,16 +152,16 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
 - **Richtige Antwort**: 2
 - **Erklärung**: "Ein 'schiefes Quadrat' nennt man Raute. Alle Seiten sind gleich lang, aber die Winkel sind keine 90° mehr."
 
-#### 5. Form-Aufgabe (Index 2) - Smartphone
+#### 5. Form-Aufgabe (Index 2) - Kreditkarte
 - **Typ**: `choice`
-- **Frage**: "Welche geometrische Form hat ein typisches Smartphone-Display?"
+- **Frage**: "Welche geometrische Form hat eine typische Kreditkarte?"
 - **Optionen**:
   - "Raute"
   - "Rechteck"
   - "Trapez"
   - "Drachenviereck"
 - **Richtige Antwort**: 1
-- **Erklärung**: "Displays sind Rechtecke. Sie haben vier rechte Winkel."
+- **Erklärung**: "Kreditkarten sind Rechtecke. Sie haben vier rechte Winkel und gegenüberliegende Seiten sind parallel."
 
 #### 6. Visuelle Form-Aufgabe (Index 1) - Graffiti-Wand
 - **Typ**: `visualChoice`
@@ -79,19 +183,20 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
 - **Richtige Antwort**: `tri`
 - **Erklärung**: "Von der Seite betrachtet bildet die Rampe ein Dreieck."
 
-#### 8. Visuelle Form-Aufgabe (Index 3) - Smartphone-Display
+#### 8. Visuelle Form-Aufgabe (Index 3) - Tür
 - **Typ**: `visualChoice`
-- **Frage**: "Welche Form hat ein typisches Smartphone-Display?"
+- **Frage**: "Welche Form hat eine typische Tür (von vorne betrachtet)?"
 - **Optionen** (visuell, ohne Label):
   - Quadrat (id: `square`)
   - Rechteck (id: `rect`)
   - Raute (id: `rhombus`)
 - **Richtige Antwort**: `rect`
-- **Erklärung**: "Smartphone-Displays sind Rechtecke mit vier rechten Winkeln."
+- **Erklärung**: "Türen sind Rechtecke mit vier rechten Winkeln."
 
-#### 9. Drag-and-Drop Klassifikation
+#### 9. Drag-and-Drop Klassifikation (NEU: Echte Drag & Drop)
 - **Typ**: `dragDrop`
 - **Frage**: "Ordne die Figuren in das 'Haus der Vierecke' ein. Ziehe jede Figur in die richtige Kategorie!"
+- **Hinweis**: Jetzt mit echter Drag & Drop Funktionalität (dnd-kit). Mobile: Tippe auf Figur, dann auf Kategorie.
 - **Formen**:
   - Quadrat (id: `square`)
   - Rechteck (id: `rect`)
@@ -112,47 +217,44 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
   - `trapez` → `viereck`
 - **Erklärung**: "Das Haus der Vierecke zeigt die Hierarchie: Jedes Quadrat ist auch ein Rechteck und eine Raute. Jedes Rechteck und jede Raute ist auch ein Parallelogramm."
 
-### Bounty-Aufgaben
+### Bounty-Aufgaben (Update Dez 2025)
 
-#### Bounty 1 (aus taskFactory.ts)
-- **Typ**: `choice`
-- **Frage**: "BOUNTY FRAGE: Welche Aussage ist mathematisch präzise?"
-- **Optionen**:
-  - "Jedes Rechteck ist ein Quadrat."
-  - "Ein Drachenviereck hat immer 4 rechte Winkel."
-  - "Jedes Quadrat ist eine Raute und ein Rechteck zugleich."
-  - "Ein Trapez hat niemals rechte Winkel."
-- **Richtige Antwort**: 2
-- **Erklärung**: "Das Quadrat ist die 'perfekte' Form: Es erfüllt die Definition der Raute (4 gleiche Seiten) UND des Rechtecks (4 rechte Winkel)."
+1. **Bounty A – Figurenklassifikation (Medium)**
+   - Typ: `input` mit zwei Textfeldern.
+   - Prompt: „Ein Viereck hat vier gleich lange Seiten und parallele Gegenseiten. a) Zu welcher Figurenklasse gehört es? b) Nenne eine Eigenschaft, die nicht zwingend gilt.“
+   - Validator: Keywords für „Raute/Rhombus“ sowie Negation zu „rechten Winkeln“.
+   - Fokus: Hierarchie im Haus der Vierecke, typische Fehlannahmen zu rechtwinkligen Rauten.
 
-#### Bounty 2 (aus segments.ts)
+2. **Bounty B – Aussage prüfen (Medium)**
+   - Typ: `input` mit drei Feldern (Wahr/Falsch, Begründung, korrekte Aussage).
+   - Prompt: „‚Jedes Parallelogramm ist ein Rechteck‘ – bewerte, begründe und formuliere die korrekte Aussage.“
+   - Validator: Boolean + Keyword-Begründung (rechte Winkel fehlen) + Korrektur („Jedes Rechteck ist ein Parallelogramm“, „Jedes Quadrat ist …“).
+
+3. **Special Bounty – Koordinaten-Parallelogramm (Schwer)**
+   - Typ: `input`
+   - Prompt: „Parallelogramm ABCD mit A(1\|1), B(4\|2), C(6\|5). Bestimme D.“
+   - Validator: Koordinatenpaar (D = (3\|4)), toleranter Parser akzeptiert Formate wie `3|4`, `(3,4)` etc.
+
+- **Entry Fee**: 45 Coins (automatisch bei „Accept Bounty ⚔️“ abgezogen).
+- **Bounty Reward**: 300 Coins einmalig pro Unit; nach Abschluss wird die Auszahlung gesperrt.
+
+---
+
+## Unit 2: Winkel & Beziehungen (u2)
+
+### Neue Aufgaben (Phase 3)
+
+#### 10. Parallele Geraden + Querlinie
 - **Typ**: `input`
-- **Frage**: "Ein Viereck hat parallele Gegenseiten und gleich lange Seiten. a) Welcher Figurenklasse gehört es an? b) Begründe deine Antwort. c) Nenne eine Eigenschaft, die nicht zwingend gilt."
-- **Richtige Antwort**: JSON-Objekt:
-  - a: `quadrat`
-  - b: `parallele gegenseiten und gleich lange seiten`
-  - c: `rechte winkel`
-- **Erklärung**: "Es könnte ein Quadrat oder eine Raute sein. Rechte Winkel sind nicht zwingend."
-- **Schwierigkeit**: Mittel
+- **Frage**: "Zwei parallele Geraden werden von einer Querlinie geschnitten. Ein Winkel beträgt X°. Berechne alle weiteren Winkel."
+- **Richtige Antwort**: Komma-getrennte Winkelwerte
+- **Erklärung**: Verwendet Nebenwinkel, Scheitelwinkel und Stufenwinkel
 
-#### Bounty 3 (aus segments.ts)
+#### 11. Thales-Theorem + Pythagoras
 - **Typ**: `input`
-- **Frage**: "Die Aussage 'Jedes Rechteck ist ein Quadrat' ist: a) richtig oder falsch? b) Begründe. c) Formuliere die korrekte Aussage."
-- **Richtige Antwort**: JSON-Objekt:
-  - a: `falsch`
-  - b: `nicht jedes rechteck hat gleich lange seiten`
-  - c: `jedes quadrat ist ein rechteck`
-- **Erklärung**: "Falsch! Nicht jedes Rechteck ist ein Quadrat, aber jedes Quadrat ist ein Rechteck."
-- **Schwierigkeit**: Schwer
-
-#### Bounty 4 (aus segments.ts)
-- **Typ**: `input`
-- **Frage**: "Ordne die Begriffe logisch: Viereck – Parallelogramm – Rechteck – Quadrat. a) Nenne die richtige Reihenfolge. b) Begründe die Ordnung."
-- **Richtige Antwort**: JSON-Objekt:
-  - a: `viereck parallelogramm rechteck quadrat`
-  - b: `jede form ist spezialisierung der vorherigen`
-- **Erklärung**: "Viereck → Parallelogramm (parallele Gegenseiten) → Rechteck (rechte Winkel) → Quadrat (gleich lange Seiten)."
-- **Schwierigkeit**: Schwer
+- **Frage**: "Ein rechtwinkliges Dreieck hat die Katheten a=Xcm und b=Ycm. Berechne die Hypotenuse c mit dem Satz des Pythagoras."
+- **Richtige Antwort**: Numerischer Wert in cm
+- **Erklärung**: Anwendung des Satzes des Pythagoras
 
 ---
 
@@ -220,40 +322,43 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
 - **Toleranz**: ±5°
 - **Erklärung**: Variiert je nach Winkel (z.B. "Das ist ein rechter Winkel!" für 90°)
 
-### Bounty-Aufgaben
+### Bounty-Aufgaben (Update Dez 2025)
 
-#### Bounty 1 (aus taskFactory.ts)
-- **Typ**: `input`
-- **Frage**: "BOUNTY FRAGE: In einem rechtwinkligen Dreieck ist Winkel Alpha = 35°. Wie groß ist Winkel Beta, wenn Gamma der rechte Winkel (90°) ist?"
-- **Richtige Antwort**: `55`
-- **Erklärung**: "Winkelsumme im Dreieck ist 180°. 180° - 90° - 35° = 55°."
+1. **Bounty A – Parallelen + Querlinie (Medium)**
+   - Typ: `input` mit drei Zahlenfeldern.
+   - Prompt: „Zwei parallele Geraden werden von einer Querlinie geschnitten. Ein Winkel beträgt 38°. a) Nebenwinkel? b) Scheitelwinkel? c) Ein Stufenwinkel?“
+   - Validator: numerische Felder (142°, 38°, Stufenwinkel 38° oder 142°).
 
-#### Bounty 2 (aus segments.ts)
-- **Typ**: `input`
-- **Frage**: "Zwei parallele Geraden werden von einer Querlinie geschnitten. Ein Winkel beträgt 38°. a) Bestimme alle weiteren Winkel. b) Begründe deine Antwort mit den Winkelbeziehungen."
-- **Richtige Antwort**: JSON-Objekt:
-  - a: `142 38 142`
-  - b: `nebenwinkel scheitelwinkel stufenwinkel`
-- **Erklärung**: "Nebenwinkel: 180° - 38° = 142°, Scheitelwinkel: 38°, Stufenwinkel: 38° und 142°"
-- **Schwierigkeit**: Mittel
+2. **Bounty B – Gleichschenkliges Dreieck (Medium)**
+   - Typ: `input`
+   - Prompt: „Gleichschenkliges Dreieck, Scheitelwinkel 40°. Wie groß ist ein Basiswinkel?“
+   - Validator: numeric 70°.
 
-#### Bounty 3 (aus segments.ts)
-- **Typ**: `input`
-- **Frage**: "Ein Dreieck hat die Winkel 47° und 63°. a) Berechne den dritten Winkel. b) Begründe deine Antwort."
-- **Richtige Antwort**: JSON-Objekt:
-  - a: `70`
-  - b: `winkelsumme dreieck 180`
-- **Erklärung**: "Winkelsumme im Dreieck: 180° - 47° - 63° = 70°"
-- **Schwierigkeit**: Mittel
+3. **Special Bounty – Thales-Anwendung (Schwer)**
+   - Typ: `input`
+   - Prompt: „ΔABC auf einem Thaleskreis, ∠CAB = 20°. Bestimme ∠CBA.“
+   - Validator: numeric 70°.
 
-#### Bounty 4 (aus segments.ts)
+- **Entry Fee**: 48 Coins.
+- **Einmalige Bounty-Auszahlung**: 320 Coins nach perfektem Durchlauf.
+
+---
+
+## Unit 3: Flächen & Terme (u3)
+
+### Neue Aufgaben (Phase 3)
+
+#### 8. Kreis-Umfang/Fläche
 - **Typ**: `input`
-- **Frage**: "Ein Dreieck hat die Winkel 61°, 59° und 59°. a) Prüfe, ob diese Winkelwerte möglich sind. b) Begründe deine Antwort."
-- **Richtige Antwort**: JSON-Objekt:
-  - a: `nein`
-  - b: `summe 179 nicht 180`
-- **Erklärung**: "Summe: 61° + 59° + 59° = 179° ≠ 180°. Die Winkelsumme im Dreieck muss genau 180° betragen."
-- **Schwierigkeit**: Schwer
+- **Frage**: "Ein Kreis hat den Radius r=Xcm. Berechne den Umfang/Flächeninhalt (π≈3,14)."
+- **Richtige Antwort**: Numerischer Wert in cm oder cm²
+- **Erklärung**: Verwendet Formeln U = 2πr bzw. A = πr²
+
+#### 9. Algebra-Geometrie
+- **Typ**: `input`
+- **Frage**: "Ein Rechteck/Dreieck hat Seitenlängen mit Variable x. Berechne die Fläche für x=X."
+- **Richtige Antwort**: Numerischer Wert in cm²
+- **Erklärung**: Terme mit Variablen, dann Einsetzen
 
 ---
 
@@ -291,42 +396,49 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
 - **Richtige Antwort**: `7200` (Gesamtfläche in cm²)
 - **Erklärung**: "Die Gesamtfläche ist die Summe der Teilflächen: 4800 cm² + 2400 cm² = 7200 cm²."
 
-### Bounty-Aufgaben
+### Bounty-Aufgaben (Update Dez 2025)
 
-#### Bounty 1 (aus taskFactory.ts)
-- **Typ**: `input`
-- **Frage**: "BOUNTY FRAGE: Ein Rechteck hat den Flächeninhalt A = [a*8] cm². Die Seite a ist [a] cm lang. Wie lang ist Seite b?"
-- **a**: Zufällig 5-9
-- **Richtige Antwort**: `8`
-- **Erklärung**: "Formel A = a * b. Umgestellt nach b: b = A / a."
+1. **Bounty A – Garten-Gleichung (Medium)**
+   - Typ: `input` mit zwei Feldern (Gleichung + Lösung).
+   - Prompt: „Rechteckiger Garten: Länge = x+5, Breite = x, Fläche 300 m².“
+   - Validator: Gleichung `x(x+5)=300` bzw. äquivalent + positive Lösung `x=15`.
 
-#### Bounty 2 (aus segments.ts)
-- **Typ**: `input`
-- **Frage**: "Ein Rechteck hat die Seitenlängen (x+2) und (x−1). a) Stelle den Term für die Fläche auf. b) Vereinfache den Term. c) Berechne die Fläche für x=6."
-- **Richtige Antwort**: JSON-Objekt:
-  - a: `(x+2)*(x-1)`
-  - b: `x²+x-2`
-  - c: `40`
-- **Erklärung**: "Term: (x+2)(x-1) = x² + x - 2. Für x=6: 36 + 6 - 2 = 40 cm²"
-- **Schwierigkeit**: Mittel
+2. **Bounty B – Rahmen-Term (Medium)**
+   - Typ: `choice`
+   - Prompt: „Bild 30×40 cm, Rahmenbreite x. Welcher Term beschreibt die Rahmenfläche?“
+   - Richtige Option: `4x² + 140x`.
 
-#### Bounty 3 (aus segments.ts)
-- **Typ**: `input`
-- **Frage**: "Ein Dreieck hat die Grundseite 12 cm und die Höhe h. a) Stelle den Term für die Fläche auf. b) Berechne die Fläche für h=7 cm."
-- **Richtige Antwort**: JSON-Objekt:
-  - a: `0.5*12*h`
-  - b: `42`
-- **Erklärung**: "Term: A = 0.5 * 12 * h = 6h. Für h=7: 6 * 7 = 42 cm²"
-- **Schwierigkeit**: Mittel
+3. **Special Bounty – Gleich große Flächen (Schwer)**
+   - Typ: `input`
+   - Prompt: „Rechteck (x, x+10) vs. rechtwinkliges Dreieck (x+2, x+10). Finde x bei gleicher Fläche.“
+   - Validator: numeric 2.
 
-#### Bounty 4 (aus segments.ts)
+- **Entry Fee**: 53 Coins.
+- **Bounty Reward**: 350 Coins (einmalig).
+
+---
+
+## Unit 4: Körper & Oberflächen (u4)
+
+### Neue Aufgaben (Phase 3)
+
+#### 6. Netze
+- **Typ**: `visualChoice`
+- **Frage**: "Welches Netz gehört zu einem Würfel?"
+- **Richtige Antwort**: Visuelle Auswahl des korrekten Netzes
+- **Erklärung**: Ein Würfelnetz hat genau 6 Quadrate
+
+#### 7. Zylinder Volumen/Oberfläche
 - **Typ**: `input`
-- **Frage**: "Eine Figur besteht aus einem Quadrat mit Seitenlänge a und einem Rechteck mit Seiten a und 3a. a) Stelle den Term für die Gesamtfläche auf. b) Vereinfache den Term."
-- **Richtige Antwort**: JSON-Objekt:
-  - a: `a² + a*3a`
-  - b: `4a²`
-- **Erklärung**: "Quadrat: a², Rechteck: a * 3a = 3a². Gesamt: a² + 3a² = 4a²"
-- **Schwierigkeit**: Schwer
+- **Frage**: "Ein Zylinder hat den Radius r=Xcm und die Höhe h=Ycm. Berechne das Volumen/die Oberfläche (π≈3,14)."
+- **Richtige Antwort**: Numerischer Wert in cm³ oder cm²
+- **Erklärung**: Verwendet Formeln V = πr²h bzw. O = 2πr² + 2πrh
+
+#### 8. Zusammengesetzte Körper
+- **Typ**: `input`
+- **Frage**: "Ein zusammengesetzter Körper besteht aus einem Würfel und einem Quader. Berechne das Gesamtvolumen."
+- **Richtige Antwort**: Numerischer Wert in cm³
+- **Erklärung**: Volumen additiv berechnen
 
 ---
 
@@ -375,6 +487,24 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
   - b: `berührungsflächen werden doppelt gezählt`
 - **Erklärung**: "Volumen: Einfach addieren. Oberfläche: Berührungsflächen müssen abgezogen werden, da sie nicht zur äußeren Oberfläche gehören."
 - **Schwierigkeit**: Schwer
+
+---
+
+## Unit 5: Ähnlichkeit (u5)
+
+### Neue Aufgaben (Phase 3)
+
+#### 9. Ähnliche Dreiecke
+- **Typ**: `input`
+- **Frage**: "Zwei ähnliche Dreiecke: Das erste hat die Seiten a=Xcm, b=Ycm. Das zweite ist k-mal so groß. Wie lang ist Seite c im zweiten Dreieck?"
+- **Richtige Antwort**: Numerischer Wert in cm
+- **Erklärung**: Bei Ähnlichkeit werden alle Seiten mit dem gleichen Faktor k gestreckt
+
+#### 10. Strahlensatz
+- **Typ**: `input`
+- **Frage**: "Ein Mensch (Xcm) wirft einen Schatten von Ycm. Ein Turm wirft einen Schatten von Zcm. Wie hoch ist der Turm?"
+- **Richtige Antwort**: Numerischer Wert in cm
+- **Erklärung**: Anwendung des Strahlensatzes: h₁/s₁ = h₂/s₂
 
 ---
 

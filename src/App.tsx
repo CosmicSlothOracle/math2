@@ -11,6 +11,7 @@ import {
   ToastContainer, Skeleton, ModalOverlay, PullToRefresh, ProgressBar, CoinFlightAnimation,
   CalculatorWidget
 } from './ui-components';
+import { subscribeVirtualPointer } from './utils/virtualPointer';
 
 // --- Theme Helpers ---
 const GROUP_THEME: Record<CategoryGroup, { color: string; bg: string; text: string; border: string; darkBg: string }> = {
@@ -180,37 +181,34 @@ const ElectricStorm: React.FC = () => {
     let lastMouse = { ...mouse };
     let globalEnergy = 0;
 
-    const handleMouseMove = (e: MouseEvent) => {
-        mouse.x = e.clientX;
-        mouse.y = e.clientY;
-    };
+    // Subscribe to a normalized virtual pointer (mouse / touch / pointer)
+    let lastDown = false;
+    const unsubscribe = subscribeVirtualPointer((p) => {
+      // Clamp to canvas bounds
+      mouse.x = Math.max(0, Math.min(canvas.width, Math.round(p.x)));
+      mouse.y = Math.max(0, Math.min(canvas.height, Math.round(p.y)));
 
-    const handleMouseDown = (e: MouseEvent) => {
-        // Massive burst on click
-        orbs.push({ x: e.clientX, y: e.clientY, radius: 5, life: 1.0, hue: 200 });
+      // Trigger the click/tap burst on down-edge
+      if (p.down && !lastDown) {
+        const px = mouse.x;
+        const py = mouse.y;
+        orbs.push({ x: px, y: py, radius: 5, life: 1.0, hue: 200 });
         for (let i = 0; i < 12; i++) {
-            createBolt(e.clientX, e.clientY, 80 + Math.random() * 120, true);
+            createBolt(px, py, 80 + Math.random() * 120, true);
         }
         for (let i = 0; i < 30; i++) {
             const angle = Math.random() * Math.PI * 2;
             const speed = 5 + Math.random() * 15;
             sparks.push({
-              x: e.clientX, y: e.clientY,
+              x: px, y: py,
               vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
               life: 1, size: 2 + Math.random() * 3
             });
         }
         globalEnergy = Math.min(globalEnergy + 50, 100);
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-        mouse.x = e.touches[0].clientX;
-        mouse.y = e.touches[0].clientY;
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('touchmove', handleTouchMove);
+      }
+      lastDown = p.down;
+    });
 
     function createBolt(x: number, y: number, length: number, withBranches = false) {
         const path = [{x, y}];
@@ -594,9 +592,7 @@ const VoidProtocol: React.FC = () => {
     const anim = requestAnimationFrame(draw);
     return () => {
       cancelAnimationFrame(anim);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('touchmove', handleTouchMove);
+      try { unsubscribePointer(); } catch (err) { /* ignore */ }
     };
   }, [size]);
 
@@ -915,15 +911,33 @@ const NeonDreams: React.FC = () => {
       interactionEnergy = 100;
     };
 
-    const handleTouchMove = (e: TouchEvent) => {
-        targetMouse.x = e.touches[0].clientX;
-        targetMouse.y = e.touches[0].clientY;
-        interactionEnergy = Math.min(interactionEnergy + 8, 100);
-    };
+    // Use normalized virtual pointer for mouse/touch
+    let lastDownLocal = false;
+    const unsubscribePointer = subscribeVirtualPointer((p) => {
+      targetMouse.x = p.x;
+      targetMouse.y = p.y;
+      interactionEnergy = Math.min(interactionEnergy + 8, 100);
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('touchmove', handleTouchMove);
+      if (p.down && !lastDownLocal) {
+        pulses.push({
+          x: targetMouse.x, y: targetMouse.y,
+          radius: 10, hue: (time * 50) % 360, life: 1
+        });
+        for (let i = 0; i < 8; i++) {
+          const angle = (i / 8) * Math.PI * 2;
+          const length = 100 + Math.random() * 150;
+          neonLines.push({
+            x1: targetMouse.x, y1: targetMouse.y,
+            x2: targetMouse.x + Math.cos(angle) * length,
+            y2: targetMouse.y + Math.sin(angle) * length,
+            hue: (time * 50 + i * 30) % 360,
+            life: 1, width: 3 + Math.random() * 3
+          });
+        }
+        interactionEnergy = 100;
+      }
+      lastDownLocal = p.down;
+    });
 
     const draw = () => {
       interactionEnergy *= 0.96;

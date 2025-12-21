@@ -298,6 +298,15 @@ export const SEGMENT_WINKEL_BEZIEHUNGEN: SegmentConfig = {
       placeholder: 'Antwort eingeben...'
     },
     {
+      id: 'bounty-pythagoras',
+      question: 'Ein rechtwinkliges Dreieck hat die Katheten a=6cm und b=8cm. Berechne die Hypotenuse c mit dem Satz des Pythagoras.',
+      type: 'input',
+      correctAnswer: '10',
+      explanation: 'Satz des Pythagoras: c² = a² + b² = 6² + 8² = 36 + 64 = 100. Also c = √100 = 10cm.',
+      difficultyLevel: 'Mittel',
+      placeholder: 'cm'
+    },
+    {
       id: 'bounty-2',
       question: 'Ein Dreieck hat die Winkel 47° und 63°. a) Berechne den dritten Winkel. b) Begründe deine Antwort.',
       type: 'input',
@@ -571,6 +580,18 @@ export const SEGMENT_KOERPER_OBERFLAECHEN: SegmentConfig = {
       placeholder: 'Antwort eingeben...'
     },
     {
+      id: 'bounty-cylinder',
+      question: 'Ein Zylinder hat den Radius r=3 cm und die Höhe h=10 cm (π≈3,14). a) Berechne das Volumen. b) Berechne die Oberfläche.',
+      type: 'input',
+      correctAnswer: JSON.stringify({
+        a: '283',
+        b: '245'
+      }),
+      explanation: 'Volumen: π × r² × h = 3,14 × 9 × 10 = 282,6 cm³ ≈ 283 cm³. Oberfläche: 2×π×r² + 2×π×r×h = 2×3,14×9 + 2×3,14×3×10 = 245,04 cm² ≈ 245 cm²',
+      difficultyLevel: 'Mittel',
+      placeholder: 'Antwort eingeben...'
+    },
+    {
       id: 'bounty-2',
       question: 'Ein Zylinder hat den Radius r=3 cm und die Höhe h=10 cm (π≈3,14). a) Berechne das Volumen. b) Berechne die Oberfläche.',
       type: 'input',
@@ -713,6 +734,18 @@ export const SEGMENT_AEHNLICHKEIT: SegmentConfig = {
       }),
       explanation: 'Modelllänge = 4,2 m ÷ 20 = 0,21 m = 21 cm',
       difficultyLevel: 'Mittel',
+      placeholder: 'Antwort eingeben...'
+    },
+    {
+      id: 'bounty-strahlensatz',
+      question: 'Ein Mensch (1,80 m) wirft einen Schatten von 2,4 m. Ein Turm wirft einen Schatten von 12 m. a) Wie hoch ist der Turm? b) Erkläre deinen Rechenweg.',
+      type: 'input',
+      correctAnswer: JSON.stringify({
+        a: '9',
+        b: 'strahlensatz oder dreisatz'
+      }),
+      explanation: 'Verhältnis: 1,80 m / 2,4 m = Turmhöhe / 12 m → Turmhöhe = (1,80 × 12) / 2,4 = 9 m',
+      difficultyLevel: 'Schwer',
       placeholder: 'Antwort eingeben...'
     },
     {

@@ -1270,6 +1270,11 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
     const [selectedOption, setSelectedOption] = useState<any>(null);
     const [textInput, setTextInput] = useState('');
     const [timeLeft, setTimeLeft] = useState(60);
+    const [wager, setWager] = useState<number>(0);
+    const [classification, setClassification] = useState<Record<string, string>>({});
+    const [angleInput, setAngleInput] = useState('');
+    const [sliderValue, setSliderValue] = useState<number>(1);
+    const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         if (isBountyMode && !feedback && tasks.length > 0) {
@@ -1279,15 +1284,69 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
     }, [isBountyMode, feedback, currentIdx, tasks.length]);
 
     const handleVerify = () => {
-        const task = tasks[currentIdx]; let isCorrect = false;
-        if (task.type === 'choice' || task.type === 'boolean') { isCorrect = selectedOption === task.correctAnswer; }
-        else if (task.type === 'input' || task.type === 'shorttext') { const clean = (s: string) => s.replace(/\s+/g, '').toLowerCase(); const userAns = clean(textInput); const correctAnswers = String(task.correctAnswer).split(',').map(s => clean(s.trim())); isCorrect = correctAnswers.some(ans => userAns.includes(ans)); }
-        if (isCorrect) { setFeedback('correct'); onTaskCorrect(task, 0); } else { setFeedback('wrong'); setMistakes(m => m + 1); }
+        const task = tasks[currentIdx];
+        let isCorrect = false;
+
+        if (task.type === 'dragDrop' && task.dragDropData) {
+            const answerMap = JSON.parse(String(task.correctAnswer));
+            const allSelected = Object.keys(answerMap).every(key => classification[key]);
+            if (!allSelected) {
+                return; // Require user to classify all shapes first
+            }
+            isCorrect = Object.keys(answerMap).every(key => classification[key] === answerMap[key]);
+        } else if (task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') {
+            isCorrect = selectedOption === task.correctAnswer || (task.type === 'boolean' && (selectedOption === 0 && task.correctAnswer === 'wahr' || selectedOption === 1 && task.correctAnswer === 'falsch'));
+        } else if (task.type === 'input' || task.type === 'shorttext') {
+            const clean = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+            const userAns = clean(textInput);
+            if (userAns === '') {
+                isCorrect = false;
+            } else {
+                const correctAnswers = String(task.correctAnswer).split(',').map(s => clean(s.trim()));
+                isCorrect = correctAnswers.some(ans => userAns.includes(ans));
+            }
+        } else if (task.type === 'visualChoice') {
+            isCorrect = selectedOption === task.correctAnswer;
+        } else if (task.type === 'angleMeasure' && task.angleData) {
+            const userAngle = parseInt(angleInput) || 0;
+            const correctAngle = task.angleData.correctAngle;
+            isCorrect = Math.abs(userAngle - correctAngle) <= 5; // ±5° tolerance
+        } else if (task.type === 'sliderTransform' && task.sliderData) {
+            const correctK = task.sliderData.correctK;
+            isCorrect = Math.abs(sliderValue - correctK) <= 0.1; // ±0.1 tolerance
+        } else if (task.type === 'areaDecomposition' && task.decompositionData) {
+            const allPartsSelected = task.decompositionData.parts?.every((part: any) => selectedParts.has(part.label)) || false;
+            if (allPartsSelected) {
+                const totalArea = task.decompositionData.parts?.reduce((sum: number, part: any) => sum + (part.area || 0), 0) || 0;
+                const userAnswer = parseInt(textInput) || 0;
+                isCorrect = Math.abs(userAnswer - totalArea) <= 1; // ±1 tolerance
+            }
+        }
+
+        if (isCorrect) {
+            setFeedback('correct');
+            onTaskCorrect(task, task.type === 'wager' ? wager : 0);
+        } else {
+            setFeedback('wrong');
+            setMistakes(m => m + 1);
+        }
     };
 
     const handleNext = () => {
-        if (currentIdx < tasks.length - 1) { setCurrentIdx(p => p + 1); setFeedback(null); setSelectedOption(null); setTextInput(''); setTimeLeft(60); }
-        else { onComplete(mistakes === 0); }
+        if (currentIdx < tasks.length - 1) {
+            setCurrentIdx(p => p + 1);
+            setFeedback(null);
+            setSelectedOption(null);
+            setTextInput('');
+            setWager(0);
+            setClassification({});
+            setAngleInput('');
+            setSliderValue(1);
+            setSelectedParts(new Set());
+            setTimeLeft(60);
+        } else {
+            onComplete(mistakes === 0);
+        }
     };
 
     const task = tasks[currentIdx]; if (!task) return null;
@@ -1302,16 +1361,200 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
             <div className="flex-1 overflow-y-auto p-8 flex flex-col items-center justify-center max-w-4xl mx-auto w-full">
                 <h2 className={`text-3xl font-black italic text-center mb-10 leading-tight ${isBountyMode ? 'text-amber-100' : 'text-slate-900'}`}>{task.question}</h2>
                 <div className="w-full space-y-4">
-                    {(task.type === 'choice' || task.type === 'boolean') && (
+                    {(task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') && (
                         <div className="grid grid-cols-1 gap-3">
-                            {task.options?.map((opt, i) => (<button key={i} onClick={() => !feedback && setSelectedOption(i)} className={`p-6 rounded-[2rem] border-2 text-left font-black transition-all ${selectedOption === i ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-100 bg-white hover:border-indigo-200'}`}>{opt}</button>))}
+                            {task.options?.map((opt, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => !feedback && setSelectedOption(i)}
+                                    className={`p-6 rounded-[2rem] border-2 text-left font-black transition-all ${selectedOption === i ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-100 bg-white hover:border-indigo-200'}`}
+                                >
+                                    {opt}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    {task.type === 'wager' && task.wagerOptions && (
+                        <div className="mt-6 p-6 bg-amber-50 rounded-2xl border-2 border-amber-200">
+                            <p className="text-xs font-black uppercase text-amber-700 mb-3 tracking-widest">💰 Wette Coins:</p>
+                            <div className="grid grid-cols-3 gap-2">
+                                {task.wagerOptions.map((amount, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => !feedback && setWager(amount)}
+                                        className={`p-3 rounded-xl border-2 font-black text-sm transition-all ${wager === amount ? 'border-amber-600 bg-amber-600 text-white' : 'border-amber-300 bg-white text-amber-700 hover:bg-amber-100'}`}
+                                    >
+                                        {amount}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    {task.type === 'visualChoice' && (
+                        <>
+                            {task.visualData && task.visualData.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    {task.visualData.map((item: any, i: number) => (
+                                        <button
+                                            key={item.id || i}
+                                            onClick={() => !feedback && setSelectedOption(item.id)}
+                                            className={`relative p-6 rounded-2xl border-2 flex flex-col items-center justify-center transition-all ${selectedOption === item.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-white hover:border-indigo-200'}`}
+                                        >
+                                            <svg viewBox="0 0 200 150" className="w-24 h-24">
+                                                <path d={item.path} fill="none" stroke="currentColor" strokeWidth="3" />
+                                            </svg>
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-6 bg-red-50 border-2 border-red-200 rounded-xl text-center">
+                                    <p className="text-red-600 font-bold">⚠️ FEHLER: visualData fehlt oder ist leer!</p>
+                                    <p className="text-xs text-red-500 mt-2">Task ID: {task.id} | Type: {task.type}</p>
+                                </div>
+                            )}
+                        </>
+                    )}
+                    {task.type === 'dragDrop' && task.dragDropData && (
+                        <div className="grid grid-cols-1 gap-4">
+                            <p className="text-sm font-bold text-slate-600 mb-2">Ordne jede Figur der passenden Kategorie zu:</p>
+                            <div className="space-y-6">
+                                {task.dragDropData.shapes?.map((shape: any) => (
+                                    <div key={shape.id} className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-200 flex items-center gap-4">
+                                        <svg viewBox="0 0 200 150" className="w-24 h-16 shrink-0">
+                                            <path d={shape.path} fill="none" stroke="currentColor" strokeWidth="3" />
+                                        </svg>
+                                        <select
+                                            value={classification[shape.id] || ''}
+                                            onChange={(e) => setClassification({ ...classification, [shape.id]: e.target.value })}
+                                            className="flex-1 p-3 rounded-xl border-2 bg-white text-sm font-black"
+                                            disabled={!!feedback}
+                                        >
+                                            <option value="" disabled>– Kategorie wählen –</option>
+                                            {task.dragDropData.categories.map((cat: any) => (
+                                                <option key={cat.id} value={cat.id}>{cat.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    {task.type === 'angleMeasure' && task.angleData && (
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center">
+                                <svg viewBox="0 0 300 300" className="w-full h-full">
+                                    <path d={task.angleData.path} fill="none" stroke="currentColor" strokeWidth="3" />
+                                </svg>
+                            </div>
+                            <div className="w-full max-w-xs">
+                                <p className="text-sm font-bold text-slate-600 mb-2">Messe den Winkel:</p>
+                                <input
+                                    type="number"
+                                    value={angleInput}
+                                    onChange={(e) => setAngleInput(e.target.value)}
+                                    placeholder="Winkel in Grad"
+                                    disabled={!!feedback}
+                                    className="w-full p-4 text-xl font-black rounded-2xl border-4 border-slate-100 focus:border-indigo-500 bg-slate-50 outline-none"
+                                />
+                            </div>
+                        </div>
+                    )}
+                    {task.type === 'sliderTransform' && task.sliderData && (
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center">
+                                <svg viewBox="0 0 300 300" className="w-full h-full" style={{ transform: `scale(${sliderValue})` }}>
+                                    <path d={task.sliderData.basePath} fill="none" stroke="currentColor" strokeWidth="3" />
+                                </svg>
+                            </div>
+                            <div className="w-full max-w-xs">
+                                <p className="text-xs font-bold text-slate-600 mb-2">Transformier-Schieber (k = {sliderValue.toFixed(1)}):</p>
+                                <input
+                                    type="range"
+                                    min={task.sliderData.minK}
+                                    max={task.sliderData.maxK}
+                                    step="0.1"
+                                    value={sliderValue}
+                                    onChange={(e) => setSliderValue(parseFloat(e.target.value))}
+                                    disabled={!!feedback}
+                                    className="w-full"
+                                />
+                            </div>
+                        </div>
+                    )}
+                    {task.type === 'areaDecomposition' && task.decompositionData && (
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center">
+                                <svg viewBox="0 0 300 300" className="w-full h-full">
+                                    <path d={task.decompositionData.complexPath} fill="none" stroke="currentColor" strokeWidth="3" />
+                                </svg>
+                            </div>
+                            <div className="space-y-2 w-full max-w-xs">
+                                <p className="text-sm font-bold text-slate-600 mb-2">Klicke auf alle Teilflächen:</p>
+                                {task.decompositionData.parts?.map((part: any) => (
+                                    <button
+                                        key={part.label}
+                                        onClick={() => {
+                                            if (feedback) return;
+                                            const newSet = new Set(selectedParts);
+                                            if (newSet.has(part.label)) {
+                                                newSet.delete(part.label);
+                                            } else {
+                                                newSet.add(part.label);
+                                            }
+                                            setSelectedParts(newSet);
+                                        }}
+                                        className={`w-full p-3 rounded-xl border-2 text-left font-bold transition-all ${selectedParts.has(part.label) ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200'}`}
+                                    >
+                                        {part.label}
+                                    </button>
+                                ))}
+                                <div className="mt-4">
+                                    <p className="text-sm font-bold text-slate-600 mb-2">Gesamtfläche:</p>
+                                    <input
+                                        type="number"
+                                        value={textInput}
+                                        onChange={(e) => setTextInput(e.target.value)}
+                                        placeholder="Fläche eingeben"
+                                        disabled={!!feedback}
+                                        className="w-full p-4 text-xl font-black rounded-2xl border-4 border-slate-100 focus:border-indigo-500 bg-slate-50 outline-none"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     )}
                     {(task.type === 'input' || task.type === 'shorttext') && (
-                        <input type="text" value={textInput} onChange={e => setTextInput(e.target.value)} disabled={!!feedback} placeholder="Antwort..." className="w-full p-8 text-3xl font-black rounded-[2.5rem] border-4 outline-none text-center bg-white border-slate-100 focus:border-indigo-500 shadow-inner" />
+                        <div className="relative z-10">
+                            <input
+                                type="text"
+                                value={textInput}
+                                onChange={e => setTextInput(e.target.value)}
+                                disabled={!!feedback}
+                                placeholder="Antwort..."
+                                autoFocus
+                                readOnly={!!feedback}
+                                className={`w-full p-8 text-3xl font-black rounded-[2.5rem] border-4 outline-none text-center bg-white border-slate-100 focus:border-indigo-500 shadow-inner focus:ring-4 focus:ring-indigo-200 transition-all ${isBountyMode ? 'bounty-input' : ''} ${feedback ? 'opacity-50 cursor-not-allowed' : 'cursor-text'}`}
+                                style={{ pointerEvents: feedback ? 'none' : 'auto', WebkitUserSelect: 'text', userSelect: 'text' }}
+                            />
+                        </div>
                     )}
                 </div>
-                {!feedback ? <Button size="lg" className="w-full mt-10 shadow-2xl" onClick={handleVerify} disabled={selectedOption === null && textInput === ''}>Überprüfen 🎯</Button> : (
+                {!feedback ? (
+                    <Button
+                        size="lg"
+                        className="w-full mt-10 shadow-2xl"
+                        onClick={handleVerify}
+                        disabled={
+                            ((task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') && selectedOption === null) ||
+                            ((task.type === 'input' || task.type === 'shorttext') && textInput === '') ||
+                            (task.type === 'visualChoice' && selectedOption === null) ||
+                            (task.type === 'angleMeasure' && angleInput === '') ||
+                            (task.type === 'areaDecomposition' && (selectedParts.size === 0 || textInput === '')) ||
+                            (task.type === 'dragDrop' && task.dragDropData && task.dragDropData.shapes && task.dragDropData.shapes.some((shape: any) => !classification[shape.id]))
+                        }
+                    >
+                        Überprüfen 🎯
+                    </Button>
+                ) : (
                     <div className={`mt-10 p-10 rounded-[3rem] border-4 animate-in zoom-in-95 duration-200 w-full ${feedback === 'correct' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'}`}>
                         <h4 className="text-3xl font-black italic mb-4 uppercase">{feedback === 'correct' ? 'Richtig! 🎯' : 'Knapp daneben...'}</h4>
                         <p className="text-sm font-bold mb-8 opacity-70 leading-relaxed italic">{task.explanation}</p>

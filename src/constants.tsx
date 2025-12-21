@@ -79,10 +79,11 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'av_chosen', name: 'The Chosen One', type: 'avatar', cost: 10000, value: '👁️', icon: '👁️', description: 'Du siehst die Matrix. Du bist MathMaster.', rarity: 'legendary' },
 
   // --- TASCHENRECHNER SKINS ---
-  { id: 'calc_default', name: 'Standard Glass', type: 'calculator', cost: 0, value: 'default', icon: '🧮', description: 'Clean, modern, funktional.', rarity: 'common' },
-  { id: 'calc_neon', name: 'Neon Hacker', type: 'calculator', cost: 300, value: 'neon', icon: '📟', description: 'Cyber-Optik für Profis.', rarity: 'rare' },
-  { id: 'calc_chaos', name: 'Chaos Mode', type: 'calculator', cost: 500, value: 'chaos', icon: '🤪', description: 'Alles durcheinander, aber funktioniert.', rarity: 'epic' },
-  { id: 'calc_soup', name: 'Alphabet Soup', type: 'calculator', cost: 800, value: 'soup', icon: '🍲', description: 'Mathe mal andersrum.', rarity: 'legendary' },
+  { id: 'calc_default', name: 'Standard Glass', type: 'calculator', cost: 0, value: 'default', icon: '🧮', description: 'Kristallklares Glas-Design mit eleganten Schatten. Zeitlos und professionell.', rarity: 'common' },
+  { id: 'calc_neon', name: 'Neon Hacker', type: 'calculator', cost: 300, value: 'neon', icon: '📟', description: 'Matrix-grüne Cyber-Optik mit leuchtenden Rändern. Terminal-Feeling pur!', rarity: 'rare' },
+  { id: 'calc_chaos', name: 'Chaos Mode', type: 'calculator', cost: 500, value: 'chaos', icon: '🤪', description: 'Wilde Rotation und lila-pink Farbverläufe. Macht Spaß beim Rechnen!', rarity: 'epic' },
+  { id: 'calc_soup', name: 'Alphabet Soup', type: 'calculator', cost: 800, value: 'soup', icon: '🍲', description: 'Zahlen werden zu Buchstaben! Mathe-Rätsel im warmen Bernstein-Look.', rarity: 'legendary' },
+  { id: 'calc_quantum', name: 'Quantum Matrix', type: 'calculator', cost: 1200, value: 'quantum', icon: '⚛️', description: 'Holographische UI mit Teilchen-Effekten. Rechnen in der vierten Dimension.', rarity: 'legendary' },
 
   // --- EFFEKTE ---
   // Tier 1 - Basic Effects (250-400)

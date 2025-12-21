@@ -61,7 +61,9 @@ const MatrixRain: React.FC = () => {
     canvas.width = size.width || window.innerWidth;
     canvas.height = size.height || window.innerHeight;
 
-    const fontSize = 16;
+    // Reduce complexity on mobile for better performance
+    const isMobile = window.innerWidth < 768;
+    const fontSize = isMobile ? 20 : 16; // Larger font = fewer columns on mobile
     const columns = Math.floor(canvas.width / fontSize);
     const drops: number[] = new Array(columns).fill(0).map(() => Math.random() * -100);
     const speeds: number[] = new Array(columns).fill(0).map(() => 0.5 + Math.random() * 1.5);
@@ -94,11 +96,12 @@ const MatrixRain: React.FC = () => {
           }
         }
 
-        // Trail characters - gradient fade
-        for (let j = 1; j < 25; j++) {
+        // Trail characters - gradient fade (reduced on mobile)
+        const trailLength = isMobile ? 15 : 25;
+        for (let j = 1; j < trailLength; j++) {
           const trailY = y - j * fontSize;
           if (trailY > 0 && trailY < canvas.height) {
-            const alpha = Math.max(0, 1 - j / 25);
+            const alpha = Math.max(0, 1 - j / trailLength);
             const green = Math.floor(255 * alpha);
             ctx.fillStyle = `rgba(0, ${green}, ${Math.floor(green * 0.4)}, ${alpha * 0.8})`;
             ctx.font = `${fontSize}px 'Courier New', monospace`;
@@ -128,7 +131,8 @@ const MatrixRain: React.FC = () => {
       }
     };
 
-    const interval = setInterval(draw, 33);
+    // Throttle animation on mobile for better performance
+    const interval = setInterval(draw, isMobile ? 50 : 33);
     return () => clearInterval(interval);
   }, [size]);
 
@@ -2833,6 +2837,8 @@ const AlienScannerTask: React.FC<{ task: Task; onComplete: (success: boolean) =>
     );
 };
 
+// DEBUG helper
+console.log('%c[QuestExecution] task payload:', 'color:purple;font-weight:bold', task);
 // --- Multi-Angle Throw Training Component ---
 const MultiAngleThrowTraining: React.FC<{
   task: Task;
@@ -3035,20 +3041,30 @@ const QuestExecutionView: React.FC<{
   unit: LearningUnit;
   tasks: Task[];
   isBountyMode: boolean;
+  timeLimit?: number;
+  noCheatSheet?: boolean;
   onTaskCorrect: (task: Task, wager: number) => void;
   onComplete: (isPerfect: boolean) => void;
   onCancel: () => void;
-}> = ({ unit, tasks, isBountyMode, onTaskCorrect, onComplete, onCancel }) => {
+}> = ({ unit, tasks, isBountyMode, timeLimit, noCheatSheet = false, onTaskCorrect, onComplete, onCancel }) => {
     const [currentIdx, setCurrentIdx] = useState(0);
     const [mistakes, setMistakes] = useState(0);
     const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
     const [selectedOption, setSelectedOption] = useState<any>(null);
     const [textInput, setTextInput] = useState('');
-    const [timeLeft, setTimeLeft] = useState(60);
+    const [timeLeft, setTimeLeft] = useState(timeLimit || 60);
+    const [hintsUsed, setHintsUsed] = useState(0);
+    const [currentHint, setCurrentHint] = useState<string | null>(null);
+    const [isLoadingHint, setIsLoadingHint] = useState(false);
     const [wager, setWager] = useState<number>(0);
+    const [classification, setClassification] = useState<Record<string, string>>({});
+    const [angleInput, setAngleInput] = useState('');
+    const [sliderValue, setSliderValue] = useState<number>(1);
+    const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         if (isBountyMode && !feedback && tasks.length > 0) {
+            setTimeLeft(timeLimit || 60);
             const timer = setInterval(() => {
                 setTimeLeft(prev => {
                     if (prev <= 1) {
@@ -3061,19 +3077,27 @@ const QuestExecutionView: React.FC<{
             }, 1000);
             return () => clearInterval(timer);
         }
-    }, [isBountyMode, feedback, currentIdx, tasks.length]);
+    }, [isBountyMode, feedback, currentIdx, tasks.length, timeLimit]);
+
+    useEffect(() => {
+        // Reset hint when task changes
+        setCurrentHint(null);
+    }, [currentIdx]);
 
     const handleVerify = () => {
         const task = tasks[currentIdx];
         let isCorrect = false;
+
         // Evaluate dragDrop classification
         if (task.type === 'dragDrop' && task.dragDropData) {
             const answerMap = JSON.parse(String(task.correctAnswer));
+            const allSelected = Object.keys(answerMap).every(key => classification[key]);
+            if (!allSelected) {
+                // Require user to classify all shapes first
+                addToast('Bitte ordne alle Figuren zu, bevor du überprüfst!', 'error');
+                return;
+            }
             isCorrect = Object.keys(answerMap).every(key => classification[key] === answerMap[key]);
-        }
-
-        if (task.type === 'dragDrop') {
-            // handled above
         } else if (task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') {
             isCorrect = selectedOption === task.correctAnswer || (task.type === 'boolean' && (selectedOption === 0 && task.correctAnswer === 'wahr' || selectedOption === 1 && task.correctAnswer === 'falsch'));
         } else if (task.type === 'input' || task.type === 'shorttext') {
@@ -3088,6 +3112,23 @@ const QuestExecutionView: React.FC<{
             }
         } else if (task.type === 'visualChoice') {
             isCorrect = selectedOption === task.correctAnswer;
+        } else if (task.type === 'angleMeasure' && task.angleData) {
+            const userAngle = parseInt(angleInput) || 0;
+            const correctAngle = task.angleData.correctAngle;
+            // Allow ±5° tolerance
+            isCorrect = Math.abs(userAngle - correctAngle) <= 5;
+        } else if (task.type === 'sliderTransform' && task.sliderData) {
+            const correctK = task.sliderData.correctK;
+            // Allow ±0.1 tolerance
+            isCorrect = Math.abs(sliderValue - correctK) <= 0.1;
+        } else if (task.type === 'areaDecomposition' && task.decompositionData) {
+            // For area decomposition, check if all parts are selected and sum matches
+            const allPartsSelected = task.decompositionData.parts?.every((part: any) => selectedParts.has(part.label)) || false;
+            if (allPartsSelected) {
+                const totalArea = task.decompositionData.parts?.reduce((sum: number, part: any) => sum + (part.area || 0), 0) || 0;
+                const userAnswer = parseInt(textInput) || 0;
+                isCorrect = Math.abs(userAnswer - totalArea) <= 1; // Allow ±1 tolerance
+            }
         }
 
         if (isCorrect) {
@@ -3106,9 +3147,31 @@ const QuestExecutionView: React.FC<{
             setSelectedOption(null);
             setTextInput('');
             setWager(0);
-            setTimeLeft(60);
+            setTimeLeft(timeLimit || 60);
+            setClassification({});
+            setAngleInput('');
+            setSliderValue(1);
+            setSelectedParts(new Set());
+            setCurrentHint(null);
         } else {
-            onComplete(mistakes === 0);
+            // Perfect run means no mistakes AND no hints used
+            onComplete(mistakes === 0 && hintsUsed === 0);
+        }
+    };
+
+    const handleRequestHint = async () => {
+        if (noCheatSheet || isLoadingHint || currentHint) return;
+        const task = tasks[currentIdx];
+        setIsLoadingHint(true);
+        try {
+            const hint = await getMatheHint(unit.title, task.question);
+            setCurrentHint(hint);
+            setHintsUsed(h => h + 1);
+        } catch (error) {
+            console.error('Failed to get hint:', error);
+            setCurrentHint('Ups, der Tipp-Service ist gerade nicht verfügbar. Versuch es nochmal!');
+        } finally {
+            setIsLoadingHint(false);
         }
     };
 
@@ -3172,7 +3235,25 @@ const QuestExecutionView: React.FC<{
                     <>
                         <div className="mb-10 text-center">
                             <h3 className={`text-xl sm:text-3xl font-black italic leading-tight mb-4 ${isBountyMode ? 'text-amber-100' : 'text-slate-900'}`}>{task.question}</h3>
+                            {!noCheatSheet && !feedback && (
+                                <button
+                                    onClick={handleRequestHint}
+                                    disabled={isLoadingHint || !!currentHint}
+                                    className="text-sm text-indigo-600 hover:text-indigo-800 underline font-bold disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+                                >
+                                    {isLoadingHint ? 'Lade Tipp...' : currentHint ? '✓ Tipp angezeigt' : 'Ich brauche einen Tipp (-1 Perfect)'}
+                                </button>
+                            )}
+                            {currentHint && (
+                                <div className="mt-4 p-4 bg-indigo-50 border-2 border-indigo-200 rounded-xl text-left">
+                                    <p className="text-sm font-bold text-indigo-900 mb-1">💡 Tipp:</p>
+                                    <p className="text-sm text-slate-700">{currentHint}</p>
+                                </div>
+                            )}
                         </div>
+
+                        {/* DEBUG: Log task data */}
+                        {console.log('[QuestExecution] Task Type:', task.type, 'visualData:', task.visualData, 'Full Task:', task)}
 
                         <div className="space-y-4 mb-10">
                            {(task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') && (
@@ -3204,21 +3285,32 @@ const QuestExecutionView: React.FC<{
                                     </div>
                                 </div>
                             )}
-                            {task.type === 'visualChoice' && task.visualData && (
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                    {task.visualData.map((item: any, i: number) => (
-                                        <button
-                                            key={item.id}
-                                            onClick={() => !feedback && setSelectedOption(item.id)}
-                                            className={`relative p-6 rounded-2xl border-2 flex flex-col items-center justify-center transition-all ${selectedOption === item.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-white hover:border-indigo-200'}`}
-                                        >
-                                            <svg viewBox="0 0 200 150" className="w-24 h-24 mb-3">
-                                                <path d={item.path} fill="none" stroke="currentColor" strokeWidth="3" />
-                                            </svg>
-                                            <span className="text-xs font-black uppercase tracking-widest">{item.label}</span>
-                                        </button>
-                                    ))}
-                                </div>
+                            {task.type === 'visualChoice' && (
+                                <>
+                                    {console.log('[visualChoice] visualData exists:', !!task.visualData, 'visualData:', task.visualData)}
+                                    {task.visualData && task.visualData.length > 0 ? (
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            {task.visualData.map((item: any, i: number) => (
+                                                <button
+                                                    key={item.id || i}
+                                                    onClick={() => !feedback && setSelectedOption(item.id)}
+                                                    className={`relative p-6 rounded-2xl border-2 flex flex-col items-center justify-center transition-all ${selectedOption === item.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-white hover:border-indigo-200'}`}
+                                                >
+                                                    <svg viewBox="0 0 200 150" className="w-24 h-24 mb-3">
+                                                        <path d={item.path} fill="none" stroke="currentColor" strokeWidth="3" />
+                                                    </svg>
+                                                    <span className="text-xs font-black uppercase tracking-widest">{item.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="p-6 bg-red-50 border-2 border-red-200 rounded-xl text-center">
+                                            <p className="text-red-600 font-bold">⚠️ FEHLER: visualData fehlt oder ist leer!</p>
+                                            <p className="text-xs text-red-500 mt-2">Task ID: {task.id} | Type: {task.type}</p>
+                                            <p className="text-xs text-red-400 mt-1">Task Object: {JSON.stringify(task, null, 2)}</p>
+                                        </div>
+                                    )}
+                                </>
                             )}
                             {task.type === 'dragDrop' && task.dragDropData && (
                                 <div className="grid grid-cols-1 gap-4">
@@ -3245,25 +3337,44 @@ const QuestExecutionView: React.FC<{
                                 </div>
                             )}
                             {task.type === 'angleMeasure' && task.angleData && (
-                                <div className="flex flex-col items-center">
+                                <div className="flex flex-col items-center gap-4">
                                     <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center">
                                         <svg viewBox="0 0 300 300" className="w-full h-full">
                                             <path d={task.angleData.path} fill="none" stroke="currentColor" strokeWidth="3" />
                                         </svg>
                                     </div>
-                                    <p className="mt-4 text-sm font-bold text-slate-600">Zielwinkel: {task.angleData.correctAngle}°</p>
+                                    <div className="w-full max-w-xs">
+                                        <p className="text-sm font-bold text-slate-600 mb-2">Messe den Winkel:</p>
+                                        <input
+                                            type="number"
+                                            value={angleInput}
+                                            onChange={(e) => setAngleInput(e.target.value)}
+                                            placeholder="Winkel in Grad"
+                                            disabled={!!feedback}
+                                            className="w-full p-4 text-xl font-black rounded-2xl border-4 border-slate-100 focus:border-indigo-500 bg-slate-50 outline-none"
+                                        />
+                                    </div>
                                 </div>
                             )}
                             {task.type === 'sliderTransform' && task.sliderData && (
                                 <div className="flex flex-col items-center gap-4">
                                     <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center">
-                                        <svg viewBox="0 0 300 300" className="w-full h-full">
+                                        <svg viewBox="0 0 300 300" className="w-full h-full" style={{ transform: `scale(${sliderValue})` }}>
                                             <path d={task.sliderData.basePath} fill="none" stroke="currentColor" strokeWidth="3" />
                                         </svg>
                                     </div>
-                                    <div className="w-full">
-                                        <p className="text-xs font-bold text-slate-600 mb-2">Transformier-Schieber:</p>
-                                        <input type="range" min={task.sliderData.minK} max={task.sliderData.maxK} defaultValue={task.sliderData.correctK} className="w-full" />
+                                    <div className="w-full max-w-xs">
+                                        <p className="text-xs font-bold text-slate-600 mb-2">Transformier-Schieber (k = {sliderValue.toFixed(1)}):</p>
+                                        <input
+                                            type="range"
+                                            min={task.sliderData.minK}
+                                            max={task.sliderData.maxK}
+                                            step="0.1"
+                                            value={sliderValue}
+                                            onChange={(e) => setSliderValue(parseFloat(e.target.value))}
+                                            disabled={!!feedback}
+                                            className="w-full"
+                                        />
                                     </div>
                                 </div>
                             )}
@@ -3274,24 +3385,56 @@ const QuestExecutionView: React.FC<{
                                             <path d={task.decompositionData.complexPath} fill="none" stroke="currentColor" strokeWidth="3" />
                                         </svg>
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-2 w-full max-w-xs">
+                                        <p className="text-sm font-bold text-slate-600 mb-2">Klicke auf alle Teilflächen:</p>
                                         {task.decompositionData.parts?.map((part: any) => (
-                                            <div key={part.label} className="text-xs font-bold text-slate-600">
-                                                Part: {part.label}
-                                            </div>
+                                            <button
+                                                key={part.label}
+                                                onClick={() => {
+                                                    if (feedback) return;
+                                                    const newSet = new Set(selectedParts);
+                                                    if (newSet.has(part.label)) {
+                                                        newSet.delete(part.label);
+                                                    } else {
+                                                        newSet.add(part.label);
+                                                    }
+                                                    setSelectedParts(newSet);
+                                                }}
+                                                className={`w-full p-3 rounded-xl border-2 text-left transition-all ${
+                                                    selectedParts.has(part.label)
+                                                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                                                        : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200'
+                                                }`}
+                                            >
+                                                {part.label} ({part.area} cm²)
+                                            </button>
                                         ))}
+                                        <div className="mt-4">
+                                            <p className="text-sm font-bold text-slate-600 mb-2">Gesamtfläche:</p>
+                                            <input
+                                                type="number"
+                                                value={textInput}
+                                                onChange={(e) => setTextInput(e.target.value)}
+                                                placeholder="Gesamtfläche in cm²"
+                                                disabled={!!feedback}
+                                                className="w-full p-4 text-xl font-black rounded-2xl border-4 border-slate-100 focus:border-indigo-500 bg-slate-50 outline-none"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             )}
                             {(task.type === 'input' || task.type === 'shorttext') && (
-                                <div className="relative">
+                                <div className="relative z-10">
                                     <input
                                         type="text"
                                         value={textInput}
                                         onChange={(e) => setTextInput(e.target.value)}
                                         placeholder={task.placeholder || "Deine Antwort hier..."}
                                         disabled={!!feedback}
-                                        className={`w-full p-6 text-xl font-black rounded-2xl border-4 outline-none transition-all ${isBountyMode ? 'bounty-input' : 'border-slate-100 focus:border-indigo-500 bg-slate-50'}`}
+                                        readOnly={!!feedback}
+                                        autoFocus
+                                        className={`w-full p-6 text-xl font-black rounded-2xl border-4 outline-none transition-all ${isBountyMode ? 'bounty-input' : 'border-slate-100 focus:border-indigo-500 bg-slate-50'} ${feedback ? 'opacity-50 cursor-not-allowed' : 'cursor-text'}`}
+                                        style={{ pointerEvents: feedback ? 'none' : 'auto', WebkitUserSelect: 'text', userSelect: 'text' }}
                                     />
                                     {isBountyMode && <div className="absolute -top-3 left-6 px-2 bg-slate-900 text-amber-500 text-[10px] font-black uppercase tracking-widest">Eingabe erforderlich</div>}
                                 </div>
@@ -3308,9 +3451,14 @@ const QuestExecutionView: React.FC<{
                                     <div className={`text-2xl font-black italic mb-3 uppercase tracking-tighter ${feedback === 'correct' ? (isBountyMode ? 'text-emerald-400' : 'text-emerald-600') : (isBountyMode ? 'text-rose-400' : 'text-rose-600')}`}>
                                         {feedback === 'correct' ? 'Richtig! 🎉' : 'Leider falsch... 💀'}
                                     </div>
-                                    <p className={`text-sm font-bold leading-relaxed mb-6 ${isBountyMode ? 'text-slate-300' : 'text-slate-600'}`}>{task.explanation}</p>
+                                    <p className={`text-sm font-bold leading-relaxed mb-4 ${isBountyMode ? 'text-slate-300' : 'text-slate-600'}`}>{task.explanation}</p>
+                                    {feedback === 'wrong' && (
+                                        <p className={`text-xs font-medium mb-4 ${isBountyMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                                            💡 Tipp: Lies die Frage nochmal genau durch. Überlege, welche Formel oder welches Konzept hier angewendet werden muss.
+                                        </p>
+                                    )}
                                     <Button onClick={handleNext} variant={feedback === 'correct' ? 'success' : 'secondary'} className="w-full">
-                                        Weiter
+                                        {currentIdx < tasks.length - 1 ? 'Weiter zur nächsten Frage' : 'Quest abschließen'}
                                     </Button>
                                 </div>
                             )}
@@ -3328,7 +3476,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'learn' | 'community' | 'shop'>('learn');
   const [selectedUnit, setSelectedUnit] = useState<LearningUnit | null>(null);
 
-  const [currentQuest, setCurrentQuest] = useState<{unit: LearningUnit, type: 'pre' | 'standard' | 'bounty'} | null>(null);
+  const [currentQuest, setCurrentQuest] = useState<{unit: LearningUnit, type: 'pre' | 'standard' | 'bounty', options?: { timeLimit?: number; noCheatSheet?: boolean }} | null>(null);
   const [isQuestActive, setIsQuestActive] = useState(false);
 
   const [isCoinPulsing, setIsCoinPulsing] = useState(false);
@@ -3407,8 +3555,8 @@ export default function App() {
     setCurrentQuest(null);
   };
 
-  const startQuest = (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty') => {
-    setCurrentQuest({unit, type});
+  const startQuest = (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty', options?: { timeLimit?: number; noCheatSheet?: boolean }) => {
+    setCurrentQuest({unit, type, options: options || {}});
     setIsQuestActive(true);
     setSelectedUnit(null);
   }
@@ -3460,7 +3608,7 @@ export default function App() {
 
       {!isQuestActive && (
          <>
-          <nav className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] backdrop-blur-2xl border p-2 rounded-full shadow-2xl flex items-center gap-1 ${isDarkMode ? 'bg-slate-900/80 border-slate-700' : 'bg-white/80 border-slate-200'}`}>
+          <nav className={`fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-[100] backdrop-blur-2xl border p-1.5 sm:p-2 rounded-full shadow-2xl flex items-center gap-0.5 sm:gap-1 ${isDarkMode ? 'bg-slate-900/80 border-slate-700' : 'bg-white/80 border-slate-200'} safe-area-bottom`} style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
              {(['learn', 'community', 'shop'] as const).map(tab => (
               <button
                 key={tab}
@@ -3471,7 +3619,7 @@ export default function App() {
                     setPreviewEffect(null);
                   }
                 }}
-                className={`px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-slate-900 text-white scale-105 shadow-lg' : 'text-slate-500 hover:text-slate-900'}`}
+                className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-full font-black text-[10px] sm:text-xs uppercase tracking-widest transition-all min-h-[44px] touch-manipulation ${activeTab === tab ? 'bg-slate-900 text-white scale-105 shadow-lg' : 'text-slate-500 hover:text-slate-900'}`}
               >
                 {tab === 'learn' ? '📖 Quests' : tab === 'community' ? '🤝 Klasse' : '🛒 Shop'}
               </button>
@@ -3479,22 +3627,22 @@ export default function App() {
           </nav>
 
           <header className={`sticky top-0 z-50 backdrop-blur-xl border-b px-4 sm:px-8 py-3 flex items-center justify-between transition-colors ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-100'}`}>
-             <div onClick={() => setIsInventoryOpen(true)} className="flex items-center gap-3 sm:gap-4 cursor-pointer group hover:opacity-80 transition-opacity">
-                <div className="text-3xl bg-slate-100 rounded-full w-12 h-12 flex items-center justify-center border-2 border-white shadow-sm transition-transform group-hover:scale-110">{user.avatar}</div>
+             <div onClick={() => setIsInventoryOpen(true)} className="flex items-center gap-2 sm:gap-3 md:gap-4 cursor-pointer group hover:opacity-80 transition-opacity touch-manipulation">
+                <div className="text-2xl sm:text-3xl bg-slate-100 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center border-2 border-white shadow-sm transition-transform group-hover:scale-110">{user.avatar}</div>
                 <div>
                     <span className="font-black italic uppercase block leading-none">{user.username}</span>
                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Level {Math.floor(user.xp / 100) + 1}</span>
                 </div>
             </div>
-            <div className="flex gap-2 items-center">
-                <button onClick={() => setIsCalculatorOpen(true)} className="p-2 bg-slate-100 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors">🧮</button>
-                <div className={`px-4 py-2 bg-slate-900 text-white rounded-xl font-black text-xs transition-all shadow-lg ${isCoinPulsing ? 'scale-110 bg-amber-500' : ''}`}>🪙 {user.coins}</div>
+            <div className="flex gap-2 sm:gap-3 items-center">
+                <button onClick={() => setIsCalculatorOpen(true)} className="p-2.5 sm:p-3 bg-slate-100 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation">🧮</button>
+                <div className={`px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-900 text-white rounded-xl font-black text-[10px] sm:text-xs transition-all shadow-lg min-h-[44px] flex items-center ${isCoinPulsing ? 'scale-110 bg-amber-500' : ''}`}>🪙 {user.coins}</div>
             </div>
           </header>
 
-          <main className="max-w-7xl mx-auto px-4 sm:px-8 py-8 sm:py-12 pb-32 relative z-10">
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12 pb-24 sm:pb-32 relative z-10">
             {activeTab === 'learn' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {(LEARNING_UNITS || []).map(unit => {
                     const isGold = user.completedUnits?.includes(unit.id) || false;
                     const isMastered = user.masteredUnits?.includes(unit.id) || false;
@@ -3553,7 +3701,9 @@ export default function App() {
           <QuestExecutionView
               unit={currentQuest.unit}
               tasks={tasksForCurrentQuest}
-              isBountyMode={currentQuest.type === 'bounty'}
+              isBountyMode={currentQuest.type === 'bounty' || !!currentQuest.options?.timeLimit}
+              timeLimit={currentQuest.options?.timeLimit}
+              noCheatSheet={currentQuest.options?.noCheatSheet}
               onTaskCorrect={handleTaskCorrect}
               onComplete={handleQuestComplete}
               onCancel={() => setIsQuestActive(false)}
@@ -3563,50 +3713,90 @@ export default function App() {
   );
 }
 
-// Komponente für die Kachel-Detailansicht mit Tabs
-const UnitView: React.FC<{ unit: LearningUnit; user: User; onClose: () => void; onStartQuest: (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty') => void; }> = ({ unit, user, onClose, onStartQuest }) => {
-    const [activeTab, setActiveTab] = useState<'standard' | 'pre' | 'bounty'>('standard');
+// Kompaktes Quest-Modal im RealMath-Stil
+const UnitView: React.FC<{ unit: LearningUnit; user: User; onClose: () => void; onStartQuest: (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty', options?: { timeLimit?: number; noCheatSheet?: boolean }) => void; }> = ({ unit, user, onClose, onStartQuest }) => {
+    const [timeLimitEnabled, setTimeLimitEnabled] = useState(false);
+    const [timeLimitSeconds, setTimeLimitSeconds] = useState(60);
+    const [noCheatSheet, setNoCheatSheet] = useState(false);
+    const definition = GEOMETRY_DEFINITIONS.find(d => d.id === unit.definitionId);
 
-    // Alle Modi sind jetzt dauerhaft freigeschaltet
-    const tabs = [
-        { id: 'pre', label: 'Voraufgaben', disabled: false },
-        { id: 'standard', label: 'Standard-Quiz', disabled: false },
-        { id: 'bounty', label: '🏆 Bounty', disabled: false }
-    ];
+    const handleStart = () => {
+        const options = {
+            timeLimit: timeLimitEnabled ? timeLimitSeconds : undefined,
+            noCheatSheet: noCheatSheet
+        };
+        // If time limit is enabled, use bounty mode, otherwise standard
+        onStartQuest(unit, timeLimitEnabled ? 'bounty' : 'standard', options);
+    };
 
     return (
         <ModalOverlay onClose={onClose}>
             <div className="bg-white rounded-[2rem] p-8 max-w-2xl w-full mx-auto relative">
                 <button onClick={onClose} className="absolute top-6 right-6 w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-400 hover:bg-rose-100 hover:text-rose-500 transition-colors">✕</button>
+
+                <div className="flex items-center gap-3 mb-4">
+                    <Badge color={GROUP_THEME[unit.group].color as any}>{unit.category}</Badge>
+                    <DifficultyStars difficulty={unit.difficulty} />
+                </div>
+
                 <SectionHeading className="mb-2 text-indigo-600">{unit.title}</SectionHeading>
-                <p className="text-slate-500 mb-8 italic">{unit.detailedInfo}</p>
+                <p className="text-slate-500 mb-6 italic">{unit.detailedInfo}</p>
 
-                <div className="border-b border-slate-200 mb-6">
-                    <nav className="-mb-px flex space-x-6">
-                        {tabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id as any)}
-                                className={`whitespace-nowrap pb-4 px-1 border-b-2 font-bold text-sm transition-colors ${
-                                    activeTab === tab.id
-                                        ? 'border-indigo-500 text-indigo-600'
-                                        : 'border-transparent text-slate-400 hover:text-slate-700 hover:border-slate-300'
-                                }`}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
-                    </nav>
+                {/* Options */}
+                <div className="space-y-4 mb-8 p-6 bg-slate-50 rounded-2xl border-2 border-slate-200">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={timeLimitEnabled}
+                            onChange={(e) => setTimeLimitEnabled(e.target.checked)}
+                            className="w-5 h-5 rounded border-2 border-slate-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <div className="flex-1">
+                            <span className="font-bold text-slate-700">Zeitlimit pro Frage</span>
+                            {timeLimitEnabled && (
+                                <div className="mt-2 flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        min="10"
+                                        max="300"
+                                        value={timeLimitSeconds}
+                                        onChange={(e) => setTimeLimitSeconds(Math.max(10, Math.min(300, parseInt(e.target.value) || 60)))}
+                                        className="w-20 p-2 rounded-lg border-2 border-slate-300 text-sm font-bold"
+                                    />
+                                    <span className="text-sm text-slate-600">Sekunden</span>
+                                </div>
+                            )}
+                        </div>
+                    </label>
+
+                    <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={noCheatSheet}
+                            onChange={(e) => setNoCheatSheet(e.target.checked)}
+                            className="w-5 h-5 rounded border-2 border-slate-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
+                        />
+                        <div>
+                            <span className="font-bold text-slate-700">Spickzettel deaktivieren</span>
+                            <p className="text-xs text-slate-500 mt-1">Keine Tipps während der Quest verfügbar</p>
+                        </div>
+                    </label>
                 </div>
 
-                <div className="min-h-[100px] flex items-center">
-                    {activeTab === 'standard' && <p className="text-slate-600 font-medium">Löse 5 zufällige Aufgaben zum Thema. Perfekter Run bringt <span className="font-black text-amber-500">{unit.coinsReward} Coins</span>!</p>}
-                    {activeTab === 'pre' && <p className="text-slate-600 font-medium">Interaktive Übung zum Aufwärmen. Ideal, um die Konzepte visuell zu verstehen.</p>}
-                    {activeTab === 'bounty' && <p className="text-slate-600 font-medium">3 extra schwere Aufgaben im Gold-Rush-Modus (Zeitlimit). Meistere sie für <span className="font-black text-amber-500">{unit.bounty} extra Coins</span>!</p>}
+                {/* Info */}
+                <div className="mb-6 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                    <p className="text-sm text-slate-700">
+                        Löse 5 zufällige Aufgaben zum Thema.
+                        {timeLimitEnabled ? (
+                            <span> Perfekter Run mit Zeitlimit bringt <span className="font-black text-amber-500">{unit.bounty} Coins</span>!</span>
+                        ) : (
+                            <span> Perfekter Run bringt <span className="font-black text-amber-500">{unit.coinsReward} Coins</span>!</span>
+                        )}
+                    </p>
                 </div>
 
-                <Button onClick={() => onStartQuest(unit, activeTab)} size="lg" className="w-full mt-8">
-                   Starte {tabs.find(t=>t.id === activeTab)?.label}
+                <Button onClick={handleStart} size="lg" className="w-full">
+                    Quest starten
                 </Button>
             </div>
         </ModalOverlay>

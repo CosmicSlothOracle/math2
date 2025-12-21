@@ -22,7 +22,7 @@ Alle API-Aufrufe sind in `services/` gekapselt und geben `Promises` zurück.
 Ein kompetitives Feature, das Schüler motiviert:
 - **Herausforderung**: Über das Leaderboard können andere User (oder Bots) zum Duell gefordert werden.
 - **Einsatz**: Coins können gesetzt werden, um den "Pot" zu füllen.
-- **Siegbedingungen**: 
+- **Siegbedingungen**:
   1. Anzahl korrekter Antworten (höchste Priorität).
   2. Zeit (Tie-Breaker bei gleicher Korrektheit).
 
@@ -44,6 +44,16 @@ Um die App auf ein echtes Multi-User-System umzustellen:
 
 ## 🛠 Features
 - **Quest Map**: Strukturierter Lernpfad nach Lehrplan.
-- **Spickzettel**: Kontextueller Splitscreen-Modus während Quests.
-- **KI-Tutor**: Intelligente Hilfestellungen via Gemini Flash 2.5.
+- **Kompaktes Quest-Modal**: Vereinfachtes Interface mit optionalem Zeitlimit und Tipp-System.
+- **KI-Tutor**: Intelligente Hilfestellungen via Gemini Flash 2.5 (Tipp-Link während Quests).
 - **Shop**: Gamification durch Avatare und visuelle Effekte.
+- **Leaderboard**: Top-Schüler-Rangliste mit aktiven Beispiel-Usern.
+- **Klassen-Chat**: Belebter Chat mit Seed-Nachrichten für bessere Motivation.
+
+## ✨ Recent Upgrades (2024)
+- **Vereinfachtes Quest-Interface**: Vier-Tab-System durch kompaktes Modal mit Zeitlimit-Option ersetzt.
+- **Tipp-System**: "Ich brauche einen Tipp (-1 Perfect)" Link direkt in Quests integriert.
+- **Bounty-Modus**: Als Zeitlimit-Option im Quest-Modal integriert (kein separater Tab mehr).
+- **Defekte Kategorien behoben**: "Figuren Verstehen" und "Winkel & Beziehungen" jetzt voll funktionsfähig.
+- **Erweiterte Task-Typen**: Unterstützung für dragDrop, angleMeasure, sliderTransform, areaDecomposition.
+- **Verbesserte Feedback-Klarheit**: Einheitliche Fehlerrückmeldungen mit hilfreichen Hinweisen.

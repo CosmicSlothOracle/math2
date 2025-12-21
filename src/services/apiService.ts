@@ -8,10 +8,14 @@ const db = {
   set: (key: string, val: any) => localStorage.setItem(key, JSON.stringify(val)),
 };
 
-// Chat Initialisierung
+// Chat Initialisierung mit Seed-Nachrichten
 if (!db.get('mm_chat')) {
+  const now = Date.now();
   db.set('mm_chat', [
-    { id: '1', userId: 'bot1', username: 'Lukas_9b', text: 'Hey, wer traut sich ein Battle in "Ähnlichkeit" zu? 📐', timestamp: Date.now() - 3600000, avatar: '🦉', type: 'chat' }
+    { id: '1', userId: 'bot1', username: 'Lukas_9b', text: 'Hey, wer traut sich ein Battle in "Ähnlichkeit" zu? 📐', timestamp: now - 3600000, avatar: '🦉', type: 'chat' },
+    { id: '2', userId: 'bot2', username: 'Sarah.Math', text: 'Ich habe gerade die Bounty für "Körper & Oberflächen" gemeistert! 🔥', timestamp: now - 7200000, avatar: '🥷', type: 'chat' },
+    { id: '3', userId: 'bot3', username: 'MathePro_X', text: 'Tipp: Bei Winkel-Aufgaben immer an Nebenwinkel denken (180° Summe)! 💡', timestamp: now - 10800000, avatar: '💎', type: 'chat' },
+    { id: '4', userId: 'bot1', username: 'Lukas_9b', text: 'Wer kann mir bei der Flächenberechnung helfen? 🤔', timestamp: now - 14400000, avatar: '🦉', type: 'chat' }
   ]);
 }
 
@@ -20,7 +24,7 @@ export const AuthService = {
     await new Promise(r => setTimeout(r, DELAY));
     let users = db.get('mm_users') || [];
     let user = users.find((u: User) => u.username.toLowerCase() === username.toLowerCase());
-    
+
     if (!user) {
       user = {
         id: Math.random().toString(36).substr(2, 9),
@@ -48,7 +52,7 @@ export const AuthService = {
     if (!user.calculatorSkin) user.calculatorSkin = 'default';
     if (!user.unlockedItems.includes('calc_default')) user.unlockedItems.push('calc_default');
     if (!user.solvedQuestionIds) user.solvedQuestionIds = []; // Migration für Anti-Farming
-    
+
     db.set('mm_current_user', user);
     return user;
   },
@@ -80,7 +84,7 @@ export const SocialService = {
       { id: 'bot3', username: 'MathePro_X', xp: 1250, avatar: '💎', coins: 5000, totalEarned: 10000, completedUnits: [], masteredUnits: [], preClearedUnits: [], unlockedItems: [], activeEffects: [], calculatorSkin: 'chaos', solvedQuestionIds: [] }
     ];
     const all = [...users, ...bots];
-    return all.sort((a, b) => b.xp - a.xp);
+    return all.sort((a, b) => b.xp - a.xp).slice(0, 10); // Top 10
   },
 
   async getChatMessages(): Promise<ChatMessage[]> {
@@ -89,14 +93,14 @@ export const SocialService = {
 
   async sendMessage(user: User, text: string, type: 'chat' | 'system' = 'chat'): Promise<void> {
     let chat = await this.getChatMessages();
-    chat.push({ 
-      id: Date.now().toString(), 
-      userId: user.id, 
-      username: user.username, 
-      avatar: user.avatar, 
-      text, 
+    chat.push({
+      id: Date.now().toString(),
+      userId: user.id,
+      username: user.username,
+      avatar: user.avatar,
+      text,
       timestamp: Date.now(),
-      type 
+      type
     });
     db.set('mm_chat', chat.slice(-50));
   },

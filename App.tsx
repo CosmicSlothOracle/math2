@@ -985,9 +985,16 @@ const ShopView: React.FC<{ user: User; onBuy: (item: ShopItem) => void; onPrevie
           <Button size="sm" variant="secondary" onClick={() => onPreview({ value: previewEffect } as ShopItem, 0)}>Vorschau beenden</Button>
         </div>
       )}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+      <div className="flex flex-wrap gap-2 pb-2 scrollbar-hide md:flex-nowrap md:overflow-x-auto">
         {(Object.entries(SHOP_CATEGORIES) as [keyof typeof SHOP_CATEGORIES, typeof SHOP_CATEGORIES[keyof typeof SHOP_CATEGORIES]][]).map(([key, cat]) => (
-          <button key={key} onClick={() => setFilter(key)} className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider whitespace-nowrap transition-all flex items-center gap-2 ${filter === key ? (isDarkMode ? 'bg-white text-slate-900 shadow-lg' : 'bg-slate-900 text-white shadow-lg scale-105') : (isDarkMode ? 'bg-slate-800 text-slate-400 hover:bg-slate-700' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200')}`}><span>{cat.icon}</span><span>{cat.label}</span></button>
+          <button
+            key={key}
+            onClick={() => setFilter(key)}
+            className={`px-3 py-2.5 rounded-xl font-bold text-[11px] leading-tight uppercase tracking-wider transition-all flex flex-col items-center gap-1 sm:flex-row sm:gap-2 text-center sm:text-left whitespace-normal md:whitespace-nowrap ${filter === key ? (isDarkMode ? 'bg-white text-slate-900 shadow-lg' : 'bg-slate-900 text-white shadow-lg scale-105') : (isDarkMode ? 'bg-slate-800 text-slate-400 hover:bg-slate-700' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200')}`}
+          >
+            <span>{cat.icon}</span>
+            <span>{cat.label}</span>
+          </button>
         ))}
       </div>
       <div className="flex flex-wrap gap-3 items-center">
@@ -1098,83 +1105,206 @@ const ShapeBandit: React.FC<{ task: Task; onComplete: (success: boolean) => void
     );
 };
 
+const TRAJECTORY_WIDTH = 240;
+const TRAJECTORY_HEIGHT = 140;
+
+const computeTrajectoryPath = (angle: number) => {
+    const rad = (angle * Math.PI) / 180;
+    const velocity = 38;
+    const gravity = 9.81;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const totalTime = Math.max((2 * velocity * sin) / gravity, 0.4);
+    const samples = 80;
+    const rawPoints: { x: number; y: number }[] = [];
+
+    for (let i = 0; i <= samples; i++) {
+        const t = (totalTime / samples) * i;
+        const x = velocity * cos * t;
+        const y = velocity * sin * t - 0.5 * gravity * t * t;
+        rawPoints.push({ x, y });
+    }
+
+    const maxX = Math.max(...rawPoints.map(p => p.x), 1);
+    const minY = Math.min(...rawPoints.map(p => p.y));
+    const maxY = Math.max(...rawPoints.map(p => p.y));
+    const scaleX = (TRAJECTORY_WIDTH - 30) / maxX;
+    const rangeY = maxY - minY || 1;
+    const scaleY = (TRAJECTORY_HEIGHT - 30) / rangeY;
+
+    return rawPoints.map(point => ({
+        x: 15 + point.x * scaleX,
+        y: TRAJECTORY_HEIGHT - 15 - (point.y - minY) * scaleY
+    }));
+};
+
+const pathFromPoints = (points: { x: number; y: number }[]) =>
+    points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+
 const BottleToss: React.FC<{ task: Task; onComplete: (success: boolean) => void }> = ({ task, onComplete }) => {
-    const [phase, setPhase] = useState<'aim' | 'toss' | 'impact'>('aim');
-    const [targetAngle, setTargetAngle] = useState(Math.floor(Math.random() * 60) + 30);
-    const [userInput, setUserInput] = useState('');
-    const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
-    const [isTouching, setIsTouching] = useState(false);
+    const [targetAngle] = useState(() => Math.floor(Math.random() * 30) + 35);
+    const [userAngle, setUserAngle] = useState(() => Math.floor(Math.random() * 30) + 35);
+    const [phase, setPhase] = useState<'aim' | 'flight' | 'result'>('aim');
+    const [animationProgress, setAnimationProgress] = useState(0);
+    const requestRef = useRef<number | null>(null);
 
-    const toss = () => {
-        setPhase('toss');
-        setTimeout(() => setPhase('impact'), 1000);
+    const targetPath = useMemo(() => computeTrajectoryPath(targetAngle), [targetAngle]);
+    const playerPath = useMemo(() => computeTrajectoryPath(userAngle), [userAngle]);
+    const tolerance = 3;
+    const difference = Math.abs(userAngle - targetAngle);
+    const isHit = difference <= tolerance;
+
+    const bottlePosition = useMemo(() => {
+        if (!playerPath.length) return { x: 20, y: TRAJECTORY_HEIGHT - 20 };
+        const index = Math.min(playerPath.length - 1, Math.floor(animationProgress * (playerPath.length - 1)));
+        return playerPath[index];
+    }, [playerPath, animationProgress]);
+
+    const startThrow = () => {
+        if (phase !== 'aim') return;
+        setPhase('flight');
+        setAnimationProgress(0);
     };
 
-    const checkAngle = () => {
-        if (parseInt(userInput) === targetAngle) {
-            setFeedback('correct');
-            setTimeout(() => onComplete(true), 1500);
-        } else {
-            setFeedback('wrong');
-            setTimeout(() => { setFeedback(null); setUserInput(''); setPhase('aim'); setTargetAngle(Math.floor(Math.random() * 60) + 30); }, 1500);
+    const resetToAim = () => {
+        setPhase('aim');
+        setAnimationProgress(0);
+    };
+
+    useEffect(() => {
+        if (phase !== 'flight') return;
+        let startTime: number | null = null;
+        const duration = 1300;
+
+        const step = (timestamp: number) => {
+            if (!startTime) startTime = timestamp;
+            const progress = Math.min((timestamp - startTime) / duration, 1);
+            setAnimationProgress(progress);
+            if (progress < 1) {
+                requestRef.current = requestAnimationFrame(step);
+            } else {
+                setPhase('result');
+            }
+        };
+
+        requestRef.current = requestAnimationFrame(step);
+        return () => {
+            if (requestRef.current) cancelAnimationFrame(requestRef.current);
+        };
+    }, [phase]);
+
+    useEffect(() => {
+        if (phase === 'result' && isHit) {
+            const timeout = setTimeout(() => onComplete(true), 1200);
+            return () => clearTimeout(timeout);
         }
-    };
+    }, [phase, isHit, onComplete]);
+
+    const svgPathPlayer = useMemo(() => pathFromPoints(playerPath), [playerPath]);
+    const svgPathTarget = useMemo(() => pathFromPoints(targetPath), [targetPath]);
 
     return (
         <div className="bg-slate-800 text-white p-4 sm:p-6 md:p-8 rounded-[2rem] sm:rounded-[3rem] border-4 sm:border-8 border-slate-700 shadow-2xl flex flex-col h-full overflow-hidden relative touch-manipulation safe-area-top safe-area-bottom">
             <h3 className="text-lg sm:text-xl font-black text-sky-400 uppercase tracking-widest mb-2 italic">BOTTLE TOSS 🧴</h3>
-            <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase mb-4 sm:mb-8 tracking-widest">Triff den Eimer oder miss den Abprallwinkel!</p>
+            <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase mb-4 sm:mb-6 tracking-widest">
+                Justiere den Winkel und beobachte die Flugbahn in Echtzeit.
+            </p>
 
             <div className="flex-1 bg-slate-900 rounded-[1.5rem] sm:rounded-[2rem] border-2 sm:border-4 border-slate-700 relative overflow-hidden mb-4 sm:mb-6">
-                <div className="absolute bottom-0 inset-x-0 h-1 bg-slate-500" />
-                <div className="absolute bottom-4 right-4 sm:right-10 text-3xl sm:text-4xl">🗑️</div>
+                <svg viewBox={`0 0 ${TRAJECTORY_WIDTH} ${TRAJECTORY_HEIGHT}`} className="w-full h-44 sm:h-48">
+                    <defs>
+                        <linearGradient id="trail" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.4" />
+                            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.8" />
+                        </linearGradient>
+                    </defs>
+                    <rect x="0" y="0" width={TRAJECTORY_WIDTH} height={TRAJECTORY_HEIGHT} fill="transparent" />
+                    <path d={`M10 ${TRAJECTORY_HEIGHT - 15} H ${TRAJECTORY_WIDTH - 10}`} stroke="#475569" strokeWidth={3} />
+                    <path d={svgPathTarget} stroke="#fcd34d" strokeWidth={3} strokeDasharray="6 8" fill="none" />
+                    <path d={svgPathPlayer} stroke="url(#trail)" strokeWidth={4} fill="none" />
+                </svg>
+                <div
+                    className={`absolute text-3xl transition-transform duration-100 ${phase === 'flight' ? 'scale-110' : ''}`}
+                    style={{
+                        left: `${bottlePosition.x}px`,
+                        top: `${bottlePosition.y}px`,
+                        transform: 'translate(-50%, -50%)'
+                    }}
+                >
+                    🧴
+                </div>
+                <div className="absolute bottom-4 right-4 text-4xl">🗑️</div>
+            </div>
 
-                {phase === 'aim' && <div className="absolute bottom-4 left-4 sm:left-10 text-3xl sm:text-4xl animate-bounce">🧴</div>}
-                {phase === 'toss' && <div className="absolute bottom-4 left-4 sm:left-10 text-3xl sm:text-4xl animate-[ping_1s_ease-in-out_infinite]">🧴</div>}
+            <div className="space-y-4">
+                <div className="bg-slate-900/70 p-4 rounded-2xl border border-slate-700">
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                        <span>Spielerwinkel</span>
+                        <span>Ziel: {targetAngle}°</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <input
+                            type="range"
+                            min={20}
+                            max={80}
+                            value={userAngle}
+                            disabled={phase === 'flight'}
+                            onChange={(e) => {
+                                setUserAngle(Number(e.target.value));
+                                if (phase !== 'aim') resetToAim();
+                            }}
+                            className="flex-1 accent-sky-400"
+                        />
+                        <input
+                            type="number"
+                            min={20}
+                            max={80}
+                            value={userAngle}
+                            disabled={phase === 'flight'}
+                            onChange={(e) => {
+                                const value = Math.min(80, Math.max(20, Number(e.target.value) || 0));
+                                setUserAngle(value);
+                                if (phase !== 'aim') resetToAim();
+                            }}
+                            className="w-16 bg-slate-800 border border-slate-600 rounded-lg text-center font-black"
+                        />
+                    </div>
+                    <div className="mt-3 text-xs font-bold text-slate-300 flex items-center justify-between">
+                        <span>Abweichung: {difference.toFixed(1)}°</span>
+                        <span className={isHit ? 'text-emerald-400' : 'text-rose-400'}>
+                            {isHit ? 'Trefferfenster OK' : 'Noch zu ungenau'}
+                        </span>
+                    </div>
+                </div>
 
-                {phase === 'impact' && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-3 sm:p-4">
-                        <div className="text-center animate-in zoom-in duration-300 w-full max-w-xs">
-                             <div className="relative w-32 h-32 sm:w-40 sm:h-40 mx-auto mb-3 sm:mb-4">
-                                <svg viewBox="0 0 100 100" className="w-full h-full">
-                                    <line x1="0" y1="100" x2="100" y2="100" stroke="white" strokeWidth="2" />
-                                    <line x1="0" y1="100" x2={100 * Math.cos((targetAngle * Math.PI) / 180)} y2={100 - 100 * Math.sin((targetAngle * Math.PI) / 180)} stroke="#38bdf8" strokeWidth="4" />
-                                    <path d={`M 20,100 A 20,20 0 0,0 ${20 * Math.cos((targetAngle * Math.PI) / 180)},${100 - 20 * Math.sin((targetAngle * Math.PI) / 180)}`} fill="none" stroke="#fbbf24" strokeWidth="2" />
-                                </svg>
-                             </div>
-                             <p className="font-black text-xs sm:text-sm uppercase text-sky-400 mb-3 sm:mb-4">Aufprallwinkel α?</p>
-                             <input
-                                value={userInput}
-                                onChange={e => setUserInput(e.target.value)}
-                                type="number"
-                                placeholder="Grad..."
-                                className="w-full p-3 sm:p-4 bg-slate-800 rounded-xl border-2 border-slate-600 text-center font-black text-xl sm:text-2xl outline-none focus:border-sky-500 touch-manipulation"
-                                style={{ fontSize: '16px' }}
-                            />
-                             <Button
-                                onClick={checkAngle}
-                                className="w-full mt-3 sm:mt-4 bg-sky-600 border-sky-800 min-h-[48px] text-base sm:text-lg"
-                                onTouchStart={() => setIsTouching(true)}
-                                onTouchEnd={() => setIsTouching(false)}
-                            >
-                                Kalibrieren
+                {phase === 'aim' && (
+                    <Button onClick={startThrow} className="w-full bg-sky-600 border-sky-800 !py-4 text-base sm:text-lg">
+                        Wurf simulieren 🚀
+                    </Button>
+                )}
+
+                {phase === 'result' && (
+                    <div
+                        className={`p-4 rounded-2xl border-2 ${
+                            isHit ? 'bg-emerald-500/10 border-emerald-400 text-emerald-200' : 'bg-rose-500/10 border-rose-400 text-rose-200'
+                        }`}
+                    >
+                        <p className="font-black text-sm uppercase tracking-widest mb-2">
+                            {isHit ? 'Volltreffer! 🎯' : 'Daneben! ⚠️'}
+                        </p>
+                        <p className="text-xs text-slate-100 mb-3">
+                            {isHit
+                                ? 'Perfekte Landung, Bottle Toss abgeschlossen.'
+                                : 'Passe den Winkel an, bis die Trajektorie den Zielpfad trifft.'}
+                        </p>
+                        {!isHit && (
+                            <Button onClick={resetToAim} className="w-full" size="sm" variant="secondary">
+                                Neuer Versuch
                             </Button>
-                        </div>
+                        )}
                     </div>
                 )}
-                {feedback === 'correct' && <div className="absolute inset-0 bg-emerald-500/90 flex items-center justify-center font-black text-2xl sm:text-3xl animate-in fade-in touch-manipulation">VOLLTREFFER! 🎯</div>}
-                {feedback === 'wrong' && <div className="absolute inset-0 bg-rose-500/90 flex items-center justify-center font-black text-2xl sm:text-3xl animate-in fade-in touch-manipulation">DANEBEN! ⚠️</div>}
             </div>
-            {phase === 'aim' && (
-                <Button
-                    onClick={toss}
-                    className={`w-full py-5 sm:py-6 bg-sky-600 border-sky-800 text-base sm:text-lg min-h-[56px] touch-manipulation ${isTouching ? 'scale-95' : ''}`}
-                    onTouchStart={() => setIsTouching(true)}
-                    onTouchEnd={() => setIsTouching(false)}
-                >
-                    WURF STARTEN 🚀
-                </Button>
-            )}
         </div>
     );
 };
@@ -1499,9 +1629,14 @@ const UnitView: React.FC<{
                 <button onClick={onClose} className="absolute top-8 right-8 w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center font-black text-slate-400 hover:bg-rose-500 hover:text-white transition-all shadow-sm">✕</button>
                 <div className="flex items-center gap-3 mb-4"><Badge color={GROUP_THEME[unit.group].color as any}>{unit.category}</Badge><DifficultyStars difficulty={unit.difficulty} /></div>
                 <SectionHeading className="mb-4 text-slate-950 !text-4xl uppercase">{unit.title}</SectionHeading>
-                <div className="border-b border-slate-100 mb-8 flex gap-8 overflow-x-auto scrollbar-hide">
+                <div className="border-b border-slate-100 mb-8 flex flex-wrap md:flex-nowrap gap-3 md:gap-8 overflow-hidden md:overflow-x-auto scrollbar-hide">
                     {(['info', 'pre', 'standard', 'bounty'] as const).map(id => (
-                       <button key={id} onClick={() => setActiveTab(id)} disabled={id === 'pre'} className={`whitespace-nowrap pb-4 px-1 border-b-4 font-black text-xs uppercase tracking-widest transition-all ${id === 'pre' ? 'opacity-40 cursor-not-allowed text-slate-300' : activeTab === id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-300 hover:text-slate-600'}`}>
+                       <button
+                          key={id}
+                          onClick={() => setActiveTab(id)}
+                          disabled={id === 'pre'}
+                          className={`pb-4 px-1 border-b-4 font-black text-[11px] leading-tight uppercase tracking-widest transition-all text-center md:text-left whitespace-normal md:whitespace-nowrap ${id === 'pre' ? 'opacity-40 cursor-not-allowed text-slate-300' : activeTab === id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-300 hover:text-slate-600'}`}
+                       >
                           {id === 'info' ? 'Spickzettel' : id === 'pre' ? 'Training (Coming Soon)' : id === 'standard' ? 'Quest' : 'Bounty'}
                        </button>
                     ))}

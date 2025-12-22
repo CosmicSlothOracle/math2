@@ -439,7 +439,7 @@ export const TaskFactory = {
         this.createScalingLogicTask(2, seed),
         this.createScalingLogicTask(3, seed),
         this.createTransformTask(0, seed),
-        this.createSliderTransformationTask(0, seed), // Vergleichsansicht mit Slider
+        this.createScalingFactorTask(0, seed), // Skalierungsfaktor verstehen (ersetzt Slider)
         this.createSimilarityTask(0, seed), // Similar triangles
         this.createStrahlensatzTask(0, seed) // Strahlensatz
       ];
@@ -1035,13 +1035,22 @@ export const TaskFactory = {
 
   createVolumeTask(index: number, seed: number): Task {
      const id = `u4-gen-${index}-${seed}`;
-     const a = getRandomInt(3,6);
+     // Verschiedene Werte für verschiedene Indizes, um Duplikate zu vermeiden
+     const values = [3, 4, 5, 6, 7];
+     const a = values[index % values.length];
      return {
         id, type: 'input',
         question: `Eine Box: ${a}dm x ${a}dm x ${a}dm. Volumen in Liter?`,
+        given: [
+          `Ein Würfel hat die Kantenlänge ${a} dm.`,
+          '1 dm³ = 1 Liter.'
+        ],
+        asked: [
+          'Berechne das Volumen in Liter.'
+        ],
         correctAnswer: (a * a * a).toString(),
-        explanation: 'Volumen = a * a * a.',
-        placeholder: 'Liter...'
+        explanation: `Volumen = a · a · a = ${a} · ${a} · ${a} = ${a * a * a} Liter.`,
+        placeholder: 'Liter'
       };
   },
 
@@ -1205,37 +1214,49 @@ export const TaskFactory = {
   },
 
   // --- NEW: Slider Transformation Task ---
-  createSliderTransformationTask(index: number, seed: number): Task {
-    const id = `u5-slider-${index}-${seed}`;
+  // --- NEW: Scaling Factor Task (ersetzt defekten Slider) ---
+  createScalingFactorTask(index: number, seed: number): Task {
+    const id = `u5-scaling-${index}-${seed}`;
     const tasks = [
       {
-        basePath: 'M 20,20 H 100 V 100 H 20 Z',
-        shapeType: 'square',
-        correctK: 2,
-        question: "Verwende den Slider, um das Quadrat mit Faktor k=2 zu vergrößern!"
+        sideLength: 3,
+        factor: 2,
+        shape: 'Quadrat'
       },
       {
-        basePath: 'M 20,80 L 60,80 L 20,40 Z',
-        shapeType: 'triangle',
-        correctK: 1.5,
-        question: "Strecke das Dreieck mit Faktor k=1.5!"
+        sideLength: 5,
+        factor: 2,
+        shape: 'Quadrat'
+      },
+      {
+        sideLength: 4,
+        factor: 1.5,
+        shape: 'Quadrat'
+      },
+      {
+        sideLength: 6,
+        factor: 3,
+        shape: 'Quadrat'
       }
     ];
     const selected = tasks[index % tasks.length];
+    const newLength = selected.sideLength * selected.factor;
 
     return {
       id,
-      type: 'sliderTransform',
-      question: selected.question,
-      sliderData: {
-        basePath: selected.basePath,
-        shapeType: selected.shapeType,
-        minK: 0.5,
-        maxK: 3,
-        correctK: selected.correctK
-      },
-      correctAnswer: selected.correctK.toString(),
-      explanation: `Bei k=${selected.correctK} wird die Figur ${selected.correctK}x größer. Die Fläche wird dabei ${(selected.correctK * selected.correctK).toFixed(1)}x größer (k²).`
+      type: 'input',
+      question: `Skalierungsfaktor verstehen`,
+      given: [
+        `Ein ${selected.shape} hat eine Seitenlänge von ${selected.sideLength} cm.`,
+        `Es wird mit dem Faktor k = ${selected.factor} vergrößert.`
+      ],
+      asked: [
+        'Wie lang ist die neue Seitenlänge?'
+      ],
+      instructions: 'Beim Skalieren werden alle Längen mit dem Faktor k multipliziert.',
+      correctAnswer: newLength.toString(),
+      explanation: `Richtig! Bei einer Vergrößerung mit k = ${selected.factor} wird jede Seitenlänge mit ${selected.factor} multipliziert: ${selected.sideLength} cm · ${selected.factor} = ${newLength} cm`,
+      placeholder: 'cm'
     };
   },
 
@@ -1394,25 +1415,55 @@ export const TaskFactory = {
     const type = index % 2;
     if (type === 0) {
       // Volume
-      const volume = Math.round(Math.PI * r * r * h * 100) / 100;
+      const volume = Math.PI * r * r * h;
+      const roundedVolume = Math.round(volume);
       return {
         id,
         type: 'input',
-        question: `Ein Zylinder hat den Radius r=${r}cm und die Höhe h=${h}cm. Berechne das Volumen (π≈3,14).`,
-        correctAnswer: Math.round(volume).toString(),
-        explanation: `Volumen V = πr²h = 3,14 × ${r}² × ${h} = 3,14 × ${r*r} × ${h} = ${volume.toFixed(2)}cm³ ≈ ${Math.round(volume)}cm³`,
-        placeholder: 'cm³'
+        question: `Zylindervolumen berechnen`,
+        given: [
+          `Ein Zylinder hat den Radius r = ${r} cm und die Höhe h = ${h} cm.`,
+          'Verwende π ≈ 3,14.'
+        ],
+        asked: [
+          'Berechne das Volumen in cm³.',
+          'Runde auf ganze Zahl.'
+        ],
+        instructions: 'Formel: V = π · r² · h. Runde das Ergebnis auf die nächste ganze Zahl.',
+        correctAnswer: roundedVolume.toString(),
+        explanation: `Volumen V = πr²h = 3,14 × ${r}² × ${h} = 3,14 × ${r*r} × ${h} = ${volume.toFixed(2)} cm³ ≈ ${roundedVolume} cm³ (gerundet)`,
+        placeholder: 'cm³',
+        validator: {
+          type: 'numericTolerance',
+          numericAnswer: roundedVolume,
+          tolerance: 1 // ±1 für Rundung
+        }
       };
     } else {
       // Surface
-      const surface = Math.round((2 * Math.PI * r * r + 2 * Math.PI * r * h) * 100) / 100;
+      const surface = 2 * Math.PI * r * r + 2 * Math.PI * r * h;
+      const roundedSurface = Math.round(surface);
       return {
         id,
         type: 'input',
-        question: `Ein Zylinder hat den Radius r=${r}cm und die Höhe h=${h}cm. Berechne die Oberfläche (π≈3,14).`,
-        correctAnswer: Math.round(surface).toString(),
-        explanation: `Oberfläche O = 2πr² + 2πrh = 2×3,14×${r}² + 2×3,14×${r}×${h} = ${surface.toFixed(2)}cm² ≈ ${Math.round(surface)}cm²`,
-        placeholder: 'cm²'
+        question: `Zylinderoberfläche berechnen`,
+        given: [
+          `Ein Zylinder hat den Radius r = ${r} cm und die Höhe h = ${h} cm.`,
+          'Verwende π ≈ 3,14.'
+        ],
+        asked: [
+          'Berechne die Oberfläche in cm².',
+          'Runde auf ganze Zahl.'
+        ],
+        instructions: 'Formel: O = 2πr² + 2πrh. Runde das Ergebnis auf die nächste ganze Zahl.',
+        correctAnswer: roundedSurface.toString(),
+        explanation: `Oberfläche O = 2πr² + 2πrh = 2×3,14×${r}² + 2×3,14×${r}×${h} = ${surface.toFixed(2)} cm² ≈ ${roundedSurface} cm² (gerundet)`,
+        placeholder: 'cm²',
+        validator: {
+          type: 'numericTolerance',
+          numericAnswer: roundedSurface,
+          tolerance: 1 // ±1 für Rundung
+        }
       };
     }
   },

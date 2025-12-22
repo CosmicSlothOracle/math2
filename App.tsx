@@ -2380,7 +2380,7 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
     const [wager, setWager] = useState<number>(0);
     const [classification, setClassification] = useState<Record<string, string>>({});
     const [angleInput, setAngleInput] = useState('');
-    const [sliderValue, setSliderValue] = useState<number>(1);
+    // sliderValue entfernt (Slider-Task wurde entfernt)
     const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
     const [multiAngleThrowHits, setMultiAngleThrowHits] = useState<number>(0);
     const [areaStatus, setAreaStatus] = useState<string | null>(null);
@@ -2408,15 +2408,7 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
         return undefined;
     }, [isBountyMode, feedback, currentIdx, tasks.length]);
 
-    // Initialize slider value when task changes
-    useEffect(() => {
-        const task = tasks[currentIdx];
-        if (task?.type === 'sliderTransform' && task.sliderData) {
-            // Initialize to middle of range or minK
-            const initialValue = task.sliderData.minK || 1;
-            setSliderValue(initialValue);
-        }
-    }, [currentIdx, tasks]);
+    // Slider-Task wurde entfernt
 
     const task = tasks[currentIdx];
     const hasMultiInputs = Boolean(task?.multiInputFields && task.multiInputFields.length > 0);
@@ -2465,27 +2457,27 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
         setAnswersTouched(true);
         setAnswerWarning('Bitte alle Felder ausfüllen');
     };
-    const updateSliderValue = (value: number) => {
-        if (!task?.sliderData) return;
-        const min = typeof task.sliderData.minK === 'number' ? task.sliderData.minK : 0.1;
-        const max = typeof task.sliderData.maxK === 'number' ? task.sliderData.maxK : 4;
-        const clamped = Math.min(max, Math.max(min, value));
-        setSliderValue(parseFloat(clamped.toFixed(1)));
-    };
+    // updateSliderValue entfernt (Slider-Task wurde entfernt)
     const isVerifyDisabled = useMemo(() => {
         if (!task) return true;
+        // Multi-Input-Felder: Button nur aktiv, wenn alle Felder ausgefüllt
         if (answerFieldCount > 0 && hasBlankAnswers) {
             return true;
         }
+        // Choice/Wager/Boolean: Button nur aktiv, wenn Option gewählt
         if ((task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') && selectedOption === null) {
             return true;
         }
+        // VisualChoice: Button nur aktiv, wenn Option gewählt
         if (task.type === 'visualChoice' && selectedOption === null) {
             return true;
         }
+        // AngleMeasure: Button nur aktiv, wenn Winkel eingegeben
         if (task.type === 'angleMeasure' && angleInput === '') {
             return true;
         }
+        // Einfache Input-Aufgaben: Button ist IMMER aktiv (auch bei leerem Feld → gibt "falsch" zurück)
+        // DragDrop: Button nur aktiv, wenn alle Shapes klassifiziert
         if (task.type === 'areaDecomposition') {
             return selectedParts.size === 0 || primaryAnswer.trim() === '';
         }
@@ -2520,9 +2512,10 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
             const answerMap = JSON.parse(String(task.correctAnswer));
             const allSelected = Object.keys(answerMap).every(key => classification[key]);
             if (!allSelected) {
-                return; // Require user to classify all shapes first
-            }
+                isCorrect = false; // Nicht alle Shapes klassifiziert = falsch
+            } else {
             isCorrect = Object.keys(answerMap).every(key => classification[key] === answerMap[key]);
+            }
         } else if (task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') {
             isCorrect = selectedOption === task.correctAnswer || (task.type === 'boolean' && (selectedOption === 0 && task.correctAnswer === 'wahr' || selectedOption === 1 && task.correctAnswer === 'falsch'));
         } else if (task.type === 'input' || task.type === 'shorttext') {
@@ -2552,12 +2545,6 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
             const userAngle = parseInt(angleInput) || 0;
             const correctAngle = task.angleData.correctAngle;
             isCorrect = Math.abs(userAngle - correctAngle) <= 5; // ±5° tolerance
-        } else if (task.type === 'sliderTransform' && task.sliderData) {
-            const correctK = task.sliderData.correctK;
-            // Round to one decimal using Math.round to avoid floating drift
-            const currentValue = Math.round(sliderValue * 10) / 10;
-            const targetValue = Math.round(correctK * 10) / 10;
-            isCorrect = Math.abs(currentValue - targetValue) <= 0.1 + 1e-6; // allow small epsilon
         } else if (task.type === 'areaDecomposition' && task.decompositionData) {
             const allPartsSelected = task.decompositionData.parts?.every((part: any) => selectedParts.has(part.label)) || false;
             if (allPartsSelected) {
@@ -2625,7 +2612,7 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
             setWager(0);
             setClassification({});
             setAngleInput('');
-            setSliderValue(1);
+            // setSliderValue entfernt (Slider-Task wurde entfernt)
             setSelectedParts(new Set());
             setMultiAngleThrowHits(0);
             setTimeLeft(60);
@@ -2733,13 +2720,13 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                                         const angleArcs = item.angleArcs
                                             || (item.angleArcPath ? [{ path: item.angleArcPath, fill: item.angleFill }] : []);
                                         return (
-                                            <div key={item.id || i} className="flex flex-col items-center gap-2 group">
-                                                <button
-                                                    onClick={() => !feedback && setSelectedOption(item.id)}
-                                                    title={item.context || item.label}
-                                                    aria-label={item.label || item.context || `Option ${i + 1}`}
-                                                    className={`relative p-6 rounded-2xl border-2 flex flex-col items-center justify-center transition-all ${selectedOption === item.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-white hover:border-indigo-200'}`}
-                                                >
+                                        <div key={item.id || i} className="flex flex-col items-center gap-2 group">
+                                            <button
+                                                onClick={() => !feedback && setSelectedOption(item.id)}
+                                                title={item.context || item.label}
+                                                aria-label={item.label || item.context || `Option ${i + 1}`}
+                                                className={`relative p-6 rounded-2xl border-2 flex flex-col items-center justify-center transition-all ${selectedOption === item.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-white hover:border-indigo-200'}`}
+                                            >
                                                     <svg viewBox="0 0 220 160" className="w-28 h-28 text-slate-700">
                                                         {item.baseLine && (
                                                             <line
@@ -2804,14 +2791,14 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                                                                 {label.text}
                                                             </text>
                                                         ))}
-                                                    </svg>
-                                                </button>
-                                                {(item.context || item.label) && (
-                                                    <p className="text-[10px] font-black uppercase text-slate-400 text-center tracking-widest group-hover:text-indigo-600 transition-colors">
-                                                        {item.context || item.label}
-                                                    </p>
-                                                )}
-                                            </div>
+                                                </svg>
+                                            </button>
+                                            {(item.context || item.label) && (
+                                                <p className="text-[10px] font-black uppercase text-slate-400 text-center tracking-widest group-hover:text-indigo-600 transition-colors">
+                                                    {item.context || item.label}
+                                                </p>
+                                            )}
+                                        </div>
                                         );
                                     })}
                                 </div>
@@ -2834,83 +2821,7 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                     {task.type === 'angleMeasure' && task.angleData && (
                         <AngleMeasureTask task={task} angleInput={angleInput} setAngleInput={setAngleInput} disabled={!!feedback} />
                     )}
-                    {task.type === 'sliderTransform' && task.sliderData && (
-                        <div className="flex flex-col items-center gap-4">
-                            <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center">
-                                <svg viewBox="0 0 300 300" className="w-full h-full" style={{ transform: `scale(${sliderValue})` }}>
-                                    <path d={task.sliderData.basePath} fill="none" stroke="currentColor" strokeWidth="3" />
-                                </svg>
-                            </div>
-                            <div className="w-full max-w-xs">
-                                <p className="text-xs font-bold text-slate-600 mb-2">Transformier-Schieber (k = {sliderValue.toFixed(1)}):</p>
-                                <input
-                                    type="range"
-                                    min={task.sliderData.minK}
-                                    max={task.sliderData.maxK}
-                                    step="0.1"
-                                    value={sliderValue}
-                                    onChange={(e) => {
-                                        const newValue = parseFloat(e.target.value);
-                                        if (!isNaN(newValue)) {
-                                            updateSliderValue(newValue);
-                                        }
-                                    }}
-                                    onInput={(e) => {
-                                        // Ensure value updates on drag
-                                        const newValue = parseFloat((e.target as HTMLInputElement).value);
-                                        if (!isNaN(newValue)) {
-                                            updateSliderValue(newValue);
-                                        }
-                                    }}
-                                    disabled={!!feedback}
-                                    className="w-full cursor-pointer"
-                                    style={{ pointerEvents: feedback ? 'none' : 'auto' }}
-                                />
-                                <div className="flex items-center justify-center gap-3 mt-3">
-                                    <button
-                                        type="button"
-                                        className="w-10 h-10 rounded-full border-2 border-slate-200 text-xl font-black text-slate-600 bg-white hover:border-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed"
-                                        onClick={() => updateSliderValue(sliderValue - 0.1)}
-                                        disabled={!!feedback}
-                                        aria-label="k um 0,1 verringern"
-                                    >
-                                        -
-                                    </button>
-                                    <input
-                                        type="number"
-                                        step="0.1"
-                                        min={task.sliderData.minK}
-                                        max={task.sliderData.maxK}
-                                        value={sliderValue.toFixed(1)}
-                                        onChange={(e) => {
-                                            const val = parseFloat(e.target.value);
-                                            if (!isNaN(val)) {
-                                                updateSliderValue(val);
-                                            }
-                                        }}
-                                        disabled={!!feedback}
-                                        className="w-24 text-center font-black text-lg border-2 border-slate-200 rounded-2xl p-1"
-                                        title={`Aktueller k-Wert: ${sliderValue.toFixed(1)}`}
-                                    />
-                                    <button
-                                        type="button"
-                                        className="w-10 h-10 rounded-full border-2 border-slate-200 text-xl font-black text-slate-600 bg-white hover:border-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed"
-                                        onClick={() => updateSliderValue(sliderValue + 0.1)}
-                                        disabled={!!feedback}
-                                        aria-label="k um 0,1 erhöhen"
-                                    >
-                                        +
-                                    </button>
-                                </div>
-                                <div
-                                    className="text-xs text-center text-slate-500 mt-2"
-                                    title={`Ziel: k = ${task.sliderData.correctK.toFixed(1)}`}
-                                >
-                                    Zielbereich: k = {task.sliderData.correctK.toFixed(1)} ± 0.1
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                    {/* Slider-Task wurde entfernt und durch createScalingFactorTask ersetzt */}
                     {task.type === 'areaDecomposition' && task.decompositionData && (
                         <div className="flex flex-col items-center gap-4">
                             <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center">

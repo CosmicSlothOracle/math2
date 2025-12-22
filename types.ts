@@ -37,6 +37,62 @@ export interface InputValidatorConfig {
   equationPatterns?: string[];
 }
 
+export interface SvgLineSpec {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  stroke?: string;
+  strokeWidth?: number;
+  dashed?: boolean;
+}
+
+export interface SvgArcSpec {
+  path: string;
+  fill?: string;
+  opacity?: number;
+  stroke?: string;
+  strokeDasharray?: string;
+}
+
+export interface SvgLabelSpec {
+  text: string;
+  x: number;
+  y: number;
+  color?: string;
+  fontSize?: number;
+  anchor?: 'start' | 'middle' | 'end';
+}
+
+export type SupportVisualElement =
+  | ({ type: 'line' } & SvgLineSpec)
+  | ({ type: 'path' } & Omit<SvgArcSpec, 'path'> & { d: string })
+  | ({
+      type: 'text';
+      text: string;
+      x: number;
+      y: number;
+      color?: string;
+      fontSize?: number;
+      anchor?: 'start' | 'middle' | 'end';
+    });
+
+export interface SupportVisual {
+  viewBox?: string;
+  elements: SupportVisualElement[];
+  caption?: string;
+}
+
+export interface AngleData {
+  path: string;
+  correctAngle: number;
+  baseLine?: SvgLineSpec;
+  wallLine?: SvgLineSpec;
+  helperLines?: SvgLineSpec[];
+  angleArcs?: SvgArcSpec[];
+  referenceLabels?: SvgLabelSpec[];
+}
+
 export interface MultiInputField {
   id: string;
   label: string;
@@ -47,21 +103,39 @@ export interface MultiInputField {
 export interface Task {
   id: string;
   question: string;
-  type: 'choice' | 'input' | 'boolean' | 'shorttext' | 'visualChoice' | 'wager' | 'dragDrop' | 'angleMeasure' | 'sliderTransform' | 'areaDecomposition' | 'multiAngleThrow';
+  type:
+    | 'choice'
+    | 'input'
+    | 'boolean'
+    | 'shorttext'
+    | 'visualChoice'
+    | 'wager'
+    | 'dragDrop'
+    | 'angleMeasure'
+    | 'sliderTransform'
+    | 'areaDecomposition'
+    | 'multiAngleThrow';
   options?: string[];
   correctAnswer: number | string;
   explanation: string;
   placeholder?: string;
   visualData?: any;
-  wagerOptions?: number[]; // For wager tasks
-  dragDropData?: { shapes: Array<{id: string, path: string, shapeType: string}>, categories: Array<{id: string, label: string, accepts: string[]}> }; // For drag-drop
-  angleData?: { path: string, correctAngle: number }; // For angle measurement
-  sliderData?: { basePath: string, shapeType: string, minK: number, maxK: number, correctK: number }; // For transformations
-  decompositionData?: { complexPath: string, parts: Array<{path: string, label: string}> }; // For area decomposition
-  multiAngleThrowData?: { targetAngle: number, maxAngles: number, startCost: number, hitReward: number, tolerance?: number }; // For multi-angle throw training
+  wagerOptions?: number[];
+  dragDropData?: {
+    shapes: Array<{ id: string; path: string; shapeType: string }>;
+    categories: Array<{ id: string; label: string; accepts: string[] }>;
+  };
+  angleData?: AngleData;
+  sliderData?: { basePath: string; shapeType: string; minK: number; maxK: number; correctK: number };
+  decompositionData?: { complexPath: string; parts: Array<{ path: string; label: string }> };
+  multiAngleThrowData?: { targetAngle: number; maxAngles: number; startCost: number; hitReward: number; tolerance?: number };
   validator?: InputValidatorConfig;
   multiInputFields?: MultiInputField[];
   difficultyLevel?: 'Mittel' | 'Schwer';
+  given?: string[];
+  asked?: string[];
+  instructions?: string;
+  supportVisual?: SupportVisual;
 }
 
 /**

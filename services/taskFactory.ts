@@ -1,5 +1,5 @@
 
-import { Task } from '../types';
+import { SupportVisual, Task } from '../types';
 import { getBountyTasks } from './bountyCatalog';
 
 const getRandomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -12,6 +12,339 @@ const shuffleArray = <T>(array: T[]): T[] => {
     [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
   }
   return newArr;
+};
+
+type AngleLineSpec = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  stroke?: string;
+  strokeWidth?: number;
+  dashed?: boolean;
+};
+
+type AngleLabelSpec = {
+  text: string;
+  x: number;
+  y: number;
+  color?: string;
+  fontSize?: number;
+  anchor?: 'start' | 'middle' | 'end';
+};
+
+interface AngleArcSpecConfig {
+  angle: number;
+  label: string;
+  color: string;
+  opacity?: number;
+  clockwise?: boolean;
+  dashed?: boolean;
+  labelColor?: string;
+  labelFontSize?: number;
+}
+
+interface AngleArcDrawing {
+  path: string;
+  fill: string;
+  opacity?: number;
+  stroke?: string;
+  strokeDasharray?: string;
+  label?: AngleLabelSpec;
+}
+
+interface AngleScene {
+  baseLine: AngleLineSpec;
+  wallLine?: AngleLineSpec;
+  rays: AngleLineSpec[];
+  arcs: AngleArcDrawing[];
+  labels: AngleLabelSpec[];
+  path: string;
+  origin: { x: number; y: number };
+  referenceAngle: number;
+  rayLength: number;
+}
+
+interface AngleSceneOptions {
+  includeWall?: boolean;
+  baseLength?: number;
+  originX?: number;
+  originY?: number;
+  rayLength?: number;
+  arcRadius?: number;
+  rayColor?: string;
+  baseLabel?: string | false;
+  wallLabel?: string;
+  rayLabel?: string;
+  arcs?: AngleArcSpecConfig[];
+  referenceAngle?: number;
+}
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const polarPoint = (originX: number, originY: number, length: number, radians: number): [number, number] => [
+  originX + length * Math.cos(radians),
+  originY - length * Math.sin(radians)
+];
+
+const createArcDrawing = (spec: AngleArcSpecConfig, origin: { x: number; y: number }, arcRadius: number): AngleArcDrawing => {
+  const radians = (spec.angle * Math.PI) / 180;
+  const signedRad = spec.clockwise ? -radians : radians;
+  const startX = origin.x + arcRadius;
+  const startY = origin.y;
+  const [endX, endY] = polarPoint(origin.x, origin.y, arcRadius, signedRad);
+  const largeArc = spec.angle > 180 ? 1 : 0;
+  const sweep = spec.clockwise ? 1 : 0;
+  const path = `M ${origin.x} ${origin.y} L ${startX} ${startY} A ${arcRadius} ${arcRadius} 0 ${largeArc} ${sweep} ${endX} ${endY} Z`;
+  const midRad = signedRad / 2;
+  const labelRadius = arcRadius - 10;
+  const [labelX, labelY] = polarPoint(origin.x, origin.y, labelRadius, midRad);
+  const label: AngleLabelSpec = {
+    text: spec.label,
+    x: labelX,
+    y: labelY,
+    color: spec.labelColor || '#0f172a',
+    fontSize: spec.labelFontSize || 11,
+    anchor: 'middle'
+  };
+
+  return {
+    path,
+    fill: spec.color,
+    opacity: spec.opacity ?? 1,
+    stroke: spec.dashed ? spec.color : undefined,
+    strokeDasharray: spec.dashed ? '6 4' : undefined,
+    label
+  };
+};
+
+const createAngleScene = (angle: number, options: AngleSceneOptions = {}): AngleScene => {
+  const originX = options.originX ?? 110;
+  const originY = options.originY ?? 130;
+  const baseLength = options.baseLength ?? 160;
+  const rayLength = options.rayLength ?? 70;
+  const arcRadius = options.arcRadius ?? 34;
+  const baseX1 = clamp(originX - baseLength / 2, 10, 210);
+  const baseX2 = clamp(originX + baseLength / 2, 10, 210);
+  const baseLine: AngleLineSpec = {
+    x1: baseX1,
+    y1: originY,
+    x2: baseX2,
+    y2: originY,
+    stroke: '#94a3b8',
+    strokeWidth: 6
+  };
+  const wallLine = options.includeWall
+    ? {
+        x1: originX,
+        y1: originY,
+        x2: originX,
+        y2: originY - 90,
+        stroke: '#475569',
+        strokeWidth: 6
+      }
+    : undefined;
+
+  const arcsConfig = options.arcs && options.arcs.length > 0
+    ? options.arcs
+    : [{
+        angle,
+        label: `${Math.round(angle)}°`,
+        color: 'rgba(37,99,235,0.25)'
+      }];
+
+  const referenceAngle = options.referenceAngle
+    ?? arcsConfig.find(cfg => !cfg.clockwise)?.angle
+    ?? angle;
+
+  const referenceRad = (referenceAngle * Math.PI) / 180;
+  const [rayX, rayY] = polarPoint(originX, originY, rayLength, referenceRad);
+  const ray: AngleLineSpec = {
+    x1: originX,
+    y1: originY,
+    x2: rayX,
+    y2: rayY,
+    stroke: options.rayColor || '#2563eb',
+    strokeWidth: 5
+  };
+
+  const arcs = arcsConfig.map(cfg => createArcDrawing(cfg, { x: originX, y: originY }, arcRadius));
+  const labels: AngleLabelSpec[] = [];
+  if (options.baseLabel !== false) {
+    labels.push({
+      text: typeof options.baseLabel === 'string' ? options.baseLabel : 'Boden',
+      x: baseLine.x2 - 10,
+      y: originY + 16,
+      color: '#475569',
+      fontSize: 10,
+      anchor: 'end'
+    });
+  }
+  if (wallLine) {
+    labels.push({
+      text: options.wallLabel || 'Wand',
+      x: wallLine.x2 + 6,
+      y: wallLine.y2 + 20,
+      color: '#475569',
+      fontSize: 10,
+      anchor: 'start'
+    });
+  }
+  if (options.rayLabel) {
+    labels.push({
+      text: options.rayLabel,
+      x: (ray.x1 + ray.x2) / 2,
+      y: (ray.y1 + ray.y2) / 2 - 6,
+      color: ray.stroke || '#2563eb',
+      fontSize: 10
+    });
+  }
+  arcs.forEach(arc => {
+    if (arc.label) {
+      labels.push(arc.label);
+    }
+  });
+
+  return {
+    baseLine,
+    wallLine,
+    rays: [ray],
+    arcs,
+    labels,
+    path: `M ${ray.x1} ${ray.y1} L ${ray.x2} ${ray.y2}`,
+    origin: { x: originX, y: originY },
+    referenceAngle,
+    rayLength
+  };
+};
+
+const createAngleVisualOption = (
+  id: string,
+  angle: number,
+  label: string,
+  config: (AngleSceneOptions & { context?: string }) | undefined
+) => {
+  const scene = createAngleScene(angle, config);
+  return {
+    id,
+    label,
+    context: config?.context,
+    angleValue: angle,
+    baseLine: scene.baseLine,
+    wallLine: scene.wallLine,
+    helperLines: scene.rays,
+    angleArcs: scene.arcs.map(arc => ({
+      path: arc.path,
+      fill: arc.fill,
+      opacity: arc.opacity,
+      stroke: arc.stroke,
+      strokeDasharray: arc.strokeDasharray
+    })),
+    referenceLabels: scene.labels,
+    path: scene.path,
+    strokeWidth: 4
+  };
+};
+
+const lineToElement = (line: AngleLineSpec) => ({
+  type: 'line' as const,
+  x1: line.x1,
+  y1: line.y1,
+  x2: line.x2,
+  y2: line.y2,
+  stroke: line.stroke,
+  strokeWidth: line.strokeWidth,
+  dashed: line.dashed
+});
+
+const arcToElement = (arc: AngleArcDrawing) => ({
+  type: 'path' as const,
+  d: arc.path,
+  fill: arc.fill,
+  opacity: arc.opacity,
+  stroke: arc.stroke,
+  strokeDasharray: arc.strokeDasharray
+});
+
+const labelToElement = (label: AngleLabelSpec) => ({
+  type: 'text' as const,
+  text: label.text,
+  x: label.x,
+  y: label.y,
+  color: label.color,
+  fontSize: label.fontSize,
+  anchor: label.anchor
+});
+
+const createSupportVisualFromScene = (scene: AngleScene, caption?: string): SupportVisual => {
+  const elements: SupportVisual['elements'] = [
+    lineToElement(scene.baseLine),
+    scene.wallLine ? lineToElement(scene.wallLine) : undefined,
+    ...scene.rays.map(lineToElement),
+    ...scene.arcs.map(arcToElement),
+    ...scene.labels.map(labelToElement)
+  ].filter(Boolean) as SupportVisual['elements'];
+
+  return {
+    viewBox: '0 0 220 170',
+    elements,
+    caption
+  };
+};
+
+const createRightTriangleSupportVisual = (alpha: number): SupportVisual => {
+  const baseStart = { x: 40, y: 160 };
+  const baseEnd = { x: 200, y: 160 };
+  const heightTop = { x: 200, y: 60 };
+  const elements: SupportVisual['elements'] = [
+    { type: 'line', x1: baseStart.x, y1: baseStart.y, x2: baseEnd.x, y2: baseEnd.y, stroke: '#94a3b8', strokeWidth: 5 },
+    { type: 'line', x1: baseEnd.x, y1: baseEnd.y, x2: heightTop.x, y2: heightTop.y, stroke: '#475569', strokeWidth: 5 },
+    { type: 'line', x1: baseStart.x, y1: baseStart.y, x2: heightTop.x, y2: heightTop.y, stroke: '#2563eb', strokeWidth: 5 },
+    { type: 'path', d: 'M 180 160 L 180 140 L 200 140 L 200 160 Z', fill: 'rgba(148,163,184,0.35)' }
+  ];
+  elements.push({
+    type: 'path',
+    d: 'M 40 160 L 70 160 A 28 28 0 0 1 58 132 Z',
+    fill: 'rgba(249,115,22,0.35)'
+  });
+  elements.push({
+    type: 'path',
+    d: 'M 200 110 L 200 80 A 26 26 0 0 1 175 105 Z',
+    fill: 'rgba(59,130,246,0.35)'
+  });
+  elements.push({
+    type: 'text',
+    text: `α = ${alpha}°`,
+    x: 78,
+    y: 176,
+    color: '#b45309',
+    fontSize: 12,
+    anchor: 'start'
+  });
+  elements.push({
+    type: 'text',
+    text: 'β = ?',
+    x: 188,
+    y: 96,
+    color: '#1d4ed8',
+    fontSize: 12,
+    anchor: 'middle'
+  });
+  elements.push({
+    type: 'text',
+    text: '90°',
+    x: 186,
+    y: 148,
+    color: '#475569',
+    fontSize: 10,
+    anchor: 'middle'
+  });
+
+  return {
+    viewBox: '0 0 240 200',
+    elements,
+    caption: 'Rechtwinkliges Dreieck: orange α unten, blau β oben, graues Quadrat = 90°.'
+  };
 };
 
 export const TaskFactory = {
@@ -345,66 +678,80 @@ export const TaskFactory = {
     const id = `u2-vis-${index}-${seed}`;
     const tasks = [
       {
-        q: "Eine Flasche wird geworfen. Welcher Abwurfwinkel wäre 'stumpf' (>90°)?",
+        q: "Flaschenwurf: Welcher Abwurfwinkel ist stumpf (>90°)?",
+        given: [
+          'Graue Linie = Boden. Die bunten Strahlen zeigen mögliche Wurfarme.',
+          'Der farbige Winkel markiert den Öffnungswinkel zwischen Boden und Arm.'
+        ],
+        asked: [
+          'Tippe den Winkel, der größer als 90° ist.'
+        ],
         data: [
-          {
-            id: 'a',
-            label: 'Spitz (<90°)',
-            path: 'M 20,130 L 100,130 L 60,40',
-            shapeType: 'triangle',
-            context: 'none',
-            angleValue: 45
-          },
-          {
-            id: 'b',
-            label: 'Recht (90°)',
-            path: 'M 100,130 L 180,130 L 180,50',
-            shapeType: 'triangle',
-            context: 'none',
-            angleValue: 90
-          },
-          {
-            id: 'c',
-            label: 'Stumpf (>90°)',
-            path: 'M 20,130 L 100,130 L 20,50',
-            shapeType: 'triangle',
-            context: 'none',
-            angleValue: 135
-          }
+          createAngleVisualOption('a', 45, 'Spitz (<90°)', {
+            baseLabel: 'Boden',
+            rayLabel: 'Wurf',
+            rayColor: '#22c55e',
+            arcs: [{ angle: 45, label: '45°', color: 'rgba(34,197,94,0.35)' }],
+            context: '45° Abwurf'
+          }),
+          createAngleVisualOption('b', 90, 'Recht (90°)', {
+            baseLabel: 'Boden',
+            rayLabel: 'Wurf',
+            rayColor: '#facc15',
+            arcs: [{ angle: 90, label: '90°', color: 'rgba(251,191,36,0.35)' }],
+            context: '90° Abwurf'
+          }),
+          createAngleVisualOption('c', 135, 'Stumpf (>90°)', {
+            baseLabel: 'Boden',
+            rayLabel: 'Wurf',
+            rayColor: '#f97316',
+            arcs: [{ angle: 135, label: '135°', color: 'rgba(249,115,22,0.35)' }],
+            context: '135° Abwurf'
+          })
         ],
         ans: 'c',
         expl: 'Ein stumpfer Winkel ist weiter geöffnet als ein rechter Winkel (größer als 90 Grad).'
       },
       {
-        q: "Du lehnst an einer Wand. Welcher Winkel zeigt die richtige Neigung (spitz)?",
+        q: "Wandstütz-Check: Welcher Winkel ist spitz (<90°)?",
+        given: [
+          'Graue Linie = Boden, dunkle Linie = Wand.',
+          'Der farbige Strahl steht für deine Körperneigung.'
+        ],
+        asked: [
+          'Wähle den spitzen Winkel (<90°).'
+        ],
         data: [
-          {
-            id: 'a',
-            label: 'Spitz',
-            path: 'M 20,130 L 100,130 L 80,60',
-            shapeType: 'triangle',
-            context: 'none',
-            angleValue: 60
-          },
-          {
-            id: 'b',
-            label: 'Recht',
-            path: 'M 20,130 L 100,130 L 100,50',
-            shapeType: 'triangle',
-            context: 'none',
-            angleValue: 90
-          },
-          {
-            id: 'c',
-            label: 'Stumpf',
-            path: 'M 20,130 L 100,130 L 20,50',
-            shapeType: 'triangle',
-            context: 'none',
-            angleValue: 120
-          }
+          createAngleVisualOption('a', 60, 'Spitz', {
+            includeWall: true,
+            wallLabel: 'Wand',
+            baseLabel: 'Boden',
+            rayLabel: 'Neigung',
+            rayColor: '#22c55e',
+            arcs: [{ angle: 60, label: '60°', color: 'rgba(34,197,94,0.35)' }],
+            context: '60° Neigung'
+          }),
+          createAngleVisualOption('b', 90, 'Recht', {
+            includeWall: true,
+            wallLabel: 'Wand',
+            baseLabel: 'Boden',
+            rayLabel: 'Neigung',
+            rayColor: '#facc15',
+            arcs: [{ angle: 90, label: '90°', color: 'rgba(251,191,36,0.35)' }],
+            context: '90° Neigung'
+          }),
+          createAngleVisualOption('c', 120, 'Stumpf', {
+            includeWall: true,
+            wallLabel: 'Wand',
+            baseLabel: 'Boden',
+            rayLabel: 'Neigung',
+            rayColor: '#f97316',
+            arcs: [{ angle: 120, label: '120°', color: 'rgba(249,115,22,0.35)' }],
+            context: '120° Neigung'
+          })
         ],
         ans: 'a',
-        expl: 'Ein spitzer Winkel ist kleiner als 90 Grad - perfekt zum Anlehnen!'
+        expl: 'Ein spitzer Winkel ist kleiner als 90 Grad – perfekt zum Anlehnen!'
       }
     ];
     const selected = tasks[index % tasks.length];
@@ -415,7 +762,9 @@ export const TaskFactory = {
       question: selected.q,
       visualData: selected.data,
       correctAnswer: selected.ans,
-      explanation: selected.expl
+      explanation: selected.expl,
+      given: selected.given,
+      asked: selected.asked
     };
   },
 
@@ -562,28 +911,97 @@ export const TaskFactory = {
     const type = index % 3;
 
     if (type === 0) {
-      const alpha = getRandomInt(100, 140);
+      const alpha = getRandomInt(110, 140);
+      const beta = 180 - alpha;
+      const scene = createAngleScene(alpha, {
+        baseLabel: 'Bodenlinie',
+        rayLabel: 'Strahl',
+        rayColor: '#f97316',
+        arcs: [
+          { angle: beta, label: 'β = ?', color: 'rgba(59,130,246,0.35)', clockwise: true },
+          { angle: alpha, label: `α = ${alpha}°`, color: 'rgba(249,115,22,0.35)' }
+        ],
+        referenceAngle: alpha
+      });
+      const supportVisual = createSupportVisualFromScene(
+        scene,
+        'Orange Winkel α ist gegeben. Blauer Winkel β liegt direkt neben α (Nebenwinkel).'
+      );
       return {
-        id, type: 'input',
-        question: `Du lehnst an einer Wand. Dein Rücken und die Wand bilden ${alpha}°. Ein anderer Winkel liegt auf der gleichen Geraden direkt daneben (Nebenwinkel). Wie groß ist dieser?`,
-        correctAnswer: (180 - alpha).toString(),
+        id,
+        type: 'input',
+        question: 'Nebenwinkel auf der Bodenlinie',
+        given: [
+          'Graue Linie = Boden. Beide Winkel liegen auf derselben Geraden.',
+          `Der orange Winkel α = ${alpha}° ist bekannt.`,
+          'Der blaue Winkel β liegt direkt daneben (Nebenwinkel).'
+        ],
+        asked: ['Berechne β in Grad.'],
+        instructions: 'Nebenwinkel ergänzen sich zu 180° (α + β = 180°).',
+        supportVisual,
+        correctAnswer: beta.toString(),
         explanation: 'Nebenwinkel an einer Geraden ergänzen sich immer zu 180°.',
         placeholder: 'Grad...'
       };
     } else if (type === 1) {
+      const scene = createAngleScene(45, {
+        baseLabel: 'Linie A',
+        rayLabel: 'Linie B',
+        rayColor: '#6366f1',
+        arcs: [
+          { angle: 45, label: 'α = 45°', color: 'rgba(99,102,241,0.35)' },
+          { angle: 45, label: 'α (gegenüber)', color: 'rgba(34,197,94,0.35)', clockwise: true }
+        ],
+        referenceAngle: 45
+      });
+      const supportVisual = createSupportVisualFromScene(
+        scene,
+        'Gegenüberliegende (scheitelnde) Winkel haben dieselbe Farbe.'
+      );
+      const mirrorRad = (scene.referenceAngle + 180) * (Math.PI / 180);
+      const [mirrorX, mirrorY] = polarPoint(scene.origin.x, scene.origin.y, scene.rayLength, mirrorRad);
+      supportVisual.elements.unshift({
+        type: 'line',
+        x1: scene.origin.x,
+        y1: scene.origin.y,
+        x2: mirrorX,
+        y2: mirrorY,
+        stroke: scene.rays[0].stroke,
+        strokeWidth: scene.rays[0].strokeWidth,
+        dashed: true
+      });
       return {
-        id, type: 'choice',
-        question: "Ein Scheinwerfer ist im 45°-Winkel ausgerichtet. Sein gegenüberliegender Winkel (Scheitelwinkel) hat wie viel Grad?",
+        id,
+        type: 'choice',
+        question: 'Scheitelwinkel beim Scheinwerfer',
+        given: [
+          'Die lilafarbene Linie zeigt den Winkel α = 45°.',
+          'Der grüne Winkel liegt direkt gegenüber (Scheitelwinkel).'
+        ],
+        asked: ['Wie groß ist der grüne Scheitelwinkel?'],
+        instructions: 'Scheitelwinkel liegen sich gegenüber und sind immer exakt gleich groß.',
+        supportVisual,
         options: ["45°", "90°", "135°", "180°"],
         correctAnswer: 0,
-        explanation: "Scheitelwinkel liegen sich gegenüber und sind immer exakt gleich groß."
+        explanation: 'Scheitelwinkel liegen sich gegenüber und sind immer exakt gleich groß.'
       };
     } else {
       const alpha = getRandomInt(20, 60);
+      const beta = 90 - alpha;
+      const supportVisual = createRightTriangleSupportVisual(alpha);
       return {
-        id, type: 'input',
-        question: `Konstruktion einer Rampe: Es entsteht ein rechtwinkliges Dreieck. Unten beträgt der Winkel ${alpha}°. Wie groß ist der dritte Winkel oben?`,
-        correctAnswer: (90 - alpha).toString(),
+        id,
+        type: 'input',
+        question: 'Rampe im rechtwinkligen Dreieck',
+        given: [
+          'Graue Linie = Boden, dunkle Linie = Wand (rechter Winkel).',
+          `Der orange Winkel α = ${alpha}° sitzt unten auf der Bodenlinie.`,
+          'Der blaue Winkel β liegt oben zwischen Rampe und Wand.'
+        ],
+        asked: ['Berechne β in Grad.'],
+        instructions: 'In einem rechtwinkligen Dreieck gilt: α + β = 90°.',
+        supportVisual,
+        correctAnswer: beta.toString(),
         explanation: 'In einem rechtwinkligen Dreieck müssen die beiden spitzen Winkel zusammen 90° ergeben.',
         placeholder: 'Grad...'
       };
@@ -702,7 +1120,16 @@ export const TaskFactory = {
     return {
       id,
       type: 'dragDrop',
-      question: "Ordne die Figuren in das 'Haus der Vierecke' ein. Ziehe jede Figur in die richtige Kategorie!",
+      question: "Haus der Vierecke: Klassifikation",
+      given: [
+        'Du siehst 5 geometrische Figuren (Quadrat, Rechteck, Raute, Parallelogramm, Trapez).',
+        '5 Kategorien stehen zur Verfügung, die eine Hierarchie bilden.'
+      ],
+      asked: [
+        'Ordne jede Figur der passendsten Kategorie zu.',
+        'Hinweis: Eine Figur kann zu mehreren Kategorien gehören (z.B. Quadrat → Quadrat, Rechteck, Raute, Parallelogramm).'
+      ],
+      instructions: 'Nutze den Dropdown-Modus für absolute Zuverlässigkeit oder wechsle zu Drag & Drop für interaktive Zuordnung. Mehrere Zuordnungen pro Figur sind möglich.',
       dragDropData: {
         shapes: [
           { id: 'square', path: 'M 60,80 L 140,80 L 140,20 L 60,20 Z', shapeType: 'square', label: 'Quadrat' },
@@ -734,19 +1161,43 @@ export const TaskFactory = {
   createAngleMeasurementTask(index: number, seed: number): Task {
     const id = `u2-angle-${index}-${seed}`;
     const angles = [
-      { path: 'M 20,130 L 100,130 L 100,50', correctAngle: 90 },
-      { path: 'M 20,130 L 100,130 L 60,40', correctAngle: 45 },
-      { path: 'M 20,130 L 100,130 L 20,50', correctAngle: 135 }
+      { correctAngle: 90, label: 'rechter Winkel', color: '#f97316', arc: 'rgba(249,115,22,0.35)' },
+      { correctAngle: 45, label: 'spitzer Winkel', color: '#22c55e', arc: 'rgba(34,197,94,0.35)' },
+      { correctAngle: 135, label: 'stumpfer Winkel', color: '#facc15', arc: 'rgba(250,204,21,0.35)' }
     ];
     const selected = angles[index % angles.length];
+    const scene = createAngleScene(selected.correctAngle, {
+      baseLabel: 'Boden',
+      rayLabel: 'Strahl',
+      rayColor: selected.color,
+      arcs: [{ angle: selected.correctAngle, label: `${selected.correctAngle}°`, color: selected.arc }],
+      referenceAngle: selected.correctAngle
+    });
 
     return {
       id,
       type: 'angleMeasure',
-      question: "Messe den markierten Winkel im Dreieck. Bewege die Maus über die Figur!",
+      question: `Messe den markierten ${selected.label}.`,
+      given: [
+        'Graue Linie = Bezugslinie (Boden).',
+        'Der farbige Strahl bildet den Winkel zum Boden.'
+      ],
+      asked: ['Bewege Maus oder Finger über den Scheitelpunkt und gib den gemessenen Winkel in Grad an (nur Zahl).'],
+      instructions: 'Tippfehler-Toleranz: ±5°. Du kannst auch direkt die Zahl eintragen.',
       angleData: {
-        path: selected.path,
-        correctAngle: selected.correctAngle
+        path: scene.path,
+        correctAngle: selected.correctAngle,
+        baseLine: scene.baseLine,
+        wallLine: scene.wallLine,
+        helperLines: scene.rays,
+        angleArcs: scene.arcs.map(arc => ({
+          path: arc.path,
+          fill: arc.fill,
+          opacity: arc.opacity,
+          stroke: arc.stroke,
+          strokeDasharray: arc.strokeDasharray
+        })),
+        referenceLabels: scene.labels
       },
       correctAnswer: selected.correctAngle.toString(),
       explanation: `Der Winkel beträgt ${selected.correctAngle}°. ${selected.correctAngle === 90 ? 'Das ist ein rechter Winkel!' : selected.correctAngle < 90 ? 'Das ist ein spitzer Winkel.' : 'Das ist ein stumpfer Winkel.'}`
@@ -1034,7 +1485,16 @@ export const TaskFactory = {
     return {
       id,
       type: 'multiAngleThrow',
-      question: `Werfe die Flasche mit bis zu 5 verschiedenen Winkeln und versuche, den ${selected.desc} zu treffen!\n\n💰 Kosten: 10 Coins zu Beginn\n⭐ Belohnung: 5 Coins pro Treffer`,
+      question: `Multi-Angle Throw: Triff den ${selected.desc}.`,
+      given: [
+        `Zielwinkel: ${selected.target}° (Toleranz ±5°).`,
+        'Startgebühr: 10 Coins • Belohnung: 5 Coins pro Treffer.',
+        'Du kannst bis zu 5 Winkel speichern, bevor die Serie automatisch gestartet wird.'
+      ],
+      asked: [
+        'Plane deine Winkel, starte die Simulation und erreiche so viele Treffer wie möglich.'
+      ],
+      instructions: '1) Winkel eingeben → „Winkel hinzufügen“. 2) Bis zu 5 Werte sammeln. 3) „Würfe starten“ drücken. Jeder gespeicherte Winkel wird nacheinander getestet.',
       multiAngleThrowData: {
         targetAngle: selected.target,
         maxAngles: 5,

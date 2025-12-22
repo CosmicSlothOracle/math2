@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LEARNING_UNITS, SHOP_ITEMS, PROGRESS_LEVELS, GEOMETRY_DEFINITIONS } from './constants';
-import { LearningUnit, User, Task, ShopItem, ChatMessage, CategoryGroup, ToastMessage, ToastType, getTileStatus } from './types';
+import { LearningUnit, User, Task, ShopItem, ChatMessage, CategoryGroup, ToastMessage, ToastType, getTileStatus, SupportVisual } from './types';
 import { AuthService, DataService, SocialService } from './services/apiService';
 import { QuestService } from './services/questService';
 import { computeEntryFee, getQuestCap, getQuestCoinsEarned, getQuestCapRemaining, isQuestCapReached } from './services/economyService';
@@ -1960,8 +1960,66 @@ const AngleMeasureTask: React.FC<{
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleMouseLeave}
         >
-          {/* Original angle path */}
+          {angleData.baseLine && (
+            <line
+              x1={angleData.baseLine.x1}
+              y1={angleData.baseLine.y1}
+              x2={angleData.baseLine.x2}
+              y2={angleData.baseLine.y2}
+              stroke={angleData.baseLine.stroke || '#94a3b8'}
+              strokeWidth={angleData.baseLine.strokeWidth || 5}
+              strokeDasharray={angleData.baseLine.dashed ? '6 4' : undefined}
+            />
+          )}
+          {angleData.wallLine && (
+            <line
+              x1={angleData.wallLine.x1}
+              y1={angleData.wallLine.y1}
+              x2={angleData.wallLine.x2}
+              y2={angleData.wallLine.y2}
+              stroke={angleData.wallLine.stroke || '#475569'}
+              strokeWidth={angleData.wallLine.strokeWidth || 5}
+              strokeDasharray={angleData.wallLine.dashed ? '6 4' : undefined}
+            />
+          )}
+          {angleData.helperLines?.map((line, idx) => (
+            <line
+              key={`helper-${idx}`}
+              x1={line.x1}
+              y1={line.y1}
+              x2={line.x2}
+              y2={line.y2}
+              stroke={line.stroke || '#2563eb'}
+              strokeWidth={line.strokeWidth || 4}
+              strokeDasharray={line.dashed ? '6 4' : undefined}
+              strokeLinecap="round"
+            />
+          ))}
+          {(angleData.angleArcs ?? []).map((arc, idx) => (
+            <path
+              key={`arc-${idx}`}
+              d={arc.path}
+              fill={arc.fill || 'rgba(99,102,241,0.25)'}
+              opacity={arc.opacity ?? 1}
+              stroke={arc.stroke}
+              strokeDasharray={arc.strokeDasharray}
+            />
+          ))}
+          {/* Original angle path fallback */}
           <path d={angleData.path} fill="none" stroke="currentColor" strokeWidth="3" />
+          {(angleData.referenceLabels ?? []).map((label, idx) => (
+            <text
+              key={`label-${idx}`}
+              x={label.x}
+              y={label.y}
+              fill={label.color || '#475569'}
+              fontSize={label.fontSize || 10}
+              textAnchor={label.anchor || 'middle'}
+              className="font-bold"
+            >
+              {label.text}
+            </text>
+          ))}
 
           {/* Protractor overlay when hovering */}
           {showProtractor && hoverAngle !== null && (
@@ -2010,6 +2068,66 @@ const AngleMeasureTask: React.FC<{
           className="w-full p-4 text-xl font-black rounded-2xl border-4 border-slate-100 focus:border-indigo-500 bg-slate-50 outline-none"
         />
       </div>
+    </div>
+  );
+};
+
+const SupportVisualRenderer: React.FC<{ visual: SupportVisual }> = ({ visual }) => {
+  const viewBox = visual.viewBox ?? '0 0 200 150';
+
+  return (
+    <div className="w-full max-w-md mx-auto flex flex-col gap-3">
+      <div className="w-full bg-white border-2 border-slate-200 rounded-2xl p-4">
+        <svg viewBox={viewBox} className="w-full h-auto text-slate-700">
+          {visual.elements.map((el, idx) => {
+            if (el.type === 'line') {
+              return (
+                <line
+                  key={`support-line-${idx}`}
+                  x1={el.x1}
+                  y1={el.y1}
+                  x2={el.x2}
+                  y2={el.y2}
+                  stroke={el.stroke || '#475569'}
+                  strokeWidth={el.strokeWidth || 4}
+                  strokeDasharray={el.dashed ? '6 4' : undefined}
+                  strokeLinecap="round"
+                />
+              );
+            }
+            if (el.type === 'path') {
+              return (
+                <path
+                  key={`support-path-${idx}`}
+                  d={el.d}
+                  fill={el.fill || 'rgba(99,102,241,0.25)'}
+                  opacity={el.opacity ?? 1}
+                  stroke={el.stroke}
+                  strokeDasharray={el.strokeDasharray}
+                />
+              );
+            }
+            return (
+              <text
+                key={`support-text-${idx}`}
+                x={el.x}
+                y={el.y}
+                fill={el.color || '#475569'}
+                fontSize={el.fontSize || 10}
+                textAnchor={el.anchor || 'middle'}
+                className="font-bold"
+              >
+                {el.text}
+              </text>
+            );
+          })}
+        </svg>
+      </div>
+      {visual.caption && (
+        <p className="text-xs text-center font-bold uppercase tracking-widest text-slate-500">
+          {visual.caption}
+        </p>
+      )}
     </div>
   );
 };
@@ -2539,7 +2657,45 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
             </div>
             <div className="flex-1 overflow-y-auto p-8 flex flex-col items-center justify-center max-w-4xl mx-auto w-full">
                 <h2 className={`text-3xl font-black italic text-center mb-10 leading-tight ${isBountyMode ? 'text-amber-100' : 'text-slate-900'}`}>{task.question}</h2>
-                <div className="w-full space-y-4">
+                <div className="w-full space-y-6">
+                    {(task.given?.length || task.asked?.length) && (
+                        <div className="grid gap-4 w-full md:grid-cols-2">
+                            {task.given?.length ? (
+                                <div className="p-4 rounded-2xl border-2 border-slate-800 bg-slate-900 text-white shadow-lg">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] mb-2 opacity-80">Gegeben</p>
+                                    <ul className="space-y-2 text-sm font-semibold leading-snug">
+                                        {task.given.map((item, idx) => (
+                                            <li key={`given-${idx}`} className="flex gap-2">
+                                                <span className="text-emerald-300">•</span>
+                                                <span>{item}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ) : null}
+                            {task.asked?.length ? (
+                                <div className="p-4 rounded-2xl border-2 border-indigo-100 bg-indigo-50 text-indigo-900 shadow-lg">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] mb-2 opacity-70">Gesucht</p>
+                                    <ul className="space-y-2 text-sm font-semibold leading-snug">
+                                        {task.asked.map((item, idx) => (
+                                            <li key={`asked-${idx}`} className="flex gap-2">
+                                                <span className="text-indigo-500">?</span>
+                                                <span>{item}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ) : null}
+                        </div>
+                    )}
+                    {task.instructions && (
+                        <div className="p-4 rounded-2xl border-2 border-amber-200 bg-amber-50 text-amber-900 text-sm font-bold leading-relaxed">
+                            {task.instructions}
+                        </div>
+                    )}
+                    {task.supportVisual && (
+                        <SupportVisualRenderer visual={task.supportVisual} />
+                    )}
                     {(task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') && (
                         <div className="grid grid-cols-1 gap-3">
                             {task.options?.map((opt, i) => (
@@ -2573,25 +2729,91 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                         <>
                             {task.visualData && task.visualData.length > 0 ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                    {task.visualData.map((item: any, i: number) => (
-                                        <div key={item.id || i} className="flex flex-col items-center gap-2 group">
-                                            <button
-                                                onClick={() => !feedback && setSelectedOption(item.id)}
-                                                title={item.context || item.label}
-                                                aria-label={item.label || item.context || `Option ${i + 1}`}
-                                                className={`relative p-6 rounded-2xl border-2 flex flex-col items-center justify-center transition-all ${selectedOption === item.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-white hover:border-indigo-200'}`}
-                                            >
-                                                <svg viewBox="0 0 200 150" className="w-24 h-24">
-                                                    <path d={item.path} fill="none" stroke="currentColor" strokeWidth="3" />
-                                                </svg>
-                                            </button>
-                                            {(item.context || item.label) && (
-                                                <p className="text-[10px] font-black uppercase text-slate-400 text-center tracking-widest group-hover:text-indigo-600 transition-colors">
-                                                    {item.context || item.label}
-                                                </p>
-                                            )}
-                                        </div>
-                                    ))}
+                                    {task.visualData.map((item: any, i: number) => {
+                                        const angleArcs = item.angleArcs
+                                            || (item.angleArcPath ? [{ path: item.angleArcPath, fill: item.angleFill }] : []);
+                                        return (
+                                            <div key={item.id || i} className="flex flex-col items-center gap-2 group">
+                                                <button
+                                                    onClick={() => !feedback && setSelectedOption(item.id)}
+                                                    title={item.context || item.label}
+                                                    aria-label={item.label || item.context || `Option ${i + 1}`}
+                                                    className={`relative p-6 rounded-2xl border-2 flex flex-col items-center justify-center transition-all ${selectedOption === item.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-white hover:border-indigo-200'}`}
+                                                >
+                                                    <svg viewBox="0 0 220 160" className="w-28 h-28 text-slate-700">
+                                                        {item.baseLine && (
+                                                            <line
+                                                                x1={item.baseLine.x1}
+                                                                y1={item.baseLine.y1}
+                                                                x2={item.baseLine.x2}
+                                                                y2={item.baseLine.y2}
+                                                                stroke={item.baseLine.stroke || '#94a3b8'}
+                                                                strokeWidth={item.baseLine.strokeWidth || 5}
+                                                                strokeDasharray={item.baseLine.dashed ? '6 4' : undefined}
+                                                                strokeLinecap="round"
+                                                            />
+                                                        )}
+                                                        {item.wallLine && (
+                                                            <line
+                                                                x1={item.wallLine.x1}
+                                                                y1={item.wallLine.y1}
+                                                                x2={item.wallLine.x2}
+                                                                y2={item.wallLine.y2}
+                                                                stroke={item.wallLine.stroke || '#475569'}
+                                                                strokeWidth={item.wallLine.strokeWidth || 5}
+                                                                strokeDasharray={item.wallLine.dashed ? '6 4' : undefined}
+                                                                strokeLinecap="round"
+                                                            />
+                                                        )}
+                                                        {item.helperLines?.map((line: any, helperIdx: number) => (
+                                                            <line
+                                                                key={`helper-${helperIdx}`}
+                                                                x1={line.x1}
+                                                                y1={line.y1}
+                                                                x2={line.x2}
+                                                                y2={line.y2}
+                                                                stroke={line.stroke || '#2563eb'}
+                                                                strokeWidth={line.strokeWidth || 4}
+                                                                strokeDasharray={line.dashed ? '6 4' : undefined}
+                                                                strokeLinecap="round"
+                                                            />
+                                                        ))}
+                                                        {angleArcs.map((arc: any, arcIdx: number) => (
+                                                            <path
+                                                                key={`arc-${arcIdx}`}
+                                                                d={arc.path}
+                                                                fill={arc.fill || 'rgba(99,102,241,0.25)'}
+                                                                opacity={arc.opacity ?? 1}
+                                                                stroke={arc.stroke}
+                                                                strokeDasharray={arc.strokeDasharray}
+                                                            />
+                                                        ))}
+                                                        {item.path && (
+                                                            <path d={item.path} fill="none" stroke={item.stroke || 'currentColor'} strokeWidth={item.strokeWidth || 3} />
+                                                        )}
+                                                        {item.referenceLabels?.map((label: any, labelIdx: number) => (
+                                                            <text
+                                                                key={`label-${labelIdx}`}
+                                                                x={label.x}
+                                                                y={label.y}
+                                                                fill={label.color || '#475569'}
+                                                                fontSize={label.fontSize || 10}
+                                                                textAnchor={label.anchor || 'middle'}
+                                                                className="font-black uppercase tracking-widest"
+                                                            >
+                                                                {label.text}
+                                                            </text>
+                                                        ))}
+                                                    </svg>
+                                                </button>
+                                                {(item.context || item.label) && (
+                                                    <p className="text-[10px] font-black uppercase text-slate-400 text-center tracking-widest group-hover:text-indigo-600 transition-colors">
+                                                        {item.context || item.label}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             ) : (
                                 <div className="p-6 bg-red-50 border-2 border-red-200 rounded-xl text-center">

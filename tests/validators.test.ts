@@ -5,6 +5,8 @@ import {
   matchKeywords,
   parseCoordinatePair,
   validateAnswer,
+  normalizeTextAnswer,
+  evaluateFreeformAnswer,
 } from '../utils/answerValidators';
 
 describe('Input Sanitization', () => {
@@ -215,6 +217,29 @@ describe('Answer Validators', () => {
     };
     expect(validateAnswer('x(x+5)=300', config)).toBe(true);
     expect(validateAnswer('x(x+3)=0', config)).toBe(false);
+  });
+});
+
+describe('Freeform Answer Evaluation', () => {
+  it('normalizes whitespace and casing', () => {
+    expect(normalizeTextAnswer('  Rechte   Winkel ')).toBe('rechte winkel');
+    expect(normalizeTextAnswer('Raute / Rhombus')).toBe('raute / raute');
+  });
+
+  it('accepts synonym inputs', () => {
+    const result = evaluateFreeformAnswer('Das ist ein Rhombus.', 'raute');
+    expect(result.isMatch).toBe(true);
+  });
+
+  it('handles order-agnostic multi answers', () => {
+    const result = evaluateFreeformAnswer('38, 142, 142', '142,38,142');
+    expect(result.isMatch).toBe(true);
+  });
+
+  it('flattens JSON answers', () => {
+    const correct = JSON.stringify({ a: 'quadrat', b: 'rechte winkel' });
+    const result = evaluateFreeformAnswer('Ein Quadrat mit rechten Winkeln', correct);
+    expect(result.isMatch).toBe(true);
   });
 });
 

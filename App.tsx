@@ -1,13 +1,12 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LEARNING_UNITS, SHOP_ITEMS, PROGRESS_LEVELS, GEOMETRY_DEFINITIONS } from './constants';
-import { LearningUnit, User, Task, ShopItem, ChatMessage, CategoryGroup, ToastMessage, ToastType } from './types';
+import { LearningUnit, User, Task, ShopItem, ChatMessage, CategoryGroup, ToastMessage, ToastType, getTileStatus } from './types';
 import { AuthService, DataService, SocialService } from './services/apiService';
 import { QuestService } from './services/questService';
-import { computeEntryFee } from './services/economyService';
+import { computeEntryFee, getQuestCap, getQuestCoinsEarned, getQuestCapRemaining, isQuestCapReached } from './services/economyService';
 import { TaskFactory } from './services/taskFactory';
-import { sanitizeMathInput } from './utils/inputSanitizer';
-import { validateAnswer } from './utils/answerValidators';
+import { validateAnswer, evaluateFreeformAnswer, sanitizeNumberInput } from './utils/answerValidators';
 import { DragDropTask } from './components/DragDropTask';
 import {
   Button, GlassCard, SectionHeading, CardTitle, Badge, DifficultyStars,
@@ -20,6 +19,36 @@ const GROUP_THEME: Record<CategoryGroup, { color: string; bg: string; text: stri
   'A': { color: 'indigo', bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100', darkBg: 'bg-indigo-600' },
   'B': { color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', darkBg: 'bg-emerald-600' },
   'C': { color: 'amber', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100', darkBg: 'bg-amber-600' }
+};
+
+const SINGLE_VALUE_NUMERIC_REGEX = /^-?\d+(?:[.,]\d+)?(?:\s*(?:cm|mm|m|km|°|grad|m²|cm²|%))?$/i;
+
+const isNumericAnswerTask = (task?: Task | null): boolean => {
+  if (!task) return false;
+  if (task.validator && (task.validator.type === 'numeric' || task.validator.type === 'numericTolerance')) {
+    return true;
+  }
+  if (typeof task.correctAnswer === 'number') {
+    return true;
+  }
+  if (typeof task.correctAnswer === 'string') {
+    return SINGLE_VALUE_NUMERIC_REGEX.test(task.correctAnswer.trim());
+  }
+  return false;
+};
+
+const getDefaultNumericTolerance = (value: number): number => {
+  const percent = Math.abs(value) * 0.02;
+  return Math.max(percent, 0.5);
+};
+
+const getQuestStats = (user: User, unitId: string) => {
+  const cap = getQuestCap(user, unitId);
+  const earned = getQuestCoinsEarned(user, unitId);
+  const percent = Number.isFinite(cap) && cap > 0 ? Math.min(100, Math.round((earned / cap) * 100)) : 0;
+  const capReached = isQuestCapReached(user, unitId);
+  const remaining = getQuestCapRemaining(user, unitId);
+  return { cap, earned, percent, capReached, remaining };
 };
 
 // --- Visual Effect Components ---
@@ -1362,6 +1391,11 @@ export default function App() {
     if (!user) return;
 
     if (type === 'bounty') {
+      const bountyUnlocked = user.perfectStandardQuizUnits?.includes(unit.id) ?? false;
+      if (!bountyUnlocked) {
+        addToast('Bounty gesperrt – Quest erst perfekt abschließen.', 'error');
+        return;
+      }
       const alreadyCleared = user.bountyPayoutClaimed?.[unit.id] ?? false;
       if (alreadyCleared) {
         addToast('Bounty bereits abgeschlossen – keine Auszahlung mehr.', 'info');
@@ -1401,6 +1435,7 @@ export default function App() {
     if (!currentQuest || !user) return;
 
     let nextUser = user;
+    let userPatched = false;
 
     if (isPerfectRun) {
       if (currentQuest.type === 'standard') {
@@ -1416,6 +1451,12 @@ export default function App() {
             triggerCoinAnimation();
           } else {
             addToast('Quest-Limit erreicht – keine weitere Auszahlung für diese Unit.', 'info');
+          }
+          const perfectStandard = new Set(nextUser.perfectStandardQuizUnits || []);
+          if (!perfectStandard.has(currentQuest.unit.id)) {
+            perfectStandard.add(currentQuest.unit.id);
+            nextUser = { ...nextUser, perfectStandardQuizUnits: Array.from(perfectStandard) };
+            userPatched = true;
           }
         } catch (error) {
           console.error('Error completing standard quest:', error);
@@ -1435,6 +1476,12 @@ export default function App() {
           } else {
             addToast('Bounty-Belohnung wurde bereits eingesackt.', 'info');
           }
+          const perfectBounty = new Set(nextUser.perfectBountyUnits || []);
+          if (!perfectBounty.has(currentQuest.unit.id)) {
+            perfectBounty.add(currentQuest.unit.id);
+            nextUser = { ...nextUser, perfectBountyUnits: Array.from(perfectBounty) };
+            userPatched = true;
+          }
         } catch (error) {
           console.error('Error completing bounty quest:', error);
           addToast('Bounty-Abschluss fehlgeschlagen.', 'error');
@@ -1443,6 +1490,10 @@ export default function App() {
         nextUser = await QuestService.completePreQuest(user, currentQuest.unit.id);
         addToast('Training beendet!', 'success');
       }
+    }
+
+    if (userPatched) {
+      await DataService.updateUser(nextUser);
     }
 
     setUser(nextUser);
@@ -1495,7 +1546,59 @@ export default function App() {
             </div>
           </header>
           <main className="max-w-7xl mx-auto px-6 py-12 pb-36 relative z-10">
-            {activeTab === 'learn' && (<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">{LEARNING_UNITS.map(unit => (<GlassCard key={unit.id} onClick={() => setSelectedUnit(unit)} isInteractive={true} className={`overflow-hidden border-b-8 ${(user.masteredUnits?.includes(unit.id) ?? false) ? 'border-emerald-500 shadow-emerald-500/20' : (user.completedUnits?.includes(unit.id) ?? false) ? 'border-amber-500 shadow-amber-500/20' : `!border-b-${GROUP_THEME[unit.group].color}-500`} ${isDarkMode ? 'bg-slate-900/50' : 'bg-white shadow-xl'}`}><div className="flex justify-between items-start mb-6"><Badge color={GROUP_THEME[unit.group].color as any}>{unit.category}</Badge><DifficultyStars difficulty={unit.difficulty} /></div><CardTitle className="mb-3">{unit.title}</CardTitle><p className="text-[11px] text-slate-400 font-bold italic mb-6 leading-relaxed h-12 overflow-hidden">{unit.description}</p><div className="flex justify-between items-center text-[9px] font-black text-slate-300 uppercase tracking-widest border-t border-slate-50 pt-4"><span>Reward: {unit.coinsReward}</span><span>Bounty: {unit.bounty}</span></div></GlassCard>))}</div>)}
+            {activeTab === 'learn' && (<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">{LEARNING_UNITS.map(unit => {
+              const questStats = getQuestStats(user, unit.id);
+              const tileStatus = getTileStatus(unit.id, user);
+              const bountyLabel = tileStatus === 'bounty_cleared' ? 'Bounty erledigt' : tileStatus === 'gold_unlocked' ? 'Bounty bereit' : 'Bounty gesperrt';
+              const bountyClass =
+                tileStatus === 'bounty_cleared'
+                  ? 'text-emerald-500'
+                  : tileStatus === 'gold_unlocked'
+                  ? 'text-indigo-500'
+                  : 'text-slate-400';
+              return (
+                <GlassCard
+                  key={unit.id}
+                  onClick={() => setSelectedUnit(unit)}
+                  isInteractive={true}
+                  className={`overflow-hidden border-b-8 ${(user.masteredUnits?.includes(unit.id) ?? false) ? 'border-emerald-500 shadow-emerald-500/20' : (user.completedUnits?.includes(unit.id) ?? false) ? 'border-amber-500 shadow-amber-500/20' : `!border-b-${GROUP_THEME[unit.group].color}-500`} ${isDarkMode ? 'bg-slate-900/50' : 'bg-white shadow-xl'}`}
+                >
+                  <div className="flex justify-between items-start mb-6">
+                    <Badge color={GROUP_THEME[unit.group].color as any}>{unit.category}</Badge>
+                    <DifficultyStars difficulty={unit.difficulty} />
+                  </div>
+                  <CardTitle className="mb-3">{unit.title}</CardTitle>
+                  <p className="text-[11px] text-slate-400 font-bold italic mb-4 leading-relaxed h-12 overflow-hidden">{unit.description}</p>
+                  <div className="space-y-3 mb-4">
+                    <div className="flex items-center justify-between text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                      <span>Quest-Fortschritt</span>
+                      <span>{questStats.percent}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className={`h-full ${questStats.capReached ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                        style={{ width: `${questStats.percent}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-black text-slate-500 uppercase">
+                      <span>Coins</span>
+                      <span>{questStats.earned} / {Number.isFinite(questStats.cap) ? questStats.cap : '∞'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-500">
+                      <span>Bounty</span>
+                      <span className={bountyClass}>{bountyLabel}</span>
+                    </div>
+                    {questStats.capReached && (
+                      <div className="text-[10px] font-black uppercase text-amber-500">Cap erreicht – nur noch Training</div>
+                    )}
+                  </div>
+                  <div className="flex justify-between items-center text-[9px] font-black text-slate-300 uppercase tracking-widest border-t border-slate-50 pt-4">
+                    <span>Reward: {unit.coinsReward}</span>
+                    <span>Bounty: {unit.bounty}</span>
+                  </div>
+                </GlassCard>
+              );
+            })}</div>)}
             {activeTab === 'community' && <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[70vh]"><ChatView currentUser={user} /><LeaderboardView currentUser={user} onChallenge={() => {}} /></div>}
             {activeTab === 'shop' && <ShopView user={user} onBuy={async (item) => { if (user.coins >= item.cost) { const u = {...user, coins: user.coins - item.cost, unlockedItems: [...new Set([...user.unlockedItems, item.id])]}; if (item.type === 'calculator') u.calculatorSkin = item.value; setUser(u); await DataService.updateUser(u); addToast(`${item.name} gekauft!`, 'success'); } else { addToast('Nicht genug Coins!', 'error'); }}} onPreview={handlePreview} previewEffect={previewEffect} isDarkMode={isDarkMode} />}
           </main>
@@ -1608,6 +1711,10 @@ const UnitView: React.FC<{
     const definition = GEOMETRY_DEFINITIONS.find(d => d.id === unit.definitionId);
     const entryFee = computeEntryFee(unit.bounty);
     const insufficientCoins = user.coins < entryFee;
+    const questStats = getQuestStats(user, unit.id);
+    const tileStatus = getTileStatus(unit.id, user);
+    const bountyUnlocked = tileStatus !== 'locked';
+    const bountyCleared = bountyCompleted || tileStatus === 'bounty_cleared';
 
     const handleBountyStart = async () => {
         if (isStartingBounty) return;
@@ -1664,18 +1771,52 @@ const UnitView: React.FC<{
                        </div>
                     )}
                     {activeTab === 'pre' && <div className="text-center py-16 space-y-8 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200"><div className="text-7xl animate-bounce">🕹️</div><h4 className="text-2xl font-black italic text-slate-900">Training Session</h4><p className="font-bold text-slate-400 text-sm max-w-sm mx-auto uppercase tracking-tighter italic">Lerne die Mechaniken spielerisch kennen.</p><Button onClick={() => onStartQuest(unit, 'pre')} className="w-full max-w-xs mx-auto !py-5 shadow-xl">Start Training</Button></div>}
-                    {activeTab === 'standard' && <div className="text-center py-16 space-y-8 bg-indigo-50/50 rounded-[3rem] border-2 border-indigo-100"><div className="text-7xl">🎯</div><h4 className="text-2xl font-black italic text-indigo-900">Quest Modus</h4><p className="font-bold text-slate-400 text-sm max-w-sm mx-auto">Standard-Fragen zum Thema. Belohnung: <span className="text-amber-500 font-black">{unit.coinsReward} Coins</span>.</p><Button onClick={() => onStartQuest(unit, 'standard')} className="w-full max-w-xs mx-auto !py-5">Quiz starten</Button></div>}
+                    {activeTab === 'standard' && (
+                      <div className="text-center py-12 space-y-6 bg-indigo-50/50 rounded-[3rem] border-2 border-indigo-100">
+                        <div className="text-7xl">🎯</div>
+                        <h4 className="text-2xl font-black italic text-indigo-900">Quest Modus</h4>
+                        <p className="font-bold text-slate-400 text-sm max-w-sm mx-auto">
+                          Standard-Fragen zum Thema. Belohnung:
+                          <span className="text-amber-500 font-black"> {unit.coinsReward} Coins</span>.
+                        </p>
+                        <div className="space-y-2 text-left">
+                          <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-500">
+                            <span>Coins</span>
+                            <span>{questStats.earned} / {Number.isFinite(questStats.cap) ? questStats.cap : '∞'}</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-white overflow-hidden">
+                            <div className={`${questStats.capReached ? 'bg-emerald-500' : 'bg-indigo-500'} h-full`} style={{ width: `${questStats.percent}%` }} />
+                          </div>
+                          {questStats.capReached && (
+                            <div className="text-[11px] font-black uppercase text-amber-500">
+                              Kein weiterer Coin-Gewinn möglich – weiter trainieren!
+                            </div>
+                          )}
+                        </div>
+                        <Button onClick={() => onStartQuest(unit, 'standard')} className="w-full max-w-xs mx-auto !py-5">
+                          Quiz starten
+                        </Button>
+                      </div>
+                    )}
                     {activeTab === 'bounty' && (
                       <div className="text-center py-16 space-y-6 bg-slate-900 rounded-[3rem] border-4 border-amber-500/30 text-white">
                         <div className="text-7xl">🏴‍☠️</div>
                         <h4 className="text-2xl font-black italic text-amber-400">Bounty Hunt</h4>
-                        <p className="font-bold text-slate-500 text-sm max-w-sm mx-auto uppercase italic">
+                        <p className="font-bold text-slate-400 text-sm max-w-sm mx-auto uppercase italic">
                           Zeitlimit & Extra-Schwer.<br />
                           Extra Reward: <span className="text-amber-400 font-black">+{unit.bounty} Coins</span> (einmalig).
                         </p>
                         <p className="text-xs font-black tracking-widest text-slate-300">
                           Entry Fee: <span className="text-amber-300">-{entryFee} Coins</span> • Reward bei Erfolg: <span className="text-emerald-300">+{unit.bounty} Coins</span>
                         </p>
+                        <p className="text-[11px] font-black uppercase text-amber-300">
+                          Status: {bountyCleared ? 'Bounty erledigt' : bountyUnlocked ? 'Freigeschaltet' : 'Gesperrt'}
+                        </p>
+                        {!bountyUnlocked && (
+                          <p className="text-[11px] font-black uppercase text-amber-200 max-w-sm mx-auto">
+                            Erst Quest perfekt abschließen, um die Bounty zu aktivieren.
+                          </p>
+                        )}
                         {bountyCompleted && (
                           <p className="text-[11px] font-black uppercase text-amber-300 max-w-sm mx-auto">
                             Bounty bereits abgeschlossen – keine weitere Auszahlung. Snooze runs kosten weiterhin Entry Fee.
@@ -1684,11 +1825,13 @@ const UnitView: React.FC<{
                         <Button
                           variant="danger"
                           onClick={handleBountyStart}
-                          disabled={isStartingBounty || bountyCompleted || insufficientCoins}
+                          disabled={!bountyUnlocked || isStartingBounty || bountyCompleted || insufficientCoins}
                           className="w-full max-w-xs mx-auto !py-5 shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {bountyCompleted
                             ? 'Bounty gemeistert'
+                            : !bountyUnlocked
+                            ? 'Gesperrt'
                             : insufficientCoins
                             ? `💰 ${user.coins}/${entryFee}`
                             : isStartingBounty
@@ -2112,7 +2255,9 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
     const [mistakes, setMistakes] = useState(0);
     const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
     const [selectedOption, setSelectedOption] = useState<any>(null);
-    const [textInput, setTextInput] = useState('');
+    const [answers, setAnswers] = useState<string[]>([]);
+    const [answersTouched, setAnswersTouched] = useState(false);
+    const [answerWarning, setAnswerWarning] = useState<string | null>(null);
     const [timeLeft, setTimeLeft] = useState(60);
     const [wager, setWager] = useState<number>(0);
     const [classification, setClassification] = useState<Record<string, string>>({});
@@ -2120,13 +2265,29 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
     const [sliderValue, setSliderValue] = useState<number>(1);
     const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
     const [multiAngleThrowHits, setMultiAngleThrowHits] = useState<number>(0);
-    const [multiInputValues, setMultiInputValues] = useState<Record<string, string>>({});
+    const [areaStatus, setAreaStatus] = useState<string | null>(null);
+    const verifyingRef = useRef(false);
 
     useEffect(() => {
         if (isBountyMode && !feedback && tasks.length > 0) {
-            const timer = setInterval(() => { setTimeLeft(prev => { if (prev <= 1) { setFeedback('wrong'); setMistakes(m => m + 1); return 0; } return prev - 1; }); }, 1000);
+            const timer = setInterval(() => {
+                setTimeLeft(prev => {
+                    if (prev <= 1) {
+                        if (!verifyingRef.current) {
+                            setFeedback(current => {
+                                if (current) return current;
+                                setMistakes(m => m + 1);
+                                return 'wrong';
+                            });
+                        }
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
             return () => clearInterval(timer);
         }
+        return undefined;
     }, [isBountyMode, feedback, currentIdx, tasks.length]);
 
     // Initialize slider value when task changes
@@ -2139,14 +2300,103 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
         }
     }, [currentIdx, tasks]);
 
+    const task = tasks[currentIdx];
+    const hasMultiInputs = Boolean(task?.multiInputFields && task.multiInputFields.length > 0);
+    const requiresSingleTextInput = Boolean(task && !hasMultiInputs && (task.type === 'input' || task.type === 'shorttext'));
+    const usesAreaInput = task?.type === 'areaDecomposition';
+    const answerFieldCount = hasMultiInputs
+        ? (task?.multiInputFields?.length ?? 0)
+        : (requiresSingleTextInput || usesAreaInput ? 1 : 0);
+    const expectsNumericInput = task ? isNumericAnswerTask(task) : false;
+    const primaryAnswer = answers[0] ?? '';
+    const hasBlankAnswers = answerFieldCount > 0 && answers.some(value => (value ?? '').trim() === '');
+    const selectedAreaTotal = useMemo(() => {
+        if (!task?.decompositionData?.parts) return 0;
+        return task.decompositionData.parts.reduce((sum: number, part: any) => {
+            return selectedParts.has(part.label) ? sum + (part.area || 0) : sum;
+        }, 0);
+    }, [task, selectedParts]);
+    useEffect(() => {
+        setAnswers(prev => {
+            if (answerFieldCount === 0) {
+                return prev.length === 0 ? prev : [];
+            }
+            if (prev.length === answerFieldCount) {
+                return prev;
+            }
+            return Array.from({ length: answerFieldCount }, (_, idx) => prev[idx] ?? '');
+        });
+        setAnswersTouched(false);
+        setAnswerWarning(null);
+    }, [answerFieldCount, task?.id]);
+    const handleAnswerChange = (index: number, value: string) => {
+        setAnswers(prev => {
+            const next = [...prev];
+            next[index] = value;
+            return next;
+        });
+        if (!answersTouched) {
+            setAnswersTouched(true);
+        }
+        if (answerWarning) {
+            setAnswerWarning(null);
+        }
+    };
+    const triggerFillAllWarning = () => {
+        if (answerFieldCount === 0) return;
+        setAnswersTouched(true);
+        setAnswerWarning('Bitte alle Felder ausfüllen');
+    };
+    const updateSliderValue = (value: number) => {
+        if (!task?.sliderData) return;
+        const min = typeof task.sliderData.minK === 'number' ? task.sliderData.minK : 0.1;
+        const max = typeof task.sliderData.maxK === 'number' ? task.sliderData.maxK : 4;
+        const clamped = Math.min(max, Math.max(min, value));
+        setSliderValue(parseFloat(clamped.toFixed(1)));
+    };
+    const isVerifyDisabled = useMemo(() => {
+        if (!task) return true;
+        if (answerFieldCount > 0 && hasBlankAnswers) {
+            return true;
+        }
+        if ((task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') && selectedOption === null) {
+            return true;
+        }
+        if (task.type === 'visualChoice' && selectedOption === null) {
+            return true;
+        }
+        if (task.type === 'angleMeasure' && angleInput === '') {
+            return true;
+        }
+        if (task.type === 'areaDecomposition') {
+            return selectedParts.size === 0 || primaryAnswer.trim() === '';
+        }
+        if (task.type === 'dragDrop' && task.dragDropData?.shapes) {
+            return task.dragDropData.shapes.some((shape: any) => !classification[shape.id]);
+        }
+        if (task.type === 'multiAngleThrow') {
+            return true;
+        }
+        return false;
+    }, [task, answerFieldCount, hasBlankAnswers, selectedOption, angleInput, selectedParts, classification, primaryAnswer]);
+
     const handleVerify = () => {
-        const task = tasks[currentIdx];
+        if (!task || feedback) return;
+        verifyingRef.current = true;
+        if (answerFieldCount > 0 && hasBlankAnswers) {
+            triggerFillAllWarning();
+            verifyingRef.current = false;
+            return;
+        }
+        if (answerWarning) {
+            setAnswerWarning(null);
+        }
         let isCorrect = false;
 
         if (task.multiInputFields && task.multiInputFields.length > 0) {
-            isCorrect = task.multiInputFields.every(field => {
-                const value = multiInputValues[field.id] || '';
-                return value.trim() !== '' && validateAnswer(value, field.validator);
+            isCorrect = task.multiInputFields.every((field, idx) => {
+                const value = (answers[idx] ?? '').trim();
+                return value !== '' && validateAnswer(value, field.validator);
             });
         } else if (task.type === 'dragDrop' && task.dragDropData) {
             const answerMap = JSON.parse(String(task.correctAnswer));
@@ -2158,19 +2408,25 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
         } else if (task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') {
             isCorrect = selectedOption === task.correctAnswer || (task.type === 'boolean' && (selectedOption === 0 && task.correctAnswer === 'wahr' || selectedOption === 1 && task.correctAnswer === 'falsch'));
         } else if (task.type === 'input' || task.type === 'shorttext') {
-            // Sanitize input to remove formatting/currency symbols
-            const sanitized = sanitizeMathInput(textInput);
-            const clean = (s: string) => s.replace(/\s+/g, '').toLowerCase();
-            const userAns = clean(sanitized);
-            if (userAns === '') {
+            const rawValue = primaryAnswer.trim();
+            if (!rawValue) {
                 isCorrect = false;
-            } else {
-                if (task.validator) {
-                    isCorrect = validateAnswer(textInput, task.validator);
+            } else if (task.validator) {
+                isCorrect = validateAnswer(rawValue, task.validator);
+            } else if (expectsNumericInput) {
+                const parsedUser = sanitizeNumberInput(rawValue);
+                const expectedValue =
+                    typeof task.correctAnswer === 'number'
+                        ? task.correctAnswer
+                        : sanitizeNumberInput(String(task.correctAnswer));
+                if (parsedUser !== null && expectedValue !== null) {
+                    const tolerance = getDefaultNumericTolerance(expectedValue);
+                    isCorrect = Math.abs(parsedUser - expectedValue) <= tolerance;
                 } else {
-                    const correctAnswers = String(task.correctAnswer).split(',').map(s => clean(sanitizeMathInput(s.trim())));
-                    isCorrect = correctAnswers.some(ans => userAns.includes(ans));
+                    isCorrect = evaluateFreeformAnswer(rawValue, task.correctAnswer).isMatch;
                 }
+            } else {
+                isCorrect = evaluateFreeformAnswer(rawValue, task.correctAnswer).isMatch;
             }
         } else if (task.type === 'visualChoice') {
             isCorrect = selectedOption === task.correctAnswer;
@@ -2188,7 +2444,7 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
             const allPartsSelected = task.decompositionData.parts?.every((part: any) => selectedParts.has(part.label)) || false;
             if (allPartsSelected) {
                 const totalArea = task.decompositionData.parts?.reduce((sum: number, part: any) => sum + (part.area || 0), 0) || 0;
-                const userAnswer = parseInt(textInput) || 0;
+                const userAnswer = parseInt(primaryAnswer) || 0;
                 isCorrect = Math.abs(userAnswer - totalArea) <= 1; // ±1 tolerance
             }
         } else if (task.type === 'multiAngleThrow' && task.multiAngleThrowData) {
@@ -2196,13 +2452,48 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
             isCorrect = multiAngleThrowHits > 0;
         }
 
-        if (isCorrect) {
-            setFeedback('correct');
-            onTaskCorrect(task, task.type === 'wager' ? wager : 0);
-        } else {
-            setFeedback('wrong');
-            setMistakes(m => m + 1);
+        try {
+            if (isCorrect) {
+                setFeedback('correct');
+                onTaskCorrect(task, task.type === 'wager' ? wager : 0);
+            } else {
+                setFeedback('wrong');
+                setMistakes(m => m + 1);
+            }
+        } finally {
+            verifyingRef.current = false;
         }
+    };
+
+    const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            if (answerFieldCount > 0) {
+                setAnswersTouched(true);
+            }
+            if (answerFieldCount > 0 && hasBlankAnswers) {
+                triggerFillAllWarning();
+                return;
+            }
+            if (!isVerifyDisabled) {
+                handleVerify();
+            }
+        }
+    };
+
+    const togglePartSelection = (label: string, area?: number) => {
+        if (feedback) return;
+        setSelectedParts(prev => {
+            const next = new Set(prev);
+            if (next.has(label)) {
+                next.delete(label);
+                setAreaStatus(area ? `Teilfläche ${label} abgewählt (${area} cm²)` : `Teilfläche ${label} abgewählt`);
+            } else {
+                next.add(label);
+                setAreaStatus(area ? `Teilfläche ${label} gewählt (${area} cm²)` : `Teilfläche ${label} gewählt`);
+            }
+            return next;
+        });
     };
 
     const handleNext = () => {
@@ -2210,15 +2501,17 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
             setCurrentIdx(p => p + 1);
             setFeedback(null);
             setSelectedOption(null);
-            setTextInput('');
+            setAnswers([]);
+            setAnswersTouched(false);
+            setAnswerWarning(null);
             setWager(0);
             setClassification({});
             setAngleInput('');
             setSliderValue(1);
             setSelectedParts(new Set());
             setMultiAngleThrowHits(0);
-            setMultiInputValues({});
             setTimeLeft(60);
+            setAreaStatus(null);
         } else {
             onComplete(mistakes === 0);
         }
@@ -2235,7 +2528,7 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
         }
     };
 
-    const task = tasks[currentIdx]; if (!task) return null;
+    if (!task) return null;
 
     return (
         <div className={`fixed inset-0 z-[120] flex flex-col ${isBountyMode ? 'bounty-mode' : 'bg-slate-50'}`}>
@@ -2281,15 +2574,23 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                             {task.visualData && task.visualData.length > 0 ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     {task.visualData.map((item: any, i: number) => (
-                                        <button
-                                            key={item.id || i}
-                                            onClick={() => !feedback && setSelectedOption(item.id)}
-                                            className={`relative p-6 rounded-2xl border-2 flex flex-col items-center justify-center transition-all ${selectedOption === item.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-white hover:border-indigo-200'}`}
-                                        >
-                                            <svg viewBox="0 0 200 150" className="w-24 h-24">
-                                                <path d={item.path} fill="none" stroke="currentColor" strokeWidth="3" />
-                                            </svg>
-                                        </button>
+                                        <div key={item.id || i} className="flex flex-col items-center gap-2 group">
+                                            <button
+                                                onClick={() => !feedback && setSelectedOption(item.id)}
+                                                title={item.context || item.label}
+                                                aria-label={item.label || item.context || `Option ${i + 1}`}
+                                                className={`relative p-6 rounded-2xl border-2 flex flex-col items-center justify-center transition-all ${selectedOption === item.id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-white hover:border-indigo-200'}`}
+                                            >
+                                                <svg viewBox="0 0 200 150" className="w-24 h-24">
+                                                    <path d={item.path} fill="none" stroke="currentColor" strokeWidth="3" />
+                                                </svg>
+                                            </button>
+                                            {(item.context || item.label) && (
+                                                <p className="text-[10px] font-black uppercase text-slate-400 text-center tracking-widest group-hover:text-indigo-600 transition-colors">
+                                                    {item.context || item.label}
+                                                </p>
+                                            )}
+                                        </div>
                                     ))}
                                 </div>
                             ) : (
@@ -2329,22 +2630,61 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                                     onChange={(e) => {
                                         const newValue = parseFloat(e.target.value);
                                         if (!isNaN(newValue)) {
-                                            setSliderValue(newValue);
+                                            updateSliderValue(newValue);
                                         }
                                     }}
                                     onInput={(e) => {
                                         // Ensure value updates on drag
                                         const newValue = parseFloat((e.target as HTMLInputElement).value);
                                         if (!isNaN(newValue)) {
-                                            setSliderValue(newValue);
+                                            updateSliderValue(newValue);
                                         }
                                     }}
                                     disabled={!!feedback}
                                     className="w-full cursor-pointer"
                                     style={{ pointerEvents: feedback ? 'none' : 'auto' }}
                                 />
-                                <div className="text-xs text-center text-slate-500 mt-1">
-                                    Ziel: k = {task.sliderData.correctK.toFixed(1)} (±0.1)
+                                <div className="flex items-center justify-center gap-3 mt-3">
+                                    <button
+                                        type="button"
+                                        className="w-10 h-10 rounded-full border-2 border-slate-200 text-xl font-black text-slate-600 bg-white hover:border-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed"
+                                        onClick={() => updateSliderValue(sliderValue - 0.1)}
+                                        disabled={!!feedback}
+                                        aria-label="k um 0,1 verringern"
+                                    >
+                                        -
+                                    </button>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        min={task.sliderData.minK}
+                                        max={task.sliderData.maxK}
+                                        value={sliderValue.toFixed(1)}
+                                        onChange={(e) => {
+                                            const val = parseFloat(e.target.value);
+                                            if (!isNaN(val)) {
+                                                updateSliderValue(val);
+                                            }
+                                        }}
+                                        disabled={!!feedback}
+                                        className="w-24 text-center font-black text-lg border-2 border-slate-200 rounded-2xl p-1"
+                                        title={`Aktueller k-Wert: ${sliderValue.toFixed(1)}`}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="w-10 h-10 rounded-full border-2 border-slate-200 text-xl font-black text-slate-600 bg-white hover:border-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed"
+                                        onClick={() => updateSliderValue(sliderValue + 0.1)}
+                                        disabled={!!feedback}
+                                        aria-label="k um 0,1 erhöhen"
+                                    >
+                                        +
+                                    </button>
+                                </div>
+                                <div
+                                    className="text-xs text-center text-slate-500 mt-2"
+                                    title={`Ziel: k = ${task.sliderData.correctK.toFixed(1)}`}
+                                >
+                                    Zielbereich: k = {task.sliderData.correctK.toFixed(1)} ± 0.1
                                 </div>
                             </div>
                         </div>
@@ -2353,35 +2693,55 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                         <div className="flex flex-col items-center gap-4">
                             <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center">
                                 <svg viewBox="0 0 300 300" className="w-full h-full">
-                                    <path d={task.decompositionData.complexPath} fill="none" stroke="currentColor" strokeWidth="3" />
+                                    <path d={task.decompositionData.complexPath} fill="none" stroke="#94a3b8" strokeWidth="2" />
+                                    {task.decompositionData.parts?.map((part: any) => {
+                                        const isSelected = selectedParts.has(part.label);
+                                        return (
+                                            <path
+                                                key={part.label}
+                                                d={part.path}
+                                                fill={isSelected ? 'rgba(99,102,241,0.35)' : 'rgba(148,163,184,0.25)'}
+                                                stroke={isSelected ? '#4c1d95' : '#94a3b8'}
+                                                strokeWidth={isSelected ? 4 : 2}
+                                                className="cursor-pointer transition-all duration-200"
+                                                onClick={() => togglePartSelection(part.label, part.area)}
+                                                onMouseEnter={() => !feedback && setAreaStatus(part.area ? `Teilfläche ${part.label} (${part.area} cm²)` : `Teilfläche ${part.label}`)}
+                                                onMouseLeave={() => !feedback && setAreaStatus(null)}
+                                                style={{ pointerEvents: feedback ? 'none' : 'auto' }}
+                                            />
+                                        );
+                                    })}
                                 </svg>
                             </div>
                             <div className="space-y-2 w-full max-w-xs">
                                 <p className="text-sm font-bold text-slate-600 mb-2">Klicke auf alle Teilflächen:</p>
+                                {areaStatus && (
+                                    <div className="text-xs font-black text-indigo-600 uppercase tracking-widest">{areaStatus}</div>
+                                )}
                                 {task.decompositionData.parts?.map((part: any) => (
                                     <button
                                         key={part.label}
-                                        onClick={() => {
-                                            if (feedback) return;
-                                            const newSet = new Set(selectedParts);
-                                            if (newSet.has(part.label)) {
-                                                newSet.delete(part.label);
-                                            } else {
-                                                newSet.add(part.label);
-                                            }
-                                            setSelectedParts(newSet);
-                                        }}
+                                        onClick={() => togglePartSelection(part.label, part.area)}
                                         className={`w-full p-3 rounded-xl border-2 text-left font-bold transition-all ${selectedParts.has(part.label) ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200'}`}
                                     >
                                         {part.label}
                                     </button>
                                 ))}
+                                <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase">
+                                    <span>Ausgewählt</span>
+                                    <span>{selectedParts.size} / {task.decompositionData.parts?.length ?? 0}</span>
+                                </div>
+                                <div className="text-sm font-black text-slate-700">
+                                    Summe aktuell: {selectedAreaTotal} cm²
+                                </div>
                                 <div className="mt-4">
                                     <p className="text-sm font-bold text-slate-600 mb-2">Gesamtfläche:</p>
                                     <input
-                                        type="number"
-                                        value={textInput}
-                                        onChange={(e) => setTextInput(e.target.value)}
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={primaryAnswer}
+                                        onChange={(e) => handleAnswerChange(0, e.target.value)}
+                                        onKeyDown={handleInputKeyDown}
                                         placeholder="Fläche eingeben"
                                         disabled={!!feedback}
                                         className="w-full p-4 text-xl font-black rounded-2xl border-4 border-slate-100 focus:border-indigo-500 bg-slate-50 outline-none"
@@ -2392,16 +2752,17 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                     )}
                     {task.multiInputFields && task.multiInputFields.length > 0 ? (
                         <div className="space-y-4">
-                            {task.multiInputFields.map(field => (
+                            {task.multiInputFields.map((field, index) => (
                                 <div key={field.id} className="flex flex-col gap-2">
                                     <label className="text-xs font-black uppercase text-slate-500 tracking-widest">{field.label}</label>
                                     <input
                                         type="text"
-                                        value={multiInputValues[field.id] || ''}
+                                        value={answers[index] ?? ''}
                                         onChange={e => {
                                             const val = e.target.value;
-                                            setMultiInputValues(prev => ({ ...prev, [field.id]: val }));
+                                            handleAnswerChange(index, val);
                                         }}
+                                        onKeyDown={handleInputKeyDown}
                                         disabled={!!feedback}
                                         placeholder={field.placeholder || 'Antwort...'}
                                         className={`w-full p-5 text-xl font-black rounded-3xl border-4 outline-none bg-white border-slate-100 focus:border-indigo-500 shadow-inner transition-all ${feedback ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -2415,14 +2776,10 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                             <div className="relative z-10">
                                 <input
                                     type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9.,-]*"
-                                    value={textInput}
-                                    onChange={e => {
-                                        // Apply sanitization on change to prevent formatting symbols
-                                        const sanitized = sanitizeMathInput(e.target.value);
-                                        setTextInput(sanitized);
-                                    }}
+                                    inputMode={expectsNumericInput ? 'decimal' : 'text'}
+                                    value={primaryAnswer}
+                                    onChange={e => handleAnswerChange(0, e.target.value)}
+                                    onKeyDown={handleInputKeyDown}
                                     disabled={!!feedback}
                                     placeholder="Antwort..."
                                     autoFocus
@@ -2442,27 +2799,32 @@ const QuestExecutionView: React.FC<{ unit: LearningUnit; tasks: Task[]; isBounty
                         />
                     )}
                 </div>
+                {answerFieldCount > 0 && (answerWarning || (answersTouched && hasBlankAnswers)) && (
+                    <p className="mt-6 text-sm font-bold text-rose-600 text-center" role="alert">
+                        {answerWarning || 'Bitte alle Felder ausfüllen'}
+                    </p>
+                )}
                 {!feedback ? (
-                    <Button
-                        size="lg"
-                        className="w-full mt-10 shadow-2xl"
-                        onClick={handleVerify}
-                        disabled={
-                            (task.multiInputFields && task.multiInputFields.length > 0 && task.multiInputFields.some(field => {
-                                const value = multiInputValues[field.id] || '';
-                                return value.trim() === '';
-                            })) ||
-                            ((task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') && selectedOption === null) ||
-                            ((task.type === 'input' || task.type === 'shorttext') && textInput === '') ||
-                            (task.type === 'visualChoice' && selectedOption === null) ||
-                            (task.type === 'angleMeasure' && angleInput === '') ||
-                            (task.type === 'areaDecomposition' && (selectedParts.size === 0 || textInput === '')) ||
-                            (task.type === 'dragDrop' && task.dragDropData && task.dragDropData.shapes && task.dragDropData.shapes.some((shape: any) => !classification[shape.id])) ||
-                            (task.type === 'multiAngleThrow')
-                        }
+                    <div
+                        className="w-full mt-10"
+                        onClick={(event) => {
+                            if (!isVerifyDisabled) return;
+                            if (answerFieldCount > 0 && hasBlankAnswers) {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                triggerFillAllWarning();
+                            }
+                        }}
                     >
-                        Überprüfen 🎯
-                    </Button>
+                        <Button
+                            size="lg"
+                            className="w-full shadow-2xl"
+                            onClick={handleVerify}
+                            disabled={isVerifyDisabled}
+                        >
+                            Überprüfen 🎯
+                        </Button>
+                    </div>
                 ) : (
                     <div className={`mt-10 p-10 rounded-[3rem] border-4 animate-in zoom-in-95 duration-200 w-full ${feedback === 'correct' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'}`}>
                         <h4 className="text-3xl font-black italic mb-4 uppercase">{feedback === 'correct' ? 'Richtig! 🎯' : 'Knapp daneben...'}</h4>

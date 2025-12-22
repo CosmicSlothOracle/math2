@@ -1,12 +1,12 @@
 import { User } from '../types';
 
 export const MAX_QUEST_COINS_PER_UNIT: Record<string, number> = {
-  u1: 100,
-  u2: 100,
-  u3: 120,
-  u4: 120,
-  u5: 120,
-  u6: 100,
+  u1: 50,
+  u2: 50,
+  u3: 50,
+  u4: 50,
+  u5: 50,
+  u6: 50,
 };
 
 export function computeEntryFee(reward: number): number {

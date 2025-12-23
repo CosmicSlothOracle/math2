@@ -67,7 +67,38 @@ export const SocialService = {
       const params = new URLSearchParams();
       params.set('channelId', channelId);
       if (since) params.set('since', String(since));
-      const resp = await fetch(`/.netlify/functions/chatPoll?${params.toString()}`);
+
+      // Get headers with anon ID
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      try {
+        // Try to read anon ID from cookie or localStorage
+        const cookies = document.cookie.split(';');
+        for (const cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'mm_anon_id' && value) {
+            headers['x-anon-id'] = value;
+            break;
+          }
+        }
+        if (!headers['x-anon-id']) {
+          const stored = localStorage.getItem('mm_anon_id');
+          if (stored) headers['x-anon-id'] = stored;
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      const resp = await fetch(`/.netlify/functions/chatPoll?${params.toString()}`, { headers });
+
+      // Store anon ID from Set-Cookie if present
+      const setCookie = resp.headers.get('set-cookie');
+      if (setCookie) {
+        const match = setCookie.match(/mm_anon_id=([^;]+)/);
+        if (match && match[1]) {
+          localStorage.setItem('mm_anon_id', match[1]);
+        }
+      }
+
       if (!resp.ok) throw new Error('non-ok');
       const json = await resp.json();
       if (json && Array.isArray(json.messages)) {
@@ -90,18 +121,57 @@ export const SocialService = {
   },
   async sendMessage(user: User, text: string, channelId: string = 'class:global'): Promise<void> {
     try {
+      // Get headers with anon ID
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      try {
+        const cookies = document.cookie.split(';');
+        for (const cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'mm_anon_id' && value) {
+            headers['x-anon-id'] = value;
+            break;
+          }
+        }
+        if (!headers['x-anon-id']) {
+          const stored = localStorage.getItem('mm_anon_id');
+          if (stored) headers['x-anon-id'] = stored;
+        }
+      } catch (e) {
+        // ignore
+      }
+
       const resp = await fetch('/.netlify/functions/chatSend', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ text, channelId, username: user.username }),
       });
+
+      // Store anon ID from Set-Cookie if present
+      const setCookie = resp.headers.get('set-cookie');
+      if (setCookie) {
+        const match = setCookie.match(/mm_anon_id=([^;]+)/);
+        if (match && match[1]) {
+          localStorage.setItem('mm_anon_id', match[1]);
+        }
+      }
+
       if (!resp.ok) {
         console.warn('chatSend: non-OK response', resp.status, resp.statusText);
         throw new Error(`send failed: ${resp.status}`);
       }
       const contentType = resp.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
-        await resp.json();
+        const json = await resp.json();
+        // Check for dev-fallback
+        if (json.note && json.note.includes('dev-fallback')) {
+          console.warn('chatSend: Dev fallback detected - message not persisted');
+          throw new Error('Message not persisted - backend offline');
+        }
+        // Check for ok: false
+        if (json.ok === false) {
+          console.error('chatSend: Function returned ok: false', json.error);
+          throw new Error(json.error || 'Message send failed');
+        }
       }
     } catch (err) {
       // fallback to local storage
@@ -125,7 +195,36 @@ export async function bootstrapServerUser(): Promise<any | null> {
   try {
     const existingUser = AuthService.getCurrentUser();
 
-    const resp = await fetch('/.netlify/functions/me');
+    // Get headers with anon ID
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    try {
+      const cookies = document.cookie.split(';');
+      for (const cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'mm_anon_id' && value) {
+          headers['x-anon-id'] = value;
+          break;
+        }
+      }
+      if (!headers['x-anon-id']) {
+        const stored = localStorage.getItem('mm_anon_id');
+        if (stored) headers['x-anon-id'] = stored;
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    const resp = await fetch('/.netlify/functions/me', { headers });
+
+    // Store anon ID from Set-Cookie if present
+    const setCookie = resp.headers.get('set-cookie');
+    if (setCookie) {
+      const match = setCookie.match(/mm_anon_id=([^;]+)/);
+      if (match && match[1]) {
+        localStorage.setItem('mm_anon_id', match[1]);
+      }
+    }
+
     if (!resp.ok) {
       console.warn('bootstrapServerUser: non-OK response', resp.status);
       return null;
@@ -151,23 +250,27 @@ export async function bootstrapServerUser(): Promise<any | null> {
 
       // If we have an existing user, merge server data intelligently
       if (existingUser && existingUser.id === json.user.id) {
-        // Merge: keep local coins if they're higher (user might have earned more)
-        // but update other fields from server
+        // Merge: use server coins as source of truth (server-authoritative)
+        // but preserve local arrays if server doesn't have them
+        const serverCoins = Number.isFinite(json.user.coins) ? json.user.coins : 0;
+        const serverTotalEarned = Number.isFinite(json.user.totalEarned) ? json.user.totalEarned : 0;
+        const localCoins = Number.isFinite(existingUser.coins) ? existingUser.coins : 0;
+        const localTotalEarned = Number.isFinite(existingUser.totalEarned) ? existingUser.totalEarned : 0;
+
+        // Use server values as source of truth, but merge arrays
         const mergedUser = {
           ...existingUser,
           ...json.user,
-          coins: Math.max(existingUser.coins || 0, json.user.coins || 0),
-          totalEarned: Math.max(existingUser.totalEarned || 0, json.user.totalEarned || 0),
-          completedUnits: existingUser.completedUnits || json.user.completedUnits || [],
-          masteredUnits: existingUser.masteredUnits || json.user.masteredUnits || [],
-          preClearedUnits: existingUser.preClearedUnits || json.user.preClearedUnits || [],
+          coins: serverCoins, // Server-authoritative
+          totalEarned: serverTotalEarned, // Server-authoritative
+          completedUnits: json.user.completedUnits || existingUser.completedUnits || [],
+          masteredUnits: json.user.masteredUnits || existingUser.masteredUnits || [],
           perfectStandardQuizUnits:
-            existingUser.perfectStandardQuizUnits || json.user.perfectStandardQuizUnits || [],
+            json.user.perfectStandardQuizUnits || existingUser.perfectStandardQuizUnits || [],
           perfectBountyUnits:
-            existingUser.perfectBountyUnits || json.user.perfectBountyUnits || [],
-          solvedQuestionIds: existingUser.solvedQuestionIds || json.user.solvedQuestionIds || [],
-          questCoinsEarnedByUnit: existingUser.questCoinsEarnedByUnit || json.user.questCoinsEarnedByUnit || {},
-          bountyPayoutClaimed: existingUser.bountyPayoutClaimed || json.user.bountyPayoutClaimed || {},
+            json.user.perfectBountyUnits || existingUser.perfectBountyUnits || [],
+          questCoinsEarnedByUnit: json.user.questCoinsEarnedByUnit || existingUser.questCoinsEarnedByUnit || {},
+          bountyPayoutClaimed: json.user.bountyPayoutClaimed || existingUser.bountyPayoutClaimed || {},
         };
 
         if (idx !== -1) {
@@ -179,15 +282,16 @@ export async function bootstrapServerUser(): Promise<any | null> {
         db.set('mm_current_user', mergedUser);
         return { ...json, user: mergedUser };
       } else {
-        // New user from server - ensure all arrays are initialized
+        // New user from server - ensure all arrays and numeric fields are initialized
         const newUser = {
           ...json.user,
+          coins: Number.isFinite(json.user.coins) ? json.user.coins : 0,
+          totalEarned: Number.isFinite(json.user.totalEarned) ? json.user.totalEarned : 0,
+          xp: Number.isFinite(json.user.xp) ? json.user.xp : 0,
           completedUnits: json.user.completedUnits || [],
           masteredUnits: json.user.masteredUnits || [],
-          preClearedUnits: json.user.preClearedUnits || [],
           perfectStandardQuizUnits: json.user.perfectStandardQuizUnits || [],
           perfectBountyUnits: json.user.perfectBountyUnits || [],
-          solvedQuestionIds: json.user.solvedQuestionIds || [],
           questCoinsEarnedByUnit: json.user.questCoinsEarnedByUnit || {},
           bountyPayoutClaimed: json.user.bountyPayoutClaimed || {},
         };

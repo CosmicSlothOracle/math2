@@ -19,10 +19,14 @@ create table if not exists progress (
   quest_coins_earned int default 0,
   quest_completed_count int default 0,
   bounty_completed boolean default false,
+  perfect_standard_quiz boolean default false,
+  perfect_bounty boolean default false,
   updated_at timestamp with time zone default now(),
   primary key (user_id, unit_id)
 );
 create index if not exists idx_progress_user_id on progress(user_id);
+create index if not exists idx_progress_perfect_standard on progress(user_id, perfect_standard_quiz) where perfect_standard_quiz = true;
+create index if not exists idx_progress_perfect_bounty on progress(user_id, perfect_bounty) where perfect_bounty = true;
 
 -- 4) messages (chat)
 create table if not exists messages (

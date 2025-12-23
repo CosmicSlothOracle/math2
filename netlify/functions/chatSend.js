@@ -5,7 +5,7 @@ exports.handler = async function (event) {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-dev-user',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-dev-user, x-anon-id',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
@@ -18,31 +18,65 @@ exports.handler = async function (event) {
     const channelId = body.channelId || 'class:global';
     const username = body.username || null;
 
-    if (!text) return { statusCode: 400, headers, body: JSON.stringify({ error: 'EMPTY_TEXT' }) };
+    console.log('[chatSend]', { userId, channelId, username, textLength: text.length, hasSupabase: !!supabase });
+
+    if (!text) {
+      return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: 'EMPTY_TEXT', userId }) };
+    }
 
     if (!supabase) {
-      // dev fallback: echo back a message structure
-      const msg = { id: `dev-${Date.now()}`, channel_id: channelId, sender_id: userId, username: username || 'Dev', text, created_at: Date.now() };
-      return { statusCode: 200, headers, body: JSON.stringify({ message: msg, note: 'dev-fallback' }) };
+      // dev fallback: return consistent shape but mark as fallback
+      console.warn('[chatSend] Dev fallback - Supabase not available');
+      const msg = {
+        id: `dev-${Date.now()}`,
+        channel_id: channelId,
+        sender_id: userId,
+        username: username || 'Dev',
+        text,
+        created_at: new Date().toISOString()
+      };
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          ok: true,
+          message: msg,
+          userId,
+          note: 'dev-fallback',
+          warning: 'Message not persisted - Supabase not configured'
+        })
+      };
     }
 
     const payload = { channel_id: channelId, sender_id: userId, username: username, text };
     const { data, error } = await supabase.from('messages').insert(payload).select().limit(1);
     if (error) {
       console.error('[chatSend] Insert error:', error);
-      // Fallback: return message structure even on error
-      const msg = { id: `fallback-${Date.now()}`, channel_id: channelId, sender_id: userId, username: username || 'User', text, created_at: new Date().toISOString() };
-      return { statusCode: 200, headers, body: JSON.stringify({ message: msg, note: 'dev-fallback-insert-error', error: error.message }) };
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          ok: false,
+          error: 'MESSAGE_INSERT_FAILED',
+          details: error.message,
+          userId
+        })
+      };
     }
     const msg = Array.isArray(data) ? data[0] : data;
-    return { statusCode: 200, headers, body: JSON.stringify({ message: msg }) };
+    console.log('[chatSend] Success:', { userId, messageId: msg.id });
+    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, message: msg, userId }) };
   } catch (err) {
     console.error('[chatSend] Exception:', err);
-    // Always return 200 with fallback message
-    const body = event.body ? JSON.parse(event.body) : {};
-    const userId = getUserIdFromEvent(event);
-    const msg = { id: `error-${Date.now()}`, channel_id: body.channelId || 'class:global', sender_id: userId, username: body.username || 'User', text: body.text || '', created_at: new Date().toISOString() };
-    return { statusCode: 200, headers, body: JSON.stringify({ message: msg, note: 'dev-fallback-exception', error: err && err.message }) };
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({
+        ok: false,
+        error: 'INTERNAL_ERROR',
+        message: err && err.message
+      })
+    };
   }
 };
 

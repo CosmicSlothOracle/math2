@@ -1,5 +1,6 @@
-// Safely require _supabase helper
+// Safely require helpers
 let createSupabaseClient = () => null; // Default fallback
+let getUserIdFromEvent = () => 'dev-user'; // Default fallback
 try {
   const supabaseModule = require('./_supabase');
   if (supabaseModule && typeof supabaseModule.createSupabaseClient === 'function') {
@@ -8,46 +9,49 @@ try {
 } catch (requireErr) {
   console.warn('[me.js] Failed to require _supabase:', requireErr.message);
 }
+try {
+  const utilsModule = require('./_utils');
+  if (utilsModule && typeof utilsModule.getUserIdFromEvent === 'function') {
+    getUserIdFromEvent = utilsModule.getUserIdFromEvent;
+  }
+} catch (requireErr) {
+  console.warn('[me.js] Failed to require _utils:', requireErr.message);
+}
 
 exports.handler = async function (event, context) {
-  const headers = {
+  const baseHeaders = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-dev-user, x-anon-id',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Credentials': 'true',
   };
 
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
+    return { statusCode: 200, headers: baseHeaders, body: JSON.stringify({ ok: true }) };
   }
 
   try {
-    const authHeader = (event.headers && (event.headers.Authorization || event.headers.authorization)) || '';
-    const hasSupabaseEnv = !!(process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY));
-
-    // Dev fallback when no auth header or no supabase env vars
-    if (!authHeader || !hasSupabaseEnv) {
-      const devUser = { id: 'dev-user', display_name: 'Dev', coins: 2000 };
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ user: devUser, progress: [], serverTime: Date.now(), note: 'dev-fallback' }),
-      };
-    }
-
-    // Minimal token decode (do NOT verify signature here) — extract payload fields if present
-    const token = authHeader.split(' ')[1] || '';
-    let tokenPayload = {};
+    // Use getUserIdFromEvent to get stable user ID (JWT, anon cookie, or dev override)
+    let userId;
     try {
-      const parts = token.split('.');
-      if (parts.length >= 2) {
-        const payloadRaw = Buffer.from(parts[1], 'base64').toString('utf8');
-        tokenPayload = JSON.parse(payloadRaw);
-      }
-    } catch (e) {
-      // ignore decode errors — we'll still attempt to use supabase with generated id
-      tokenPayload = {};
+      userId = getUserIdFromEvent(event);
+    } catch (userIdErr) {
+      console.error('[me.js] getUserIdFromEvent error:', userIdErr);
+      // Fallback to generating a new anon ID
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(2, 9);
+      userId = `anon_${timestamp}_${random}`;
     }
+
+    if (!userId || typeof userId !== 'string') {
+      console.error('[me.js] Invalid userId:', userId);
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(2, 9);
+      userId = `anon_${timestamp}_${random}`;
+    }
+
+    const hasSupabaseEnv = !!(process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY));
 
     // Initialize Supabase client (returns null if not possible)
     let supabase = null;
@@ -59,20 +63,61 @@ exports.handler = async function (event, context) {
       console.warn('[me.js] createSupabaseClient threw:', clientErr.message);
       supabase = null;
     }
-    if (!supabase) {
-      // Dev fallback: return dev user when Supabase isn't available
-      const devUser = { id: 'dev-user', display_name: 'Dev', coins: 2000 };
+
+    // Dev fallback when no supabase env vars or client not available
+    if (!hasSupabaseEnv || !supabase) {
+      console.warn('[me.js] Dev fallback - Supabase not configured or client not available');
+      const devUser = {
+        id: userId, // Use the stable ID even in dev fallback
+        display_name: 'Dev',
+        coins: 2000,
+        perfectStandardQuizUnits: [],
+        perfectBountyUnits: [],
+        completedUnits: [],
+        masteredUnits: []
+      };
+
+      // Set cookie for anon ID persistence (if it's an anon ID)
+      const headers = { ...baseHeaders };
+      if (userId.startsWith('anon_')) {
+        headers['Set-Cookie'] = `mm_anon_id=${userId}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      }
+
       return {
         statusCode: 200,
         headers,
-        body: JSON.stringify({ user: devUser, progress: [], serverTime: Date.now(), note: 'dev-fallback-no-supabase' }),
+        body: JSON.stringify({
+          ok: true,
+          user: devUser,
+          progress: [],
+          serverTime: Date.now(),
+          note: 'dev-fallback',
+          warning: 'Data not persisted - Supabase not configured'
+        }),
       };
     }
 
-    // Determine user id & display name
-    const userId = tokenPayload.sub || tokenPayload.user_id || null;
-    const displayName = tokenPayload.email || tokenPayload.name || tokenPayload.preferred_username || 'netlify-user';
-    const upsertId = userId || `uid_${Math.random().toString(36).slice(2, 9)}`;
+    // Extract display name from JWT if available
+    const authHeader = (event.headers && (event.headers.Authorization || event.headers.authorization)) || '';
+    let tokenPayload = {};
+    let displayName = 'User';
+
+    if (authHeader) {
+      const token = authHeader.split(' ')[1] || '';
+      try {
+        const parts = token.split('.');
+        if (parts.length >= 2) {
+          const payloadRaw = Buffer.from(parts[1], 'base64').toString('utf8');
+          tokenPayload = JSON.parse(payloadRaw);
+          displayName = tokenPayload.email || tokenPayload.name || tokenPayload.preferred_username || 'User';
+        }
+      } catch (e) {
+        // ignore decode errors
+      }
+    }
+
+    // Use userId from getUserIdFromEvent (stable anon ID if no JWT)
+    const upsertId = userId;
 
     // Upsert user row
     const upsertPayload = {
@@ -87,12 +132,32 @@ exports.handler = async function (event, context) {
       if (upsertError) {
         console.error('[me.js] Supabase upsert error:', upsertError);
         // Fallback to dev user on error instead of 500
-        const devUser = { id: 'dev-user', display_name: 'Dev', coins: 2000 };
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({ user: devUser, progress: [], serverTime: Date.now(), note: 'dev-fallback-upsert-error', error: upsertError.message }),
-        };
+      const devUser = {
+        id: upsertId, // Use the stable ID even on error
+        display_name: displayName,
+        coins: 2000,
+        perfectStandardQuizUnits: [],
+        perfectBountyUnits: [],
+        completedUnits: [],
+        masteredUnits: []
+      };
+      const headers = { ...baseHeaders };
+      if (upsertId.startsWith('anon_')) {
+        headers['Set-Cookie'] = `mm_anon_id=${upsertId}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      }
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          ok: true,
+          user: devUser,
+          progress: [],
+          serverTime: Date.now(),
+          note: 'dev-fallback-upsert-error',
+          error: upsertError.message,
+          warning: 'Data not persisted - Supabase error'
+        }),
+      };
       }
 
       // Handle different response formats from Supabase
@@ -108,11 +173,31 @@ exports.handler = async function (event, context) {
     } catch (upsertErr) {
       console.error('[me.js] Upsert exception:', upsertErr.message);
       // Fallback to dev user
-      const devUser = { id: 'dev-user', display_name: 'Dev', coins: 2000 };
+      const devUser = {
+        id: upsertId, // Use the stable ID even on exception
+        display_name: displayName,
+        coins: 2000,
+        perfectStandardQuizUnits: [],
+        perfectBountyUnits: [],
+        completedUnits: [],
+        masteredUnits: []
+      };
+      const headers = { ...baseHeaders };
+      if (upsertId.startsWith('anon_')) {
+        headers['Set-Cookie'] = `mm_anon_id=${upsertId}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      }
       return {
         statusCode: 200,
         headers,
-        body: JSON.stringify({ user: devUser, progress: [], serverTime: Date.now(), note: 'dev-fallback-upsert-exception', error: upsertErr.message }),
+        body: JSON.stringify({
+          ok: true,
+          user: devUser,
+          progress: [],
+          serverTime: Date.now(),
+          note: 'dev-fallback-upsert-exception',
+          error: upsertErr.message,
+          warning: 'Data not persisted - Supabase exception'
+        }),
       };
     }
 
@@ -131,25 +216,116 @@ exports.handler = async function (event, context) {
       // Continue with empty progress array
     }
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ user: returnedUser, progress: progressRows || [], serverTime: Date.now(), tokenPayload }),
+    // Reconstruct perfectStandardQuizUnits and perfectBountyUnits from progress table
+    const perfectStandardQuizUnits = progressRows
+      .filter((p) => p.perfect_standard_quiz === true)
+      .map((p) => p.unit_id);
+    const perfectBountyUnits = progressRows
+      .filter((p) => p.perfect_bounty === true)
+      .map((p) => p.unit_id);
+
+    // Merge with existing user arrays (for backward compatibility)
+    const mergedUser = {
+      ...returnedUser,
+      perfectStandardQuizUnits: [
+        ...new Set([...(returnedUser.perfectStandardQuizUnits || []), ...perfectStandardQuizUnits])
+      ],
+      perfectBountyUnits: [
+        ...new Set([...(returnedUser.perfectBountyUnits || []), ...perfectBountyUnits])
+      ],
+      completedUnits: [
+        ...new Set([
+          ...(returnedUser.completedUnits || []),
+          ...progressRows.filter((p) => p.quest_completed_count > 0).map((p) => p.unit_id)
+        ])
+      ],
+      masteredUnits: [
+        ...new Set([
+          ...(returnedUser.masteredUnits || []),
+          ...progressRows.filter((p) => p.bounty_completed === true).map((p) => p.unit_id)
+        ])
+      ],
     };
-  } catch (err) {
-    console.error('[me.js] Unhandled error:', err);
-    // Even on error, try to return a dev fallback so the app doesn't break
-    const devUser = { id: 'dev-user', display_name: 'Dev', coins: 2000 };
+
+    console.log('[me.js] Success:', { userId: upsertId, progressCount: progressRows.length });
+
+    // Set cookie for anon ID persistence (if it's an anon ID)
+    const headers = { ...baseHeaders };
+    if (upsertId.startsWith('anon_')) {
+      headers['Set-Cookie'] = `mm_anon_id=${upsertId}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    }
+
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        user: devUser,
-        progress: [],
+        ok: true,
+        user: mergedUser,
+        progress: progressRows || [],
         serverTime: Date.now(),
-        note: 'dev-fallback-error',
-        error: err && err.message
+        tokenPayload: Object.keys(tokenPayload).length > 0 ? tokenPayload : undefined
       }),
     };
+  } catch (err) {
+    console.error('[me.js] Unhandled error:', err);
+    // Even on error, try to return a dev fallback so the app doesn't break
+    let fallbackUserId;
+    try {
+      fallbackUserId = getUserIdFromEvent(event);
+    } catch (userIdErr) {
+      console.error('[me.js] getUserIdFromEvent failed in catch:', userIdErr);
+      // Generate a safe fallback ID
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(2, 9);
+      fallbackUserId = `anon_${timestamp}_${random}`;
+    }
+
+    if (!fallbackUserId || typeof fallbackUserId !== 'string') {
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(2, 9);
+      fallbackUserId = `anon_${timestamp}_${random}`;
+    }
+
+    const devUser = {
+      id: fallbackUserId,
+      display_name: 'Dev',
+      coins: 2000,
+      perfectStandardQuizUnits: [],
+      perfectBountyUnits: [],
+      completedUnits: [],
+      masteredUnits: []
+    };
+    const headers = { ...baseHeaders };
+    if (fallbackUserId && typeof fallbackUserId === 'string' && fallbackUserId.startsWith('anon_')) {
+      headers['Set-Cookie'] = `mm_anon_id=${fallbackUserId}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    }
+
+    try {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          ok: true,
+          user: devUser,
+          progress: [],
+          serverTime: Date.now(),
+          note: 'dev-fallback-error',
+          error: err && err.message ? String(err.message) : 'Unknown error',
+          warning: 'Data not persisted - Unhandled error'
+        }),
+      };
+    } catch (stringifyErr) {
+      console.error('[me.js] JSON.stringify failed:', stringifyErr);
+      // Last resort: return minimal response
+      return {
+        statusCode: 500,
+        headers: baseHeaders,
+        body: JSON.stringify({
+          ok: false,
+          error: 'INTERNAL_ERROR',
+          message: 'Failed to generate response'
+        }),
+      };
+    }
   }
 };

@@ -3497,6 +3497,13 @@ export default function App() {
     (async () => {
       try {
         const res = await bootstrapServerUser();
+        // Check for dev-fallback
+        if (mounted && res && res.note && res.note.includes('dev-fallback')) {
+          setIsDevFallback(true);
+          console.warn('[App] Backend running in dev-fallback mode - data not persisted');
+        } else {
+          setIsDevFallback(false);
+        }
         // Only update if we got real server data (not dev fallback)
         if (mounted && res && res.user && (!res.note || !res.note.includes('dev-fallback'))) {
           setUser(res.user);
@@ -3515,6 +3522,7 @@ export default function App() {
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [previewEffect, setPreviewEffect] = useState<string | null>(null);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [isDevFallback, setIsDevFallback] = useState(false);
 
   // Moved memo hook before any potential early return
   const tasksForCurrentQuest = useMemo(() => {
@@ -3558,21 +3566,35 @@ export default function App() {
     if (isPerfectRun) {
         if (currentQuest.type === 'standard') {
             const alreadyDone = user.completedUnits?.includes(currentQuest.unit.id) || false;
-            u = await QuestService.completeStandardQuest(user, currentQuest.unit.id);
-            if (!alreadyDone) {
-                u.coins += currentQuest.unit.coinsReward;
-                addToast(`Quiz perfekt! +${currentQuest.unit.coinsReward} Coins`, 'success');
+            const { updatedUser, coinsAwarded } = await QuestService.completeStandardQuest(
+              user,
+              currentQuest.unit.id,
+              currentQuest.unit.coinsReward,
+              isPerfectRun
+            );
+            u = updatedUser;
+            if (coinsAwarded > 0) {
+                addToast(`Quiz perfekt! +${coinsAwarded} Coins`, 'success');
                 triggerCoinAnimation();
+            } else if (!alreadyDone) {
+                addToast("Quiz perfekt! (Keine neuen Coins - Limit erreicht)", "info");
             } else {
                 addToast("Wiederholt! (Keine neuen Coins)", "info");
             }
         } else if (currentQuest.type === 'bounty') {
             const alreadyMastered = user.masteredUnits?.includes(currentQuest.unit.id) || false;
-            u = await QuestService.completeBountyQuest(user, currentQuest.unit.id);
-            if (!alreadyMastered) {
-                u.coins += currentQuest.unit.bounty;
-                addToast(`BOUNTY gemeistert! +${currentQuest.unit.bounty} Coins`, 'success');
+            const { updatedUser, coinsAwarded } = await QuestService.completeBountyQuest(
+              user,
+              currentQuest.unit.id,
+              currentQuest.unit.bounty,
+              isPerfectRun
+            );
+            u = updatedUser;
+            if (coinsAwarded > 0) {
+                addToast(`BOUNTY gemeistert! +${coinsAwarded} Coins`, 'success');
                 triggerCoinAnimation();
+            } else if (!alreadyMastered) {
+                addToast("Bounty gemeistert! (Keine neuen Coins)", "info");
             } else {
                 addToast("Bounty bereits kassiert!", "info");
             }
@@ -3620,6 +3642,12 @@ export default function App() {
 
   return (
     <div className={`min-h-screen transition-all ${isDarkMode ? 'bg-slate-950 text-white' : 'bg-[#f8fafc] text-slate-900'}`}>
+      {/* Dev Fallback Banner */}
+      {isDevFallback && (
+        <div className="fixed top-0 left-0 right-0 z-[300] bg-yellow-500 text-slate-900 px-4 py-2 text-center text-sm font-bold shadow-lg">
+          ⚠️ Backend offline / Dev Fallback - Daten werden nicht gespeichert
+        </div>
+      )}
       <ToastContainer toasts={toasts} />
       <CoinFlightAnimation isActive={isFlyingCoinActive} onComplete={() => setIsFlyingCoinActive(false)} />
       {isCalculatorOpen && <CalculatorWidget skin={user.calculatorSkin} onClose={() => setIsCalculatorOpen(false)} />}

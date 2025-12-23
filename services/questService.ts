@@ -5,6 +5,52 @@ import { applyQuestRewardCap } from './economyService';
 
 type QuestRunType = 'standard' | 'bounty';
 
+/**
+ * Gets API headers with anonymous ID if available.
+ * Reads from cookie (set by server) or localStorage (client fallback).
+ */
+function getApiHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  try {
+    if (typeof document !== 'undefined') {
+      const cookies = document.cookie.split(';');
+      for (const cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'mm_anon_id' && value) {
+          headers['x-anon-id'] = value;
+          return headers;
+        }
+      }
+    }
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('mm_anon_id');
+      if (stored) {
+        headers['x-anon-id'] = stored;
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+  return headers;
+}
+
+/**
+ * Processes response headers to store anonymous ID from Set-Cookie.
+ */
+function processResponseHeaders(response: Response): void {
+  try {
+    const setCookie = response.headers.get('set-cookie');
+    if (setCookie) {
+      const match = setCookie.match(/mm_anon_id=([^;]+)/);
+      if (match && match[1] && typeof window !== 'undefined') {
+        localStorage.setItem('mm_anon_id', match[1]);
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+
 async function applyQuestCoinsDelta(
   user: User,
   unitId: string,
@@ -29,15 +75,34 @@ async function applyQuestCoinsDelta(
         try {
           const resp = await fetch('/.netlify/functions/coinsAdjust', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getApiHeaders(),
             body: JSON.stringify({ delta: appliedAmount, reason: 'quest_reward', refType: 'unit', refId: unitId }),
           });
+          processResponseHeaders(resp);
+          if (!resp.ok) {
+            console.warn('coinsAdjust failed: non-OK response', resp.status);
+            throw new Error(`coinsAdjust failed: ${resp.status}`);
+          }
           const json = await resp.json();
-          const applied = typeof json.applied === 'number' ? json.applied : appliedAmount;
-          const coins = typeof json.coins === 'number' ? json.coins : (workingUser.coins + applied);
+          if (!json.ok) {
+            console.warn('coinsAdjust failed:', json.error, json.details);
+            throw new Error(json.error || 'coinsAdjust failed');
+          }
+          // Validate response values
+          const applied = Number.isFinite(json.applied) ? json.applied : 0;
+          const coins = Number.isFinite(json.coins) ? json.coins : (Number.isFinite(workingUser.coins) ? workingUser.coins : 0);
           workingUser.coins = coins;
-          workingUser.totalEarned = (workingUser.totalEarned || 0) + applied;
+          const currentTotalEarned = Number.isFinite(workingUser.totalEarned) ? workingUser.totalEarned : 0;
+          workingUser.totalEarned = currentTotalEarned + Math.max(0, applied);
           appliedAmount = applied;
+
+          // Warn if dev-fallback detected
+          if (json.note && json.note.includes('dev-fallback')) {
+            console.warn('coinsAdjust: Dev fallback detected - coins not persisted');
+            // Don't update coins if dev-fallback (keep current value)
+            workingUser.coins = Number.isFinite(workingUser.coins) ? workingUser.coins : 0;
+            appliedAmount = 0;
+          }
         } catch (err) {
           console.warn('coinsAdjust failed', err);
         }
@@ -49,15 +114,34 @@ async function applyQuestCoinsDelta(
       try {
         const resp = await fetch('/.netlify/functions/coinsAdjust', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getApiHeaders(),
           body: JSON.stringify({ delta, reason: 'quest_adjust', refType: 'unit', refId: unitId }),
         });
+        processResponseHeaders(resp);
+        if (!resp.ok) {
+          console.warn('coinsAdjust failed: non-OK response', resp.status);
+          throw new Error(`coinsAdjust failed: ${resp.status}`);
+        }
         const json = await resp.json();
-        const applied = typeof json.applied === 'number' ? json.applied : delta;
-        const coins = typeof json.coins === 'number' ? json.coins : (workingUser.coins + applied);
+        if (!json.ok) {
+          console.warn('coinsAdjust failed:', json.error, json.details);
+          throw new Error(json.error || 'coinsAdjust failed');
+        }
+        // Validate response values
+        const applied = Number.isFinite(json.applied) ? json.applied : 0;
+        const coins = Number.isFinite(json.coins) ? json.coins : (Number.isFinite(workingUser.coins) ? workingUser.coins : 0);
         workingUser.coins = coins;
-        workingUser.totalEarned = (workingUser.totalEarned || 0) + Math.max(0, applied);
+        const currentTotalEarned = Number.isFinite(workingUser.totalEarned) ? workingUser.totalEarned : 0;
+        workingUser.totalEarned = currentTotalEarned + Math.max(0, applied);
         appliedAmount = applied;
+
+        // Warn if dev-fallback detected
+        if (json.note && json.note.includes('dev-fallback')) {
+          console.warn('coinsAdjust: Dev fallback detected - coins not persisted');
+          // Don't update coins if dev-fallback (keep current value)
+          workingUser.coins = Number.isFinite(workingUser.coins) ? workingUser.coins : 0;
+          appliedAmount = 0;
+        }
       } catch (err) {
         console.warn('coinsAdjust failed', err);
       }
@@ -67,14 +151,36 @@ async function applyQuestCoinsDelta(
     try {
       const resp = await fetch('/.netlify/functions/coinsAdjust', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify({ delta, reason: 'quest_deduct', refType: 'unit', refId: unitId }),
       });
+      processResponseHeaders(resp);
+      if (!resp.ok) {
+        console.warn('coinsAdjust failed: non-OK response', resp.status);
+        throw new Error(`coinsAdjust failed: ${resp.status}`);
+      }
       const json = await resp.json();
-      const applied = typeof json.applied === 'number' ? json.applied : delta;
-      const coins = typeof json.coins === 'number' ? json.coins : workingUser.coins + applied;
-      workingUser.coins = coins;
-      appliedAmount = applied;
+      if (!json.ok) {
+        console.warn('coinsAdjust failed:', json.error, json.details);
+        throw new Error(json.error || 'coinsAdjust failed');
+      }
+      // Validate response values
+      const applied = Number.isFinite(json.applied) ? json.applied : 0;
+      const coins = Number.isFinite(json.coins) ? json.coins : (Number.isFinite(workingUser.coins) ? workingUser.coins : 0);
+
+      // Warn if dev-fallback detected
+      if (json.note && json.note.includes('dev-fallback')) {
+        console.warn('coinsAdjust: Dev fallback detected - coins not persisted');
+        // Don't update coins if dev-fallback (keep current value)
+        workingUser.coins = Number.isFinite(workingUser.coins) ? workingUser.coins : 0;
+        appliedAmount = 0;
+      } else {
+        workingUser.coins = coins;
+        appliedAmount = applied;
+      }
+        workingUser.coins = Number.isFinite(workingUser.coins) ? workingUser.coins : 0;
+        appliedAmount = 0;
+      }
     } catch (err) {
       console.warn('coinsAdjust failed', err);
     }
@@ -115,13 +221,22 @@ export const QuestService = {
   completeStandardQuest: async (
     user: User,
     unitId: string,
-    reward: number
+    reward: number,
+    isPerfectRun: boolean = false
   ): Promise<{ updatedUser: User; coinsAwarded: number }> => {
     const completed = user.completedUnits || [];
     const progressUser: User = {
       ...user,
       completedUnits: [...new Set([...completed, unitId])],
     };
+
+    // If perfect run, add to perfectStandardQuizUnits
+    if (isPerfectRun) {
+      const perfectStandard = progressUser.perfectStandardQuizUnits || [];
+      if (!perfectStandard.includes(unitId)) {
+        progressUser.perfectStandardQuizUnits = [...perfectStandard, unitId];
+      }
+    }
 
     const { user: updatedUser, applied } = await applyQuestCoinsDelta(
       progressUser,
@@ -131,11 +246,31 @@ export const QuestService = {
     );
 
     try {
-      await fetch('/.netlify/functions/progressSave', {
+      const resp = await fetch('/.netlify/functions/progressSave', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ unitId, questCoinsEarned: updatedUser.questCoinsEarnedByUnit?.[unitId] || 0, questCompletedCount: 1, bountyCompleted: false }),
+        headers: getApiHeaders(),
+        body: JSON.stringify({
+          unitId,
+          questCoinsEarned: updatedUser.questCoinsEarnedByUnit?.[unitId] || 0,
+          questCompletedCount: 1,
+          bountyCompleted: false,
+          perfectStandardQuiz: isPerfectRun,
+          perfectBounty: false
+        }),
       });
+      processResponseHeaders(resp);
+      if (!resp.ok) {
+        console.warn('progressSave failed: non-OK response', resp.status);
+      } else {
+        const json = await resp.json();
+        if (!json.ok) {
+          console.warn('progressSave failed:', json.error, json.details);
+        } else if (json.note && json.note.includes('dev-fallback')) {
+          console.warn('progressSave: Dev fallback detected - progress not persisted');
+          // Don't update progress arrays if dev-fallback
+          // Keep existing user state
+        }
+      }
     } catch (e) {
       console.warn('progressSave failed', e);
     }
@@ -146,7 +281,8 @@ export const QuestService = {
   completeBountyQuest: async (
     user: User,
     unitId: string,
-    reward: number
+    reward: number,
+    isPerfectRun: boolean = false
   ): Promise<{ updatedUser: User; coinsAwarded: number }> => {
     const alreadyClaimed = user.bountyPayoutClaimed?.[unitId] ?? false;
     const mastered = user.masteredUnits || [];
@@ -161,28 +297,55 @@ export const QuestService = {
       },
     };
 
+    // If perfect run, add to perfectBountyUnits
+    if (isPerfectRun) {
+      const perfectBounty = updatedUser.perfectBountyUnits || [];
+      if (!perfectBounty.includes(unitId)) {
+        updatedUser.perfectBountyUnits = [...perfectBounty, unitId];
+      }
+    }
+
     let coinsAwarded = 0;
     if (!alreadyClaimed && reward > 0) {
       // Request server to adjust coins (award bounty)
       try {
         const resp = await fetch('/.netlify/functions/coinsAdjust', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getApiHeaders(),
           body: JSON.stringify({ delta: reward, reason: 'bounty_reward', refType: 'unit', refId: unitId }),
         });
+        processResponseHeaders(resp);
+        if (!resp.ok) {
+          console.warn('coinsAdjust failed: non-OK response', resp.status);
+          throw new Error(`coinsAdjust failed: ${resp.status}`);
+        }
         const json = await resp.json();
-        const applied = typeof json.applied === 'number' ? json.applied : 0;
-        const coins = typeof json.coins === 'number' ? json.coins : updatedUser.coins + applied;
+        if (!json.ok) {
+          console.warn('coinsAdjust failed:', json.error, json.details);
+          throw new Error(json.error || 'coinsAdjust failed');
+        }
+        // Validate response values
+        const applied = Number.isFinite(json.applied) ? json.applied : 0;
+        const coins = Number.isFinite(json.coins) ? json.coins : (Number.isFinite(updatedUser.coins) ? updatedUser.coins : 0);
         coinsAwarded = applied;
+        const currentTotalEarned = Number.isFinite(updatedUser.totalEarned) ? updatedUser.totalEarned : 0;
         updatedUser = {
           ...updatedUser,
           coins,
-          totalEarned: (updatedUser.totalEarned || 0) + Math.max(0, applied),
+          totalEarned: currentTotalEarned + Math.max(0, applied),
           bountyPayoutClaimed: {
             ...(updatedUser.bountyPayoutClaimed || {}),
             [unitId]: true,
           },
         };
+
+        // Warn if dev-fallback detected
+        if (json.note && json.note.includes('dev-fallback')) {
+          console.warn('coinsAdjust: Dev fallback detected - coins not persisted');
+          // Don't update coins if dev-fallback (keep current value)
+          workingUser.coins = Number.isFinite(workingUser.coins) ? workingUser.coins : 0;
+          appliedAmount = 0;
+        }
       } catch (err) {
         console.warn('coinsAdjust failed for bounty reward', err);
       }
@@ -191,11 +354,31 @@ export const QuestService = {
     // persist local cache and progress to server
     await DataService.updateUser(updatedUser);
     try {
-      await fetch('/.netlify/functions/progressSave', {
+      const resp = await fetch('/.netlify/functions/progressSave', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ unitId, questCoinsEarned: updatedUser.questCoinsEarnedByUnit?.[unitId] || 0, questCompletedCount: (updatedUser.completedUnits || []).includes(unitId) ? 1 : 0, bountyCompleted: true }),
+        headers: getApiHeaders(),
+        body: JSON.stringify({
+          unitId,
+          questCoinsEarned: updatedUser.questCoinsEarnedByUnit?.[unitId] || 0,
+          questCompletedCount: (updatedUser.completedUnits || []).includes(unitId) ? 1 : 0,
+          bountyCompleted: true,
+          perfectStandardQuiz: (updatedUser.perfectStandardQuizUnits || []).includes(unitId),
+          perfectBounty: isPerfectRun
+        }),
       });
+      processResponseHeaders(resp);
+      if (!resp.ok) {
+        console.warn('progressSave failed: non-OK response', resp.status);
+      } else {
+        const json = await resp.json();
+        if (!json.ok) {
+          console.warn('progressSave failed:', json.error, json.details);
+        } else if (json.note && json.note.includes('dev-fallback')) {
+          console.warn('progressSave: Dev fallback detected - progress not persisted');
+          // Don't update progress arrays if dev-fallback
+          // Keep existing user state
+        }
+      }
     } catch (e) {
       console.warn('progressSave failed', e);
     }
@@ -210,11 +393,31 @@ export const QuestService = {
     };
     await DataService.updateUser(updatedUser);
     try {
-      await fetch('/.netlify/functions/progressSave', {
+      const resp = await fetch('/.netlify/functions/progressSave', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ unitId, questCoinsEarned: updatedUser.questCoinsEarnedByUnit?.[unitId] || 0, questCompletedCount: 0, bountyCompleted: false }),
+        headers: getApiHeaders(),
+        body: JSON.stringify({
+          unitId,
+          questCoinsEarned: updatedUser.questCoinsEarnedByUnit?.[unitId] || 0,
+          questCompletedCount: 0,
+          bountyCompleted: false,
+          perfectStandardQuiz: (updatedUser.perfectStandardQuizUnits || []).includes(unitId),
+          perfectBounty: (updatedUser.perfectBountyUnits || []).includes(unitId)
+        }),
       });
+      processResponseHeaders(resp);
+      if (!resp.ok) {
+        console.warn('progressSave failed: non-OK response', resp.status);
+      } else {
+        const json = await resp.json();
+        if (!json.ok) {
+          console.warn('progressSave failed:', json.error, json.details);
+        } else if (json.note && json.note.includes('dev-fallback')) {
+          console.warn('progressSave: Dev fallback detected - progress not persisted');
+          // Don't update progress arrays if dev-fallback
+          // Keep existing user state
+        }
+      }
     } catch (e) {
       console.warn('progressSave failed', e);
     }
@@ -229,9 +432,10 @@ export const QuestService = {
     try {
       const resp = await fetch('/.netlify/functions/coinsAdjust', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify({ delta: -Math.abs(entryFee), reason: 'bounty_entry_fee', refType: 'unit', refId: unitId }),
       });
+      processResponseHeaders(resp);
       const json = await resp.json();
       const applied = typeof json.applied === 'number' ? json.applied : 0;
       const coins = typeof json.coins === 'number' ? json.coins : user.coins + applied;

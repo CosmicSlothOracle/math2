@@ -2446,9 +2446,10 @@ const ShopView: React.FC<{
 
   const renderItem = (item: ShopItem) => {
     const owned = user.unlockedItems?.includes(item.id) && item.type !== 'feature' && item.type !== 'voucher';
-    const canAfford = user.coins >= item.cost;
+    const userCoins = Number.isFinite(user.coins) ? user.coins : 0;
+    const canAfford = userCoins >= item.cost;
     const isPreviewActive = previewEffect === item.value;
-    const canAffordPreview = user.coins >= PREVIEW_COST;
+    const canAffordPreview = userCoins >= PREVIEW_COST;
     const rarityConfig = RARITY_CONFIG[item.rarity as keyof typeof RARITY_CONFIG] || RARITY_CONFIG.common;
 
     return (
@@ -3651,12 +3652,14 @@ export default function App() {
   }
 
   const handleBuy = async (item: ShopItem) => {
-    if (!user || user.coins < item.cost) {
+    if (!user) return;
+    const userCoins = Number.isFinite(user.coins) ? user.coins : 0;
+    if (userCoins < item.cost) {
       addToast("Nicht genug Coins!", 'error');
       return;
     }
     // Optimistic update
-    let updatedUser = { ...user, coins: user.coins - item.cost };
+    let updatedUser = { ...user, coins: userCoins - item.cost };
     if (item.type !== 'feature' && item.type !== 'voucher') {
       updatedUser.unlockedItems = [...new Set([...user.unlockedItems, item.id])];
       if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
@@ -3742,7 +3745,7 @@ export default function App() {
             </div>
             <div className="flex gap-2 sm:gap-3 items-center">
                 <button onClick={() => setIsCalculatorOpen(true)} className="p-2.5 sm:p-3 bg-slate-100 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation">🧮</button>
-                <div className={`px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-900 text-white rounded-xl font-black text-[10px] sm:text-xs transition-all shadow-lg min-h-[44px] flex items-center ${isCoinPulsing ? 'scale-110 bg-amber-500' : ''}`}>🪙 {user.coins}</div>
+                <div className={`px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-900 text-white rounded-xl font-black text-[10px] sm:text-xs transition-all shadow-lg min-h-[44px] flex items-center ${isCoinPulsing ? 'scale-110 bg-amber-500' : ''}`}>🪙 {Number.isFinite(user.coins) ? user.coins : 0}</div>
             </div>
           </header>
 
@@ -3805,8 +3808,9 @@ export default function App() {
                 return;
               }
               // Check if can afford preview
-              if (cost > 0 && user.coins >= cost) {
-                const u = {...user, coins: user.coins - cost};
+              const userCoins = Number.isFinite(user.coins) ? user.coins : 0;
+              if (cost > 0 && userCoins >= cost) {
+                const u = {...user, coins: userCoins - cost};
                 setUser(u);
                 await DataService.updateUser(u);
                 addToast(`${cost} Coins für Vorschau`, 'info');
@@ -3860,7 +3864,8 @@ const UnitView: React.FC<{
     const [isStartingBounty, setIsStartingBounty] = useState(false);
     const definition = GEOMETRY_DEFINITIONS.find(d => d.id === unit.definitionId);
     const entryFee = computeEntryFee(unit.bounty);
-    const insufficientCoins = user.coins < entryFee;
+    const userCoins = Number.isFinite(user.coins) ? user.coins : 0;
+    const insufficientCoins = userCoins < entryFee;
     const questStats = getQuestStats(user, unit.id);
     const tileStatus = getTileStatus(unit.id, user);
     const bountyUnlocked = tileStatus !== 'locked';
@@ -3983,7 +3988,7 @@ const UnitView: React.FC<{
                             : !bountyUnlocked
                             ? 'Gesperrt'
                             : insufficientCoins
-                            ? `💰 ${user.coins}/${entryFee}`
+                            ? `💰 ${userCoins}/${entryFee}`
                             : isStartingBounty
                             ? 'Starte...'
                             : `Accept Bounty ⚔️ (-${entryFee})`}

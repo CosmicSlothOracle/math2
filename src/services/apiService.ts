@@ -58,7 +58,14 @@ export const AuthService = {
   },
 
   getCurrentUser(): User | null {
-    return db.get('mm_current_user');
+    const user = db.get('mm_current_user');
+    if (user) {
+      // Ensure all numeric fields are valid numbers
+      if (!Number.isFinite(user.coins)) user.coins = 0;
+      if (!Number.isFinite(user.totalEarned)) user.totalEarned = 0;
+      if (!Number.isFinite(user.xp)) user.xp = 0;
+    }
+    return user;
   }
 };
 
@@ -139,11 +146,17 @@ export async function bootstrapServerUser(): Promise<any | null> {
       if (existingUser && existingUser.id === json.user.id) {
         // Merge: keep local coins if they're higher (user might have earned more)
         // but update other fields from server
+        const localCoins = Number.isFinite(existingUser.coins) ? existingUser.coins : 0;
+        const serverCoins = Number.isFinite(json.user.coins) ? json.user.coins : 0;
+        const localTotalEarned = Number.isFinite(existingUser.totalEarned) ? existingUser.totalEarned : 0;
+        const serverTotalEarned = Number.isFinite(json.user.totalEarned) ? json.user.totalEarned : 0;
+        const serverXp = Number.isFinite(json.user.xp) ? json.user.xp : 0;
         const mergedUser = {
           ...existingUser,
           ...json.user,
-          coins: Math.max(existingUser.coins || 0, json.user.coins || 0), // Keep higher coin count
-          totalEarned: Math.max(existingUser.totalEarned || 0, json.user.totalEarned || 0),
+          coins: Math.max(localCoins, serverCoins), // Keep higher coin count
+          totalEarned: Math.max(localTotalEarned, serverTotalEarned),
+          xp: serverXp,
           // Preserve local arrays that might have more data
           completedUnits: existingUser.completedUnits || json.user.completedUnits || [],
           masteredUnits: existingUser.masteredUnits || json.user.masteredUnits || [],
@@ -159,14 +172,20 @@ export async function bootstrapServerUser(): Promise<any | null> {
         db.set('mm_current_user', mergedUser);
         return { ...json, user: mergedUser };
       } else {
-        // New user from server
+        // New user from server - ensure all numeric fields are valid
+        const newUser = {
+          ...json.user,
+          coins: Number.isFinite(json.user.coins) ? json.user.coins : 0,
+          totalEarned: Number.isFinite(json.user.totalEarned) ? json.user.totalEarned : 0,
+          xp: Number.isFinite(json.user.xp) ? json.user.xp : 0,
+        };
         if (idx !== -1) {
-          users[idx] = json.user;
+          users[idx] = newUser;
         } else {
-          users.push(json.user);
+          users.push(newUser);
         }
         db.set('mm_users', users);
-        db.set('mm_current_user', json.user);
+        db.set('mm_current_user', newUser);
       }
 
       // persist progress locally for backward compatibility

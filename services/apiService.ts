@@ -42,7 +42,14 @@ export const AuthService = {
     return user;
   },
   getCurrentUser(): User | null {
-    return db.get('mm_current_user');
+    const user = db.get('mm_current_user');
+    if (user) {
+      // Ensure all numeric fields are valid numbers
+      if (!Number.isFinite(user.coins)) user.coins = 0;
+      if (!Number.isFinite(user.totalEarned)) user.totalEarned = 0;
+      if (!Number.isFinite(user.xp)) user.xp = 0;
+    }
+    return user;
   },
 };
 
@@ -258,11 +265,13 @@ export async function bootstrapServerUser(): Promise<any | null> {
         const localTotalEarned = Number.isFinite(existingUser.totalEarned) ? existingUser.totalEarned : 0;
 
         // Use server values as source of truth, but merge arrays
+        const serverXp = Number.isFinite(json.user.xp) ? json.user.xp : 0;
         const mergedUser = {
           ...existingUser,
           ...json.user,
           coins: serverCoins, // Server-authoritative
           totalEarned: serverTotalEarned, // Server-authoritative
+          xp: serverXp, // Server-authoritative
           completedUnits: json.user.completedUnits || existingUser.completedUnits || [],
           masteredUnits: json.user.masteredUnits || existingUser.masteredUnits || [],
           perfectStandardQuizUnits:

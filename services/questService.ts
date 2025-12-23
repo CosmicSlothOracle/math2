@@ -340,8 +340,8 @@ export const QuestService = {
         if (json.note && json.note.includes('dev-fallback')) {
           console.warn('coinsAdjust: Dev fallback detected - coins not persisted');
           // Don't update coins if dev-fallback (keep current value)
-          workingUser.coins = Number.isFinite(workingUser.coins) ? workingUser.coins : 0;
-          appliedAmount = 0;
+          updatedUser.coins = Number.isFinite(updatedUser.coins) ? updatedUser.coins : 0;
+          coinsAwarded = 0;
         }
       } catch (err) {
         console.warn('coinsAdjust failed for bounty reward', err);
@@ -434,9 +434,10 @@ export const QuestService = {
       });
       processResponseHeaders(resp);
       const json = await resp.json();
-      const applied = typeof json.applied === 'number' ? json.applied : 0;
-      const coins = typeof json.coins === 'number' ? json.coins : user.coins + applied;
-      if (typeof coins === 'number') {
+      const applied = Number.isFinite(json.applied) ? json.applied : 0;
+      const currentCoins = Number.isFinite(user.coins) ? user.coins : 0;
+      const coins = Number.isFinite(json.coins) ? json.coins : currentCoins + applied;
+      if (Number.isFinite(coins)) {
         const updatedUser: User = { ...user, coins };
         await DataService.updateUser(updatedUser);
         return updatedUser;
@@ -445,12 +446,13 @@ export const QuestService = {
       console.warn('coinsAdjust failed for entry fee', err);
     }
     // Fallback: validate locally
-    if (user.coins < entryFee) {
+    const currentCoins = Number.isFinite(user.coins) ? user.coins : 0;
+    if (currentCoins < entryFee) {
       throw new Error('INSUFFICIENT_COINS');
     }
     const updatedUser: User = {
       ...user,
-      coins: user.coins - entryFee,
+      coins: currentCoins - entryFee,
     };
     await DataService.updateUser(updatedUser);
     return updatedUser;

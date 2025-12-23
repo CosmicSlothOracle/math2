@@ -67,7 +67,7 @@ export const SocialService = {
       const params = new URLSearchParams();
       params.set('channelId', channelId);
       if (since) params.set('since', String(since));
-      const resp = await fetch(/.netlify/functions/chatPoll?);
+      const resp = await fetch(`/.netlify/functions/chatPoll?${params.toString()}`);
       if (!resp.ok) throw new Error('non-ok');
       const json = await resp.json();
       if (json && Array.isArray(json.messages)) {
@@ -97,7 +97,7 @@ export const SocialService = {
       });
       if (!resp.ok) {
         console.warn('chatSend: non-OK response', resp.status, resp.statusText);
-        throw new Error(send failed: );
+        throw new Error(`send failed: ${resp.status}`);
       }
       const contentType = resp.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {

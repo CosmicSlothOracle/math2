@@ -103,6 +103,32 @@ async function runTests() {
     warnings: 0,
   };
 
+  // Test 0: me (create user first to avoid foreign key constraint)
+  results.total++;
+  const meResult = await testFunction(
+    'me',
+    'GET',
+    '/.netlify/functions/me',
+    null,
+    { 'x-dev-user': 'test-user-123' }
+  );
+  if (meResult.ok) {
+    results.passed++;
+    if (meResult.data && meResult.data.user) {
+      log(`  User ID: ${meResult.data.user.id}`, 'green');
+      log(`  Coins: ${meResult.data.user.coins || 0}`, 'green');
+    }
+    // Check for dev-fallback
+    if (meResult.data && meResult.data.note && meResult.data.note.includes('dev-fallback')) {
+      logWarning('  ⚠️  me returned dev-fallback - Supabase not configured');
+      results.warnings++;
+    }
+  } else if (meResult.error === 'DEV_FALLBACK') {
+    results.warnings++;
+  } else {
+    results.failed++;
+  }
+
   // Test 1: progressGet
   results.total++;
   const progressGetResult = await testFunction(
@@ -232,33 +258,7 @@ async function runTests() {
     results.failed++;
   }
 
-  // Test 7: me
-  results.total++;
-  const meResult = await testFunction(
-    'me',
-    'GET',
-    '/.netlify/functions/me',
-    null,
-    { 'x-dev-user': 'test-user-123' }
-  );
-  if (meResult.ok) {
-    results.passed++;
-    if (meResult.data && meResult.data.user) {
-      log(`  User ID: ${meResult.data.user.id}`, 'green');
-      log(`  Coins: ${meResult.data.user.coins || 0}`, 'green');
-    }
-    // Check for dev-fallback
-    if (meResult.data && meResult.data.note && meResult.data.note.includes('dev-fallback')) {
-      logWarning('  ⚠️  me returned dev-fallback - Supabase not configured');
-      results.warnings++;
-    }
-  } else if (meResult.error === 'DEV_FALLBACK') {
-    results.warnings++;
-  } else {
-    results.failed++;
-  }
-
-  // Test 8: debugSupabase (diagnostic)
+  // Test 7: debugSupabase (diagnostic)
   results.total++;
   logInfo('\n=== Supabase Configuration Check ===');
   const debugResult = await testFunction(

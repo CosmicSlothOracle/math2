@@ -113,25 +113,62 @@ export const SocialService = {
 };
 
 // Attempt to bootstrap user from Netlify Functions backend (/me).
-// In dev (no SUPABASE env or no Authorization) the function returns a dev fallback.
+// Only updates if server has real data (not dev fallback) and preserves existing user data.
 export async function bootstrapServerUser(): Promise<any | null> {
   try {
+    const existingUser = AuthService.getCurrentUser();
+
     const resp = await fetch('/.netlify/functions/me');
     if (!resp.ok) {
       console.warn('bootstrapServerUser: non-OK response', resp.status);
       return null;
     }
     const json = await resp.json();
+
+    // If server returned dev fallback, don't overwrite existing user
+    if (json && json.note && (json.note.includes('dev-fallback') || json.note.includes('dev'))) {
+      console.log('[Bootstrap] Server returned dev fallback, preserving existing user');
+      return null; // Don't overwrite
+    }
+
     if (json && json.user) {
       let users = db.get('mm_users') || [];
       const idx = users.findIndex((u: any) => u.id === json.user.id);
-      if (idx !== -1) {
-        users[idx] = json.user;
+
+      // If we have an existing user, merge server data intelligently
+      if (existingUser && existingUser.id === json.user.id) {
+        // Merge: keep local coins if they're higher (user might have earned more)
+        // but update other fields from server
+        const mergedUser = {
+          ...existingUser,
+          ...json.user,
+          coins: Math.max(existingUser.coins || 0, json.user.coins || 0), // Keep higher coin count
+          totalEarned: Math.max(existingUser.totalEarned || 0, json.user.totalEarned || 0),
+          // Preserve local arrays that might have more data
+          completedUnits: existingUser.completedUnits || json.user.completedUnits || [],
+          masteredUnits: existingUser.masteredUnits || json.user.masteredUnits || [],
+          preClearedUnits: existingUser.preClearedUnits || json.user.preClearedUnits || [],
+        };
+
+        if (idx !== -1) {
+          users[idx] = mergedUser;
+        } else {
+          users.push(mergedUser);
+        }
+        db.set('mm_users', users);
+        db.set('mm_current_user', mergedUser);
+        return { ...json, user: mergedUser };
       } else {
-        users.push(json.user);
+        // New user from server
+        if (idx !== -1) {
+          users[idx] = json.user;
+        } else {
+          users.push(json.user);
+        }
+        db.set('mm_users', users);
+        db.set('mm_current_user', json.user);
       }
-      db.set('mm_users', users);
-      db.set('mm_current_user', json.user);
+
       // persist progress locally for backward compatibility
       if (json.progress) db.set('mm_progress', json.progress);
       return json;

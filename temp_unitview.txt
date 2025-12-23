@@ -1,0 +1,603 @@
+
+          return;
+        }
+  
+        const entryFee = computeEntryFee(unit.bounty);
+        if (user.coins < entryFee) {
+          addToast(`Nicht genug Coins (${user.coins}/${entryFee})`, 'error');
+          return;
+        }
+  
+        try {
+          const updatedUser = await QuestService.startBountyAttempt(user, unit.id, entryFee);
+          setUser(updatedUser);
+          addToast(`Entry Fee bezahlt: -${entryFee} Coins`, 'info');
+        } catch (error) {
+          console.error('Error deducting bounty entry fee:', error);
+          addToast('Entry Fee konnte nicht abgezogen werden.', 'error');
+          return;
+        }
+      }
+  
+      questCapNotifiedRef.current[unit.id] = false;
+      setCurrentQuest({ unit, type });
+      setIsQuestActive(true);
+      setSelectedUnit(null);
+    };
+  
+    if (!user) return <AuthScreen onLogin={setUser} />;
+  
+    const activeEffect = (name: string) => user?.activeEffects.includes(name) || previewEffect === name;
+    const isDarkMode = activeEffect('dark');
+    const triggerCoinAnimation = () => { setIsFlyingCoinActive(true); setTimeout(() => { setIsCoinPulsing(true); setTimeout(() => setIsCoinPulsing(false), 500); }, 900); };
+  
+    const handleQuestComplete = async (isPerfectRun: boolean) => {
+      if (!currentQuest || !user) return;
+  
+      let nextUser = user;
+      let userPatched = false;
+  
+      if (isPerfectRun) {
+        if (currentQuest.type === 'standard') {
+          try {
+            const { updatedUser, coinsAwarded } = await QuestService.completeStandardQuest(
+              user,
+              currentQuest.unit.id,
+              currentQuest.unit.coinsReward
+            );
+            nextUser = updatedUser;
+            if (coinsAwarded > 0) {
+              addToast(`Quest geschafft! +${coinsAwarded} Coins`, 'success');
+              triggerCoinAnimation();
+            } else {
+              addToast('Quest-Limit erreicht ÔÇô keine weitere Auszahlung f├╝r diese Unit.', 'info');
+            }
+            const perfectStandard = new Set(nextUser.perfectStandardQuizUnits || []);
+            if (!perfectStandard.has(currentQuest.unit.id)) {
+              perfectStandard.add(currentQuest.unit.id);
+              nextUser = { ...nextUser, perfectStandardQuizUnits: Array.from(perfectStandard) };
+              userPatched = true;
+            }
+          } catch (error) {
+            console.error('Error completing standard quest:', error);
+            addToast('Quest-Abschluss fehlgeschlagen.', 'error');
+          }
+        } else if (currentQuest.type === 'bounty') {
+          try {
+            const { updatedUser, coinsAwarded } = await QuestService.completeBountyQuest(
+              user,
+              currentQuest.unit.id,
+              currentQuest.unit.bounty
+            );
+            nextUser = updatedUser;
+            if (coinsAwarded > 0) {
+              addToast(`BOUNTY KASSIERT! +${coinsAwarded} Coins`, 'success');
+              triggerCoinAnimation();
+            } else {
+              addToast('Bounty-Belohnung wurde bereits eingesackt.', 'info');
+            }
+            const perfectBounty = new Set(nextUser.perfectBountyUnits || []);
+            if (!perfectBounty.has(currentQuest.unit.id)) {
+              perfectBounty.add(currentQuest.unit.id);
+              nextUser = { ...nextUser, perfectBountyUnits: Array.from(perfectBounty) };
+              userPatched = true;
+            }
+          } catch (error) {
+            console.error('Error completing bounty quest:', error);
+            addToast('Bounty-Abschluss fehlgeschlagen.', 'error');
+          }
+        } else {
+          nextUser = await QuestService.completePreQuest(user, currentQuest.unit.id);
+          addToast('Training beendet!', 'success');
+        }
+      }
+  
+      if (userPatched) {
+        await DataService.updateUser(nextUser);
+      }
+  
+      setUser(nextUser);
+      setIsQuestActive(false);
+      setCurrentQuest(null);
+    };
+  
+    const handlePreview = async (item: ShopItem, cost: number) => {
+      if (previewEffect === item.value) { setPreviewEffect(null); return; }
+      if (cost > 0 && user.coins >= cost) {
+        const u = {...user, coins: user.coins - cost};
+        setUser(u); await DataService.updateUser(u);
+        addToast(`${cost} Coins f├╝r Vorschau`, 'info');
+      } else if (cost > 0) { addToast('Nicht genug Coins f├╝r Vorschau!', 'error'); return; }
+      setPreviewEffect(item.value);
+    };
+  
+    return (
+      <div className={`min-h-screen transition-all duration-700 ${isDarkMode ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}>
+        <ToastContainer toasts={toasts} />
+        <CoinFlightAnimation isActive={isFlyingCoinActive} onComplete={() => setIsFlyingCoinActive(false)} />
+        {isCalculatorOpen && <CalculatorWidget skin={user.calculatorSkin} onClose={() => setIsCalculatorOpen(false)} />}
+  
+        {/* Visual Effects */}
+        {activeEffect('rain') && <MatrixRain />}
+        {activeEffect('storm') && <ElectricStorm />}
+        {activeEffect('dark') && <VoidProtocol />}
+        {activeEffect('unicorn') && <UnicornMagic />}
+        {activeEffect('neon') && <NeonDreams />}
+        {activeEffect('galaxy') && <GalaxyMode />}
+        {activeEffect('fire') && <FireBlaze />}
+        {activeEffect('rainbow') && <ChromaAura />}
+        {activeEffect('singularity') && <SingularityEngine />}
+        {activeEffect('eventHorizon') && <EventHorizonUI />}
+        {activeEffect('quantum') && <QuantumAfterimage />}
+  
+        {!isQuestActive && (
+           <>
+            <nav className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] backdrop-blur-2xl border-2 p-2 rounded-full shadow-2xl flex items-center gap-1 ${isDarkMode ? 'bg-slate-900/80 border-slate-700' : 'bg-white/80 border-slate-200'}`}>
+               {(['learn', 'community', 'shop'] as const).map(tab => (<button key={tab} onClick={() => { setActiveTab(tab); if (tab !== 'shop' && previewEffect) setPreviewEffect(null); }} className={`px-8 py-4 rounded-full font-black text-[10px] uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-slate-950 text-white scale-105 shadow-xl' : 'text-slate-400 hover:text-slate-900'}`}>{tab === 'learn' ? 'Learn' : tab === 'community' ? 'Class' : 'Shop'}</button>))}
+            </nav>
+            <header className={`sticky top-0 z-50 backdrop-blur-xl border-b-2 px-6 py-4 flex items-center justify-between ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-100'}`}>
+               <div onClick={() => setIsInventoryOpen(true)} className="flex items-center gap-4 cursor-pointer group hover:opacity-70 transition-all">
+                  <div className="text-3xl bg-slate-100 rounded-full w-14 h-14 flex items-center justify-center border-4 border-white shadow-xl transition-transform group-hover:scale-110">{user.avatar}</div>
+                  <div><span className="font-black italic uppercase block text-xs tracking-tight">{user.username}</span><span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">Lv. {Math.floor(user.xp / 100) + 1}</span></div>
+              </div>
+              <div className="flex gap-3 items-center">
+                  <button onClick={() => setIsCalculatorOpen(true)} className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">­ƒº«</button>
+                  <div className={`px-6 py-3 bg-slate-950 text-white rounded-2xl font-black text-xs transition-all shadow-xl ${isCoinPulsing ? 'scale-110 bg-amber-500' : ''}`}>­ƒ¬Ö {user.coins}</div>
+              </div>
+            </header>
+            <main className="max-w-7xl mx-auto px-6 py-12 pb-36 relative z-10">
+              {activeTab === 'learn' && (<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">{LEARNING_UNITS.map(unit => {
+                const questStats = getQuestStats(user, unit.id);
+                const tileStatus = getTileStatus(unit.id, user);
+                const bountyLabel = tileStatus === 'bounty_cleared' ? 'Bounty erledigt' : tileStatus === 'gold_unlocked' ? 'Bounty bereit' : 'Bounty gesperrt';
+                const bountyClass =
+                  tileStatus === 'bounty_cleared'
+                    ? 'text-emerald-500'
+                    : tileStatus === 'gold_unlocked'
+                    ? 'text-indigo-500'
+                    : 'text-slate-400';
+                return (
+                  <GlassCard
+                    key={unit.id}
+                    onClick={() => setSelectedUnit(unit)}
+                    isInteractive={true}
+                    className={`overflow-hidden border-b-8 ${(user.masteredUnits?.includes(unit.id) ?? false) ? 'border-emerald-500 shadow-emerald-500/20' : (user.completedUnits?.includes(unit.id) ?? false) ? 'border-amber-500 shadow-amber-500/20' : `!border-b-${GROUP_THEME[unit.group].color}-500`} ${isDarkMode ? 'bg-slate-900/50' : 'bg-white shadow-xl'}`}
+                  >
+                    <div className="flex justify-between items-start mb-6">
+                      <Badge color={GROUP_THEME[unit.group].color as any}>{unit.category}</Badge>
+                      <DifficultyStars difficulty={unit.difficulty} />
+                    </div>
+                    <CardTitle className="mb-3">{unit.title}</CardTitle>
+                    <p className="text-[11px] text-slate-400 font-bold italic mb-4 leading-relaxed h-12 overflow-hidden">{unit.description}</p>
+                    <div className="space-y-3 mb-4">
+                      <div className="flex items-center justify-between text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                        <span>Quest-Fortschritt</span>
+                        <span>{questStats.percent}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div
+                          className={`h-full ${questStats.capReached ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                          style={{ width: `${questStats.percent}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] font-black text-slate-500 uppercase">
+                        <span>Coins</span>
+                        <span>{questStats.earned} / {Number.isFinite(questStats.cap) ? questStats.cap : 'Ôê×'}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-500">
+                        <span>Bounty</span>
+                        <span className={bountyClass}>{bountyLabel}</span>
+                      </div>
+                      {questStats.capReached && (
+                        <div className="text-[10px] font-black uppercase text-amber-500">Cap erreicht ÔÇô nur noch Training</div>
+                      )}
+                    </div>
+                    <div className="flex justify-between items-center text-[9px] font-black text-slate-300 uppercase tracking-widest border-t border-slate-50 pt-4">
+                      <span>Reward: {unit.coinsReward}</span>
+                      <span>Bounty: {unit.bounty}</span>
+                    </div>
+                  </GlassCard>
+                );
+              })}</div>)}
+              {activeTab === 'community' && <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[70vh]"><ChatView currentUser={user} /><LeaderboardView currentUser={user} onChallenge={() => {}} /></div>}
+              {activeTab === 'shop' && <ShopView user={user} onBuy={async (item) => { if (user.coins >= item.cost) { const u = {...user, coins: user.coins - item.cost, unlockedItems: [...new Set([...user.unlockedItems, item.id])]}; if (item.type === 'calculator') u.calculatorSkin = item.value; setUser(u); await DataService.updateUser(u); addToast(`${item.name} gekauft!`, 'success'); } else { addToast('Nicht genug Coins!', 'error'); }}} onPreview={handlePreview} previewEffect={previewEffect} isDarkMode={isDarkMode} />}
+            </main>
+          </>
+        )}
+  
+        {selectedUnit && (
+          <UnitView
+            unit={selectedUnit}
+            user={user}
+            bountyCompleted={Boolean(user.bountyPayoutClaimed?.[selectedUnit.id])}
+            onClose={() => setSelectedUnit(null)}
+            onStartQuest={startQuest}
+          />
+        )}
+        {isInventoryOpen && <InventoryModal user={user} onClose={() => setIsInventoryOpen(false)} onToggleEffect={async e => { const u = {...user, activeEffects: user.activeEffects.includes(e) ? user.activeEffects.filter(x => x !== e) : [...user.activeEffects, e]}; setUser(u); await DataService.updateUser(u); }} onAvatarChange={async v => { const u = {...user, avatar: v}; setUser(u); await DataService.updateUser(u); }} onSkinChange={async s => { const u = {...user, calculatorSkin: s}; setUser(u); await DataService.updateUser(u); }} />}
+  
+        {isQuestActive && currentQuest && (
+            <div className="fixed inset-0 z-[120] bg-slate-50 flex flex-col">
+                {currentQuest.type === 'pre' ? (
+                    <div className="flex-1 flex flex-col p-4 sm:p-10 max-w-4xl mx-auto w-full">
+                        <div className="flex justify-between items-center mb-8 shrink-0">
+                            <Button variant="ghost" onClick={() => setIsQuestActive(false)}>Ô£ò Beenden</Button>
+                            <Badge color="amber">Training-Modus</Badge>
+                        </div>
+                        <div className="flex-1 min-h-0">
+                            {currentQuest.unit.id === 'u1' && <ShapeBandit task={tasksForCurrentQuest[0]} onComplete={() => handleQuestComplete(true)} onBonus={async (c) => { const u = {...user, coins: user.coins + c}; setUser(u); await DataService.updateUser(u); triggerCoinAnimation(); addToast(`JACKPOT! +${c} Coins`, 'success'); }} />}
+                            {currentQuest.unit.id === 'u2' && <BottleToss task={tasksForCurrentQuest[0]} onComplete={() => handleQuestComplete(true)} />}
+                        </div>
+                    </div>
+                ) : (
+                    <QuestExecutionView
+                        unit={currentQuest.unit}
+                        tasks={tasksForCurrentQuest}
+                        isBountyMode={currentQuest.type === 'bounty'}
+                        user={user}
+                        onTaskCorrect={async (task, wager) => {
+                          if (!currentQuest) return;
+                          const questMode = currentQuest.type === 'bounty' ? 'bounty' : 'standard';
+                          try {
+                            const { updatedUser, coinsAwarded } = await QuestService.awardCoinsForQuestion(
+                              user,
+                              currentQuest.unit.id,
+                              task.id,
+                              10 + wager,
+                              questMode
+                            );
+                            setUser(updatedUser);
+                            if (coinsAwarded > 0) {
+                              triggerCoinAnimation();
+                            } else if (questMode === 'standard') {
+                              if (!questCapNotifiedRef.current[currentQuest.unit.id]) {
+                                questCapNotifiedRef.current[currentQuest.unit.id] = true;
+                                addToast('Quest-Limit erreicht: keine weiteren Bonus-Coins in dieser Unit.', 'info');
+                              }
+                            }
+                          } catch (error) {
+                            console.error('Error awarding coins for question:', error);
+                            addToast('Coin-Belohnung fehlgeschlagen.', 'error');
+                          }
+                        }}
+                        onCoinsChange={async (delta) => {
+                          if (!currentQuest) return;
+                          const questMode = currentQuest.type === 'bounty' ? 'bounty' : 'standard';
+                          try {
+                            const { updatedUser, coinsDelta } = await QuestService.adjustCoinsForQuest(
+                              user,
+                              currentQuest.unit.id,
+                              delta,
+                              questMode
+                            );
+                            setUser(updatedUser);
+                            if (delta > 0) {
+                              if (coinsDelta > 0) {
+                                triggerCoinAnimation();
+                                addToast(`+${coinsDelta} Coins`, 'success');
+                              } else if (questMode === 'standard') {
+                                if (!questCapNotifiedRef.current[currentQuest.unit.id]) {
+                                  questCapNotifiedRef.current[currentQuest.unit.id] = true;
+                                  addToast('Quest-Limit erreicht: keine weiteren Bonus-Coins in dieser Unit.', 'info');
+                                }
+                              }
+                            } else if (delta < 0) {
+                              addToast(`${delta} Coins`, 'info');
+                            }
+                          } catch (error) {
+                            console.error('Error adjusting coins:', error);
+                            addToast('Coin-Anpassung fehlgeschlagen.', 'error');
+                          }
+                        }}
+                        onComplete={handleQuestComplete}
+                        onCancel={() => setIsQuestActive(false)}
+                    />
+                )}
+            </div>
+        )}
+      </div>
+    );
+  }
+  
+> const UnitView: React.FC<{
+    unit: LearningUnit;
+    user: User;
+    bountyCompleted: boolean;
+    onClose: () => void;
+    onStartQuest: (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty') => Promise<void> | void;
+  }> = ({ unit, user, bountyCompleted, onClose, onStartQuest }) => {
+      const [activeTab, setActiveTab] = useState<'info' | 'pre' | 'standard' | 'bounty'>('info');
+      const [isStartingBounty, setIsStartingBounty] = useState(false);
+      const definition = GEOMETRY_DEFINITIONS.find(d => d.id === unit.definitionId);
+      const entryFee = computeEntryFee(unit.bounty);
+      const insufficientCoins = user.coins < entryFee;
+      const questStats = getQuestStats(user, unit.id);
+      const tileStatus = getTileStatus(unit.id, user);
+      const bountyUnlocked = tileStatus !== 'locked';
+      const bountyCleared = bountyCompleted || tileStatus === 'bounty_cleared';
+  
+      const handleBountyStart = async () => {
+          if (isStartingBounty) return;
+          setIsStartingBounty(true);
+          try {
+              // Small delay to ensure state updates
+              await new Promise(resolve => setTimeout(resolve, 100));
+              await onStartQuest(unit, 'bounty');
+              // Reset after transition
+              setTimeout(() => setIsStartingBounty(false), 500);
+          } catch (error) {
+              console.error('Error starting bounty:', error);
+              setIsStartingBounty(false);
+          }
+      };
+      return (
+          <ModalOverlay onClose={onClose}>
+              <div className="bg-white rounded-[3rem] p-10 max-w-3xl w-full mx-auto relative shadow-2xl border-8 border-slate-50 animate-in zoom-in-95 duration-300">
+                  <button onClick={onClose} className="absolute top-8 right-8 w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center font-black text-slate-400 hover:bg-rose-500 hover:text-white transition-all shadow-sm">Ô£ò</button>
+                  <div className="flex items-center gap-3 mb-4"><Badge color={GROUP_THEME[unit.group].color as any}>{unit.category}</Badge><DifficultyStars difficulty={unit.difficulty} /></div>
+                  <SectionHeading className="mb-4 text-slate-950 !text-4xl uppercase">{unit.title}</SectionHeading>
+                  <div className="border-b border-slate-100 mb-8 flex flex-wrap md:flex-nowrap gap-3 md:gap-8 overflow-hidden md:overflow-x-auto scrollbar-hide">
+                      {(['info', 'pre', 'standard', 'bounty'] as const).map(id => (
+                         <button
+                            key={id}
+                            onClick={() => setActiveTab(id)}
+                            disabled={id === 'pre'}
+                            className={`pb-4 px-1 border-b-4 font-black text-[11px] leading-tight uppercase tracking-widest transition-all text-center md:text-left whitespace-normal md:whitespace-nowrap ${id === 'pre' ? 'opacity-40 cursor-not-allowed text-slate-300' : activeTab === id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-300 hover:text-slate-600'}`}
+                         >
+                            {id === 'info' ? 'Spickzettel' : id === 'pre' ? 'Training (Coming Soon)' : id === 'standard' ? 'Quest' : 'Bounty'}
+                         </button>
+                      ))}
+                  </div>
+                  <div className="min-h-[400px] overflow-y-auto custom-scrollbar pr-4">
+                      {activeTab === 'info' && (
+                         <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+                            <p className="text-sm text-slate-500 font-bold italic leading-relaxed bg-slate-50 p-6 rounded-3xl">{unit.detailedInfo}</p>
+                            {definition && (
+                               <div className="space-y-6">
+                                  <div className="p-8 bg-indigo-600 rounded-[2.5rem] shadow-xl text-white relative overflow-hidden group">
+                                      <h5 className="text-[10px] font-black uppercase text-indigo-200 mb-2 tracking-widest">Master-Formel:</h5>
+                                      <div className="text-3xl font-black italic tracking-tighter drop-shadow-md">{definition.formula}</div>
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                     {definition.terms.map((t, i) => (
+                                        <div key={i} className="p-6 rounded-[2rem] border-2 border-slate-100 bg-white hover:border-indigo-200 hover:shadow-lg transition-all flex flex-col gap-4">
+                                           {t.visual && (<div className="w-full h-24 bg-slate-50 rounded-2xl flex items-center justify-center shrink-0 shadow-inner"><svg viewBox="0 0 200 100" className="w-16 h-16 text-indigo-500"><path d={t.visual} fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" /></svg></div>)}
+                                           <div><h6 className="font-black text-xs uppercase mb-1 text-slate-900 tracking-wide">{t.term}</h6><p className="text-[10px] text-slate-400 font-bold leading-relaxed italic">{t.definition}</p></div>
+                                        </div>
+                                     ))}
+                                  </div>
+                               </div>
+                            )}
+                         </div>
+                      )}
+                      {activeTab === 'pre' && <div className="text-center py-16 space-y-8 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200"><div className="text-7xl animate-bounce">­ƒò╣´©Å</div><h4 className="text-2xl font-black italic text-slate-900">Training Session</h4><p className="font-bold text-slate-400 text-sm max-w-sm mx-auto uppercase tracking-tighter italic">Lerne die Mechaniken spielerisch kennen.</p><Button onClick={() => onStartQuest(unit, 'pre')} className="w-full max-w-xs mx-auto !py-5 shadow-xl">Start Training</Button></div>}
+                      {activeTab === 'standard' && (
+                        <div className="text-center py-12 space-y-6 bg-indigo-50/50 rounded-[3rem] border-2 border-indigo-100">
+                          <div className="text-7xl">­ƒÄ»</div>
+                          <h4 className="text-2xl font-black italic text-indigo-900">Quest Modus</h4>
+                          <p className="font-bold text-slate-400 text-sm max-w-sm mx-auto">
+                            Standard-Fragen zum Thema. Belohnung:
+                            <span className="text-amber-500 font-black"> {unit.coinsReward} Coins</span>.
+                          </p>
+                          <div className="space-y-2 text-left">
+                            <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-500">
+                              <span>Coins</span>
+                              <span>{questStats.earned} / {Number.isFinite(questStats.cap) ? questStats.cap : 'Ôê×'}</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-white overflow-hidden">
+                              <div className={`${questStats.capReached ? 'bg-emerald-500' : 'bg-indigo-500'} h-full`} style={{ width: `${questStats.percent}%` }} />
+                            </div>
+                            {questStats.capReached && (
+                              <div className="text-[11px] font-black uppercase text-amber-500">
+                                Kein weiterer Coin-Gewinn m├Âglich ÔÇô weiter trainieren!
+                              </div>
+                            )}
+                          </div>
+                          <Button onClick={() => onStartQuest(unit, 'standard')} className="w-full max-w-xs mx-auto !py-5">
+                            Quiz starten
+                          </Button>
+                        </div>
+                      )}
+                      {activeTab === 'bounty' && (
+                        <div className="text-center py-16 space-y-6 bg-slate-900 rounded-[3rem] border-4 border-amber-500/30 text-white">
+                          <div className="text-7xl">­ƒÅ┤ÔÇìÔÿá´©Å</div>
+                          <h4 className="text-2xl font-black italic text-amber-400">Bounty Hunt</h4>
+                          <p className="font-bold text-slate-400 text-sm max-w-sm mx-auto uppercase italic">
+                            Zeitlimit & Extra-Schwer.<br />
+                            Extra Reward: <span className="text-amber-400 font-black">+{unit.bounty} Coins</span> (einmalig).
+                          </p>
+                          <p className="text-xs font-black tracking-widest text-slate-300">
+                            Entry Fee: <span className="text-amber-300">-{entryFee} Coins</span> ÔÇó Reward bei Erfolg: <span className="text-emerald-300">+{unit.bounty} Coins</span>
+                          </p>
+                          <p className="text-[11px] font-black uppercase text-amber-300">
+                            Status: {bountyCleared ? 'Bounty erledigt' : bountyUnlocked ? 'Freigeschaltet' : 'Gesperrt'}
+                          </p>
+                          {!bountyUnlocked && (
+                            <p className="text-[11px] font-black uppercase text-amber-200 max-w-sm mx-auto">
+                              Erst Quest perfekt abschlie├ƒen, um die Bounty zu aktivieren.
+                            </p>
+                          )}
+                          {bountyCompleted && (
+                            <p className="text-[11px] font-black uppercase text-amber-300 max-w-sm mx-auto">
+                              Bounty bereits abgeschlossen ÔÇô keine weitere Auszahlung. Snooze runs kosten weiterhin Entry Fee.
+                            </p>
+                          )}
+                          <Button
+                            variant="danger"
+                            onClick={handleBountyStart}
+                            disabled={!bountyUnlocked || isStartingBounty || bountyCompleted || insufficientCoins}
+                            className="w-full max-w-xs mx-auto !py-5 shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {bountyCompleted
+                              ? 'Bounty gemeistert'
+                              : !bountyUnlocked
+                              ? 'Gesperrt'
+                              : insufficientCoins
+                              ? `­ƒÆ░ ${user.coins}/${entryFee}`
+                              : isStartingBounty
+                              ? 'Starte...'
+                              : `Accept Bounty ÔÜö´©Å (-${entryFee})`}
+                          </Button>
+                        </div>
+                      )}
+                  </div>
+              </div>
+          </ModalOverlay>
+      );
+  };
+  
+  // --- Angle Measure Task Component ---
+  const AngleMeasureTask: React.FC<{
+    task: Task;
+    angleInput: string;
+    setAngleInput: (value: string) => void;
+    disabled?: boolean;
+  }> = ({ task, angleInput, setAngleInput, disabled = false }) => {
+    const [hoverAngle, setHoverAngle] = useState<number | null>(null);
+    const [showProtractor, setShowProtractor] = useState(false);
+    const angleData = task.angleData;
+    if (!angleData) return null;
+  
+    // Use correct angle directly from task data instead of parsing path
+    const correctAngle = angleData.correctAngle;
+  
+    const calculateAngle = (mouseX: number, mouseY: number, svgElement: SVGSVGElement): number => {
+      // Convert mouse coordinates to SVG coordinates
+      const rect = svgElement.getBoundingClientRect();
+      const svgX = ((mouseX - rect.left) / rect.width) * 300;
+      const svgY = ((mouseY - rect.top) / rect.height) * 300;
+  
+      // For simplicity, show approximate angle based on mouse position
+      // In a real implementation, you'd parse the path and calculate actual angle
+      // For now, show a range around the correct angle
+      const centerX = 150;
+      const centerY = 150;
+      const dx = svgX - centerX;
+      const dy = centerY - svgY; // Invert Y for screen coordinates
+      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+      const normalizedAngle = angle < 0 ? angle + 360 : angle;
+  
+      // Return angle closest to correct angle within reasonable range
+      return Math.round(normalizedAngle);
+    };
+  
+    const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+      if (disabled) return;
+      const svgElement = e.currentTarget;
+      const angle = calculateAngle(e.clientX, e.clientY, svgElement);
+      // Show angle that's close to correct angle (within ┬▒30┬░ range)
+      const diff = Math.abs(angle - correctAngle);
+      if (diff <= 30 || diff >= 330) {
+        setHoverAngle(correctAngle); // Show correct angle when hovering near it
+      } else {
+        setHoverAngle(angle);
+      }
+      setShowProtractor(true);
+    };
+  
+    const handleMouseLeave = () => {
+      setShowProtractor(false);
+      setHoverAngle(null);
+    };
+  
+    const handleTap = (e: React.MouseEvent<SVGSVGElement>) => {
+      if (disabled) return;
+      const svgElement = e.currentTarget;
+      const angle = calculateAngle(e.clientX, e.clientY, svgElement);
+      // If close to correct angle, use correct angle; otherwise use calculated
+      const diff = Math.abs(angle - correctAngle);
+      const finalAngle = (diff <= 30 || diff >= 330) ? correctAngle : angle;
+      setAngleInput(finalAngle.toString());
+      setShowProtractor(true);
+      setTimeout(() => setShowProtractor(false), 2000);
+    };
+  
+    const handleTouchMove = (e: React.TouchEvent<SVGSVGElement>) => {
+      if (disabled) return;
+      if (!e.touches || e.touches.length === 0) return;
+      const svgElement = e.currentTarget;
+      const t = e.touches[0];
+      const angle = calculateAngle(t.clientX, t.clientY, svgElement);
+      const diff = Math.abs(angle - correctAngle);
+      if (diff <= 30 || diff >= 330) {
+        setHoverAngle(correctAngle);
+      } else {
+        setHoverAngle(angle);
+      }
+      setShowProtractor(true);
+      e.preventDefault();
+    };
+  
+    const handleTouchEnd = (e: React.TouchEvent<SVGSVGElement>) => {
+      if (disabled) return;
+      const svgElement = e.currentTarget;
+      const t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]);
+      if (!t) {
+        setShowProtractor(false);
+        setHoverAngle(null);
+        return;
+      }
+      const angle = calculateAngle(t.clientX, t.clientY, svgElement);
+      const diff = Math.abs(angle - correctAngle);
+      const finalAngle = (diff <= 30 || diff >= 330) ? correctAngle : angle;
+      setAngleInput(finalAngle.toString());
+      setShowProtractor(true);
+      setTimeout(() => setShowProtractor(false), 2000);
+      e.preventDefault();
+    };
+  
+    return (
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center relative">
+          <svg
+            viewBox="0 0 300 300"
+            className="w-full h-full cursor-crosshair touch-manipulation"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            onClick={handleTap}
+            onTouchStart={handleTouchMove}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleMouseLeave}
+          >
+            {angleData.baseLine && (
+              <line
+                x1={angleData.baseLine.x1}
+                y1={angleData.baseLine.y1}
+                x2={angleData.baseLine.x2}
+                y2={angleData.baseLine.y2}
+                stroke={angleData.baseLine.stroke || '#94a3b8'}
+                strokeWidth={angleData.baseLine.strokeWidth || 5}
+                strokeDasharray={angleData.baseLine.dashed ? '6 4' : undefined}
+              />
+            )}
+            {angleData.wallLine && (
+              <line
+                x1={angleData.wallLine.x1}
+                y1={angleData.wallLine.y1}
+                x2={angleData.wallLine.x2}
+                y2={angleData.wallLine.y2}
+                stroke={angleData.wallLine.stroke || '#475569'}
+                strokeWidth={angleData.wallLine.strokeWidth || 5}
+                strokeDasharray={angleData.wallLine.dashed ? '6 4' : undefined}
+              />
+            )}
+            {angleData.helperLines?.map((line, idx) => (
+              <line
+                key={`helper-${idx}`}
+                x1={line.x1}
+                y1={line.y1}
+                x2={line.x2}
+                y2={line.y2}
+                stroke={line.stroke || '#2563eb'}
+                strokeWidth={line.strokeWidth || 4}
+                strokeDasharray={line.dashed ? '6 4' : undefined}
+                strokeLinecap="round"
+              />
+            ))}
+            {(angleData.angleArcs ?? []).map((arc, idx) => (
+              <path
+                key={`arc-${idx}`}
+                d={arc.path}
+                fill={arc.fill || 'rgba(99,102,241,0.25)'}
+

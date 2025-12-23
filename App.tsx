@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LEARNING_UNITS, SHOP_ITEMS, PROGRESS_LEVELS, GEOMETRY_DEFINITIONS } from './constants';
-import { LearningUnit, User, Task, ShopItem, ChatMessage, CategoryGroup, BattleRequest, ToastMessage, ToastType } from './types';
+import { LearningUnit, User, Task, ShopItem, ChatMessage, CategoryGroup, BattleRequest, ToastMessage, ToastType, getTileStatus } from './types';
 import { AuthService, DataService, SocialService, bootstrapServerUser } from './services/apiService';
 import { QuestService } from './services/questService';
+import { getQuestCap, getQuestCoinsEarned, getQuestCapRemaining, isQuestCapReached, computeEntryFee } from './services/economyService';
 import { getMatheHint } from './services/geminiService';
 import { TaskFactory } from './services/taskFactory';
 import {
@@ -24,6 +25,15 @@ const GROUP_LABELS: Record<CategoryGroup, string> = {
   'A': 'Raum & Form',
   'B': 'Messen & Berechnen',
   'C': 'Funktionen & Kontext'
+};
+
+const getQuestStats = (user: User, unitId: string) => {
+  const cap = getQuestCap(user, unitId);
+  const earned = getQuestCoinsEarned(user, unitId);
+  const percent = Number.isFinite(cap) && cap > 0 ? Math.min(100, Math.round((earned / cap) * 100)) : 0;
+  const capReached = isQuestCapReached(user, unitId);
+  const remaining = getQuestCapRemaining(user, unitId);
+  return { cap, earned, percent, capReached, remaining };
 };
 
 // --- Custom Hooks ---
@@ -3352,8 +3362,56 @@ const QuestExecutionView: React.FC<{
                             {task.type === 'angleMeasure' && task.angleData && (
                                 <div className="flex flex-col items-center gap-4">
                                     <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center">
-                                        <svg viewBox="0 0 300 300" className="w-full h-full">
-                                            <path d={task.angleData.path} fill="none" stroke="currentColor" strokeWidth="3" />
+                                        <svg viewBox="0 0 300 300" className="w-full h-full" style={{ color: '#475569' }}>
+                                            {task.angleData.baseLine && (
+                                                <line
+                                                    x1={task.angleData.baseLine.x1}
+                                                    y1={task.angleData.baseLine.y1}
+                                                    x2={task.angleData.baseLine.x2}
+                                                    y2={task.angleData.baseLine.y2}
+                                                    stroke={task.angleData.baseLine.stroke || '#94a3b8'}
+                                                    strokeWidth={task.angleData.baseLine.strokeWidth || 5}
+                                                    strokeDasharray={task.angleData.baseLine.dashed ? '6 4' : undefined}
+                                                />
+                                            )}
+                                            {task.angleData.wallLine && (
+                                                <line
+                                                    x1={task.angleData.wallLine.x1}
+                                                    y1={task.angleData.wallLine.y1}
+                                                    x2={task.angleData.wallLine.x2}
+                                                    y2={task.angleData.wallLine.y2}
+                                                    stroke={task.angleData.wallLine.stroke || '#475569'}
+                                                    strokeWidth={task.angleData.wallLine.strokeWidth || 5}
+                                                    strokeDasharray={task.angleData.wallLine.dashed ? '6 4' : undefined}
+                                                />
+                                            )}
+                                            {task.angleData.helperLines?.map((line, idx) => (
+                                                <line
+                                                    key={`helper-${idx}`}
+                                                    x1={line.x1}
+                                                    y1={line.y1}
+                                                    x2={line.x2}
+                                                    y2={line.y2}
+                                                    stroke={line.stroke || '#2563eb'}
+                                                    strokeWidth={line.strokeWidth || 4}
+                                                    strokeDasharray={line.dashed ? '6 4' : undefined}
+                                                    strokeLinecap="round"
+                                                />
+                                            ))}
+                                            {(task.angleData.angleArcs ?? []).map((arc, idx) => (
+                                                <path
+                                                    key={`arc-${idx}`}
+                                                    d={arc.path}
+                                                    fill={arc.fill || 'rgba(99,102,241,0.25)'}
+                                                    opacity={arc.opacity}
+                                                    stroke={arc.stroke}
+                                                    strokeWidth={arc.strokeWidth || 2}
+                                                    strokeDasharray={arc.strokeDasharray}
+                                                />
+                                            ))}
+                                            {task.angleData.path && (
+                                                <path d={task.angleData.path} fill="none" stroke="currentColor" strokeWidth="3" />
+                                            )}
                                         </svg>
                                     </div>
                                     <div className="w-full max-w-xs">
@@ -3497,11 +3555,14 @@ export default function App() {
     (async () => {
       try {
         const res = await bootstrapServerUser();
-        if (mounted && res && res.user) {
+        // Only update if we got real server data (not dev fallback)
+        if (mounted && res && res.user && (!res.note || !res.note.includes('dev-fallback'))) {
           setUser(res.user);
         }
+        // If bootstrap returned null or dev fallback, keep existing user
       } catch (e) {
         console.warn('bootstrapServerUser failed', e);
+        // On error, keep existing user
       }
     })();
     return () => { mounted = false; };
@@ -3594,12 +3655,29 @@ export default function App() {
       addToast("Nicht genug Coins!", 'error');
       return;
     }
+    // Optimistic update
     let updatedUser = { ...user, coins: user.coins - item.cost };
     if (item.type !== 'feature' && item.type !== 'voucher') {
       updatedUser.unlockedItems = [...new Set([...user.unlockedItems, item.id])];
       if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
     }
     setUser(updatedUser);
+    // Server-side coin adjustment
+    try {
+      const resp = await fetch('/.netlify/functions/coinsAdjust', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delta: -item.cost, reason: 'shop_purchase', refType: 'shop_item', refId: item.id }),
+      });
+      const json = await resp.json();
+      if (json.coins !== undefined) {
+        updatedUser.coins = json.coins;
+        setUser(updatedUser);
+      }
+    } catch (err) {
+      console.warn('coinsAdjust failed, using local update', err);
+    }
+    // Save user data (unlockedItems, etc.)
     await DataService.updateUser(updatedUser);
     addToast(`"${item.name}" gekauft!`, 'success');
   };
@@ -3672,26 +3750,47 @@ export default function App() {
             {activeTab === 'learn' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {(LEARNING_UNITS || []).map(unit => {
-                    const isGold = user.completedUnits?.includes(unit.id) || false;
-                    const isMastered = user.masteredUnits?.includes(unit.id) || false;
+                    const questStats = getQuestStats(user, unit.id);
+                    const tileStatus = getTileStatus(unit.id, user);
+                    const bountyLabel = tileStatus === 'bounty_cleared' ? 'Bounty erledigt' : tileStatus === 'gold_unlocked' ? 'Bounty bereit' : 'Bounty gesperrt';
+                    const bountyClass = tileStatus === 'bounty_cleared' ? 'text-emerald-500' : tileStatus === 'gold_unlocked' ? 'text-indigo-500' : 'text-slate-400';
 
                     return (
                       <GlassCard
                         key={unit.id}
                         onClick={() => setSelectedUnit(unit)}
                         isInteractive={true}
-                        className={`overflow-hidden border-b-4 ${isMastered ? 'border-emerald-500 tile-bounty-cleared' : isGold ? 'border-amber-500 tile-gold-unlocked' : `!border-b-${GROUP_THEME[unit.group].color}-500`} ${isDarkMode ? 'bg-slate-900/50' : 'bg-white'}`}
+                        className={`overflow-hidden border-b-8 ${(user.masteredUnits?.includes(unit.id) ?? false) ? 'border-emerald-500 shadow-emerald-500/20' : (user.completedUnits?.includes(unit.id) ?? false) ? 'border-amber-500 shadow-amber-500/20' : `!border-b-${GROUP_THEME[unit.group].color}-500`} ${isDarkMode ? 'bg-slate-900/50' : 'bg-white shadow-xl'}`}
                       >
-                         <div className="flex justify-between items-start mb-4">
+                         <div className="flex justify-between items-start mb-6">
                             <Badge color={GROUP_THEME[unit.group].color as any}>{unit.category}</Badge>
                             <DifficultyStars difficulty={unit.difficulty} />
                          </div>
-                         <CardTitle className="mb-2">{unit.title}</CardTitle>
-                         <p className="text-xs text-slate-500 font-medium italic mb-4">{unit.description}</p>
-                         <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase">
-                            <span>{isGold ? '✅ Erhalten' : `Reward: ${unit.coinsReward}`}</span>
-                            <span>•</span>
-                            <span>{isMastered ? '🔥 Kassiert' : `Bounty: ${unit.bounty}`}</span>
+                         <CardTitle className="mb-3">{unit.title}</CardTitle>
+                         <p className="text-[11px] text-slate-400 font-bold italic mb-4 leading-relaxed h-12 overflow-hidden">{unit.description}</p>
+                         <div className="space-y-3 mb-4">
+                            <div className="flex items-center justify-between text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                              <span>Quest-Fortschritt</span>
+                              <span>{questStats.percent}%</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                              <div className={`h-full ${questStats.capReached ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${questStats.percent}%` }} />
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] font-black text-slate-500 uppercase">
+                              <span>Coins</span>
+                              <span>{questStats.earned} / {Number.isFinite(questStats.cap) ? questStats.cap : '∞'}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-500">
+                              <span>Bounty</span>
+                              <span className={bountyClass}>{bountyLabel}</span>
+                            </div>
+                            {questStats.capReached && (
+                              <div className="text-[10px] font-black uppercase text-amber-500">Cap erreicht – nur noch Training</div>
+                            )}
+                         </div>
+                         <div className="flex justify-between items-center text-[9px] font-black text-slate-300 uppercase tracking-widest border-t border-slate-50 pt-4">
+                            <span>Reward: {unit.coinsReward}</span>
+                            <span>Bounty: {unit.bounty}</span>
                          </div>
                       </GlassCard>
                     );
@@ -3721,7 +3820,15 @@ export default function App() {
         </>
       )}
 
-      {selectedUnit && <UnitView unit={selectedUnit} user={user} onClose={() => setSelectedUnit(null)} onStartQuest={startQuest} />}
+      {selectedUnit && (
+        <UnitView
+          unit={selectedUnit}
+          user={user}
+          bountyCompleted={Boolean(user.bountyPayoutClaimed?.[selectedUnit.id])}
+          onClose={() => setSelectedUnit(null)}
+          onStartQuest={startQuest}
+        />
+      )}
 
       {isInventoryOpen && <InventoryModal user={user} onClose={() => setIsInventoryOpen(false)} onToggleEffect={handleToggleEffect} onAvatarChange={async (v) => { const u = {...user, avatar: v}; setUser(u); await DataService.updateUser(u); }} onSkinChange={async (v) => { const u = {...user, calculatorSkin: v}; setUser(u); await DataService.updateUser(u); }} />}
 
@@ -3742,90 +3849,148 @@ export default function App() {
 }
 
 // Kompaktes Quest-Modal im RealMath-Stil
-const UnitView: React.FC<{ unit: LearningUnit; user: User; onClose: () => void; onStartQuest: (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty', options?: { timeLimit?: number; noCheatSheet?: boolean }) => void; }> = ({ unit, user, onClose, onStartQuest }) => {
-    const [timeLimitEnabled, setTimeLimitEnabled] = useState(false);
-    const [timeLimitSeconds, setTimeLimitSeconds] = useState(60);
-    const [noCheatSheet, setNoCheatSheet] = useState(false);
+const UnitView: React.FC<{
+  unit: LearningUnit;
+  user: User;
+  bountyCompleted: boolean;
+  onClose: () => void;
+  onStartQuest: (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty', options?: { timeLimit?: number; noCheatSheet?: boolean }) => Promise<void> | void;
+}> = ({ unit, user, bountyCompleted, onClose, onStartQuest }) => {
+    const [activeTab, setActiveTab] = useState<'info' | 'pre' | 'standard' | 'bounty'>('info');
+    const [isStartingBounty, setIsStartingBounty] = useState(false);
     const definition = GEOMETRY_DEFINITIONS.find(d => d.id === unit.definitionId);
+    const entryFee = computeEntryFee(unit.bounty);
+    const insufficientCoins = user.coins < entryFee;
+    const questStats = getQuestStats(user, unit.id);
+    const tileStatus = getTileStatus(unit.id, user);
+    const bountyUnlocked = tileStatus !== 'locked';
+    const bountyCleared = bountyCompleted || tileStatus === 'bounty_cleared';
 
-    const handleStart = () => {
-        const options = {
-            timeLimit: timeLimitEnabled ? timeLimitSeconds : undefined,
-            noCheatSheet: noCheatSheet
-        };
-        // If time limit is enabled, use bounty mode, otherwise standard
-        onStartQuest(unit, timeLimitEnabled ? 'bounty' : 'standard', options);
+    const handleBountyStart = async () => {
+        if (isStartingBounty) return;
+        setIsStartingBounty(true);
+        try {
+            // Small delay to ensure state updates
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await onStartQuest(unit, 'bounty');
+            // Reset after transition
+            setTimeout(() => setIsStartingBounty(false), 500);
+        } catch (error) {
+            console.error('Error starting bounty:', error);
+            setIsStartingBounty(false);
+        }
     };
-
     return (
         <ModalOverlay onClose={onClose}>
-            <div className="bg-white rounded-[2rem] p-8 max-w-2xl w-full mx-auto relative">
-                <button onClick={onClose} className="absolute top-6 right-6 w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-400 hover:bg-rose-100 hover:text-rose-500 transition-colors">✕</button>
-
-                <div className="flex items-center gap-3 mb-4">
-                    <Badge color={GROUP_THEME[unit.group].color as any}>{unit.category}</Badge>
-                    <DifficultyStars difficulty={unit.difficulty} />
+            <div className="bg-white rounded-[3rem] p-10 max-w-3xl w-full mx-auto relative shadow-2xl border-8 border-slate-50 animate-in zoom-in-95 duration-300">
+                <button onClick={onClose} className="absolute top-8 right-8 w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center font-black text-slate-400 hover:bg-rose-500 hover:text-white transition-all shadow-sm">✕</button>
+                <div className="flex items-center gap-3 mb-4"><Badge color={GROUP_THEME[unit.group].color as any}>{unit.category}</Badge><DifficultyStars difficulty={unit.difficulty} /></div>
+                <SectionHeading className="mb-4 text-slate-950 !text-4xl uppercase">{unit.title}</SectionHeading>
+                <div className="border-b border-slate-100 mb-8 flex flex-wrap md:flex-nowrap gap-3 md:gap-8 overflow-hidden md:overflow-x-auto scrollbar-hide">
+                    {(['info', 'pre', 'standard', 'bounty'] as const).map(id => (
+                       <button
+                          key={id}
+                          onClick={() => setActiveTab(id)}
+                          disabled={id === 'pre'}
+                          className={`pb-4 px-1 border-b-4 font-black text-[11px] leading-tight uppercase tracking-widest transition-all text-center md:text-left whitespace-normal md:whitespace-nowrap ${id === 'pre' ? 'opacity-40 cursor-not-allowed text-slate-300' : activeTab === id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-300 hover:text-slate-600'}`}
+                       >
+                          {id === 'info' ? 'Spickzettel' : id === 'pre' ? 'Training (Coming Soon)' : id === 'standard' ? 'Quest' : 'Bounty'}
+                       </button>
+                    ))}
                 </div>
-
-                <SectionHeading className="mb-2 text-indigo-600">{unit.title}</SectionHeading>
-                <p className="text-slate-500 mb-6 italic">{unit.detailedInfo}</p>
-
-                {/* Options */}
-                <div className="space-y-4 mb-8 p-6 bg-slate-50 rounded-2xl border-2 border-slate-200">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={timeLimitEnabled}
-                            onChange={(e) => setTimeLimitEnabled(e.target.checked)}
-                            className="w-5 h-5 rounded border-2 border-slate-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
-                        />
-                        <div className="flex-1">
-                            <span className="font-bold text-slate-700">Zeitlimit pro Frage</span>
-                            {timeLimitEnabled && (
-                                <div className="mt-2 flex items-center gap-2">
-                                    <input
-                                        type="number"
-                                        min="10"
-                                        max="300"
-                                        value={timeLimitSeconds}
-                                        onChange={(e) => setTimeLimitSeconds(Math.max(10, Math.min(300, parseInt(e.target.value) || 60)))}
-                                        className="w-20 p-2 rounded-lg border-2 border-slate-300 text-sm font-bold"
-                                    />
-                                    <span className="text-sm text-slate-600">Sekunden</span>
+                <div className="min-h-[400px] overflow-y-auto custom-scrollbar pr-4">
+                    {activeTab === 'info' && (
+                       <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+                          <p className="text-sm text-slate-500 font-bold italic leading-relaxed bg-slate-50 p-6 rounded-3xl">{unit.detailedInfo}</p>
+                          {definition && (
+                             <div className="space-y-6">
+                                <div className="p-8 bg-indigo-600 rounded-[2.5rem] shadow-xl text-white relative overflow-hidden group">
+                                    <h5 className="text-[10px] font-black uppercase text-indigo-200 mb-2 tracking-widest">Master-Formel:</h5>
+                                    <div className="text-3xl font-black italic tracking-tighter drop-shadow-md">{definition.formula}</div>
                                 </div>
-                            )}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                   {definition.terms.map((t, i) => (
+                                      <div key={i} className="p-6 rounded-[2rem] border-2 border-slate-100 bg-white hover:border-indigo-200 hover:shadow-lg transition-all flex flex-col gap-4">
+                                         {t.visual && (<div className="w-full h-24 bg-slate-50 rounded-2xl flex items-center justify-center shrink-0 shadow-inner"><svg viewBox="0 0 200 100" className="w-16 h-16 text-indigo-500"><path d={t.visual} fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="round" /></svg></div>)}
+                                         <div><h6 className="font-black text-xs uppercase mb-1 text-slate-900 tracking-wide">{t.term}</h6><p className="text-[10px] text-slate-400 font-bold leading-relaxed italic">{t.definition}</p></div>
+                                      </div>
+                                   ))}
+                                </div>
+                             </div>
+                          )}
+                       </div>
+                    )}
+                    {activeTab === 'pre' && <div className="text-center py-16 space-y-8 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200"><div className="text-7xl animate-bounce">🎮</div><h4 className="text-2xl font-black italic text-slate-900">Training Session</h4><p className="font-bold text-slate-400 text-sm max-w-sm mx-auto uppercase tracking-tighter italic">Lerne die Mechaniken spielerisch kennen.</p><Button onClick={() => onStartQuest(unit, 'pre')} className="w-full max-w-xs mx-auto !py-5 shadow-xl">Start Training</Button></div>}
+                    {activeTab === 'standard' && (
+                      <div className="text-center py-12 space-y-6 bg-indigo-50/50 rounded-[3rem] border-2 border-indigo-100">
+                        <div className="text-7xl">🎯</div>
+                        <h4 className="text-2xl font-black italic text-indigo-900">Quest Modus</h4>
+                        <p className="font-bold text-slate-400 text-sm max-w-sm mx-auto">
+                          Standard-Fragen zum Thema. Belohnung:
+                          <span className="text-amber-500 font-black"> {unit.coinsReward} Coins</span>.
+                        </p>
+                        <div className="space-y-2 text-left">
+                          <div className="flex items-center justify-between text-[10px] font-black uppercase text-slate-500">
+                            <span>Coins</span>
+                            <span>{questStats.earned} / {Number.isFinite(questStats.cap) ? questStats.cap : '∞'}</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-white overflow-hidden">
+                            <div className={`${questStats.capReached ? 'bg-emerald-500' : 'bg-indigo-500'} h-full`} style={{ width: `${questStats.percent}%` }} />
+                          </div>
+                          {questStats.capReached && (
+                            <div className="text-[11px] font-black uppercase text-amber-500">
+                              Kein weiterer Coin-Gewinn möglich – weiter trainieren!
+                            </div>
+                          )}
                         </div>
-                    </label>
-
-                    <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={noCheatSheet}
-                            onChange={(e) => setNoCheatSheet(e.target.checked)}
-                            className="w-5 h-5 rounded border-2 border-slate-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
-                        />
-                        <div>
-                            <span className="font-bold text-slate-700">Spickzettel deaktivieren</span>
-                            <p className="text-xs text-slate-500 mt-1">Keine Tipps während der Quest verfügbar</p>
-                        </div>
-                    </label>
-                </div>
-
-                {/* Info */}
-                <div className="mb-6 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                    <p className="text-sm text-slate-700">
-                        Löse 5 zufällige Aufgaben zum Thema.
-                        {timeLimitEnabled ? (
-                            <span> Perfekter Run mit Zeitlimit bringt <span className="font-black text-amber-500">{unit.bounty} Coins</span>!</span>
-                        ) : (
-                            <span> Perfekter Run bringt <span className="font-black text-amber-500">{unit.coinsReward} Coins</span>!</span>
+                        <Button onClick={() => onStartQuest(unit, 'standard')} className="w-full max-w-xs mx-auto !py-5">
+                          Quiz starten
+                        </Button>
+                      </div>
+                    )}
+                    {activeTab === 'bounty' && (
+                      <div className="text-center py-16 space-y-6 bg-slate-900 rounded-[3rem] border-4 border-amber-500/30 text-white">
+                        <div className="text-7xl">🏴‍☠️</div>
+                        <h4 className="text-2xl font-black italic text-amber-400">Bounty Hunt</h4>
+                        <p className="font-bold text-slate-400 text-sm max-w-sm mx-auto uppercase italic">
+                          Zeitlimit & Extra-Schwer.<br />
+                          Extra Reward: <span className="text-amber-400 font-black">+{unit.bounty} Coins</span> (einmalig).
+                        </p>
+                        <p className="text-xs font-black tracking-widest text-slate-300">
+                          Entry Fee: <span className="text-amber-300">-{entryFee} Coins</span> • Reward bei Erfolg: <span className="text-emerald-300">+{unit.bounty} Coins</span>
+                        </p>
+                        <p className="text-[11px] font-black uppercase text-amber-300">
+                          Status: {bountyCleared ? 'Bounty erledigt' : bountyUnlocked ? 'Freigeschaltet' : 'Gesperrt'}
+                        </p>
+                        {!bountyUnlocked && (
+                          <p className="text-[11px] font-black uppercase text-amber-200 max-w-sm mx-auto">
+                            Erst Quest perfekt abschließen, um die Bounty zu aktivieren.
+                          </p>
                         )}
-                    </p>
+                        {bountyCompleted && (
+                          <p className="text-[11px] font-black uppercase text-amber-300 max-w-sm mx-auto">
+                            Bounty bereits abgeschlossen – keine weitere Auszahlung. Snooze runs kosten weiterhin Entry Fee.
+                          </p>
+                        )}
+                        <Button
+                          variant="danger"
+                          onClick={handleBountyStart}
+                          disabled={!bountyUnlocked || isStartingBounty || bountyCompleted || insufficientCoins}
+                          className="w-full max-w-xs mx-auto !py-5 shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {bountyCompleted
+                            ? 'Bounty gemeistert'
+                            : !bountyUnlocked
+                            ? 'Gesperrt'
+                            : insufficientCoins
+                            ? `💰 ${user.coins}/${entryFee}`
+                            : isStartingBounty
+                            ? 'Starte...'
+                            : `Accept Bounty ⚔️ (-${entryFee})`}
+                        </Button>
+                      </div>
+                    )}
                 </div>
-
-                <Button onClick={handleStart} size="lg" className="w-full">
-                    Quest starten
-                </Button>
             </div>
         </ModalOverlay>
     );

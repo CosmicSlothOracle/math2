@@ -876,10 +876,10 @@ export const TaskFactory = {
     const id = `u1-gen-${index}-${seed}`;
     const questions = [
       {
-        q: "Ein Mitschüler behauptet: 'Jedes Quadrat ist automatisch auch ein Rechteck'. Hat er Recht?",
-        o: ["Ja, das stimmt.", "Nein, falsch.", "Nur wenn es rot ist.", "Nur in der Geometrie nicht."],
-        a: 0,
-        e: "Er hat Recht. Ein Quadrat erfüllt alle Bedingungen eines Rechtecks (rechte Winkel), hat aber zusätzlich vier gleich lange Seiten."
+        q: "Ein Trapez hat genau zwei parallele Seiten. Welche Aussage ist richtig?",
+        o: ["Jedes Trapez ist auch ein Parallelogramm.", "Ein Trapez kann rechte Winkel haben.", "Ein Trapez hat immer vier gleich lange Seiten.", "Ein Trapez ist immer ein Rechteck."],
+        a: 1,
+        e: "Ein Trapez kann durchaus rechte Winkel haben (rechtwinkliges Trapez). Es hat aber nur zwei parallele Seiten, nicht vier wie ein Parallelogramm."
       },
       // REPLACED PIZZA TASK
       {

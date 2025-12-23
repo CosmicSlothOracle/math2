@@ -3497,11 +3497,14 @@ export default function App() {
     (async () => {
       try {
         const res = await bootstrapServerUser();
-        if (mounted && res && res.user) {
+        // Only update if we got real server data (not dev fallback)
+        if (mounted && res && res.user && (!res.note || !res.note.includes('dev-fallback'))) {
           setUser(res.user);
         }
+        // If bootstrap returned null or dev fallback, keep existing user
       } catch (e) {
         console.warn('bootstrapServerUser failed', e);
+        // On error, keep existing user
       }
     })();
     return () => { mounted = false; };

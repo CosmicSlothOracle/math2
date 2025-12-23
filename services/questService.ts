@@ -20,25 +20,64 @@ async function applyQuestCoinsDelta(
 
   if (delta > 0) {
     if (questType === 'standard') {
+      // apply client-side cap logic to determine awarded amount and update local progress flags
       const { user: withCapApplied, awarded } = applyQuestRewardCap(workingUser, unitId, delta);
       workingUser = withCapApplied;
       appliedAmount = awarded;
+      if (appliedAmount > 0) {
+        // call server to apply coins (server authoritative)
+        try {
+          const resp = await fetch('/.netlify/functions/coinsAdjust', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ delta: appliedAmount, reason: 'quest_reward', refType: 'unit', refId: unitId }),
+          });
+          const json = await resp.json();
+          const applied = typeof json.applied === 'number' ? json.applied : appliedAmount;
+          const coins = typeof json.coins === 'number' ? json.coins : (workingUser.coins + applied);
+          workingUser.coins = coins;
+          workingUser.totalEarned = (workingUser.totalEarned || 0) + applied;
+          appliedAmount = applied;
+        } catch (err) {
+          console.warn('coinsAdjust failed', err);
+        }
+      } else {
+        appliedAmount = 0;
+      }
     } else {
-      workingUser = {
-        ...workingUser,
-        coins: workingUser.coins + delta,
-        totalEarned: workingUser.totalEarned + delta,
-      };
-      appliedAmount = delta;
+      // non-standard quests: request server to apply delta directly
+      try {
+        const resp = await fetch('/.netlify/functions/coinsAdjust', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ delta, reason: 'quest_adjust', refType: 'unit', refId: unitId }),
+        });
+        const json = await resp.json();
+        const applied = typeof json.applied === 'number' ? json.applied : delta;
+        const coins = typeof json.coins === 'number' ? json.coins : (workingUser.coins + applied);
+        workingUser.coins = coins;
+        workingUser.totalEarned = (workingUser.totalEarned || 0) + Math.max(0, applied);
+        appliedAmount = applied;
+      } catch (err) {
+        console.warn('coinsAdjust failed', err);
+      }
     }
   } else {
-    const previousCoins = workingUser.coins;
-    const newCoins = Math.max(0, previousCoins + delta);
-    workingUser = {
-      ...workingUser,
-      coins: newCoins,
-    };
-    appliedAmount = newCoins - previousCoins;
+    // negative delta: request server to deduct (server will clamp to >=0)
+    try {
+      const resp = await fetch('/.netlify/functions/coinsAdjust', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delta, reason: 'quest_deduct', refType: 'unit', refId: unitId }),
+      });
+      const json = await resp.json();
+      const applied = typeof json.applied === 'number' ? json.applied : delta;
+      const coins = typeof json.coins === 'number' ? json.coins : workingUser.coins + applied;
+      workingUser.coins = coins;
+      appliedAmount = applied;
+    } catch (err) {
+      console.warn('coinsAdjust failed', err);
+    }
   }
 
   await DataService.updateUser(workingUser);
@@ -89,6 +128,16 @@ export const QuestService = {
       'standard'
     );
 
+    try {
+      await fetch('/.netlify/functions/progressSave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unitId, questCoinsEarned: updatedUser.questCoinsEarnedByUnit?.[unitId] || 0, questCompletedCount: 1, bountyCompleted: false }),
+      });
+    } catch (e) {
+      console.warn('progressSave failed', e);
+    }
+
     return { updatedUser, coinsAwarded: applied };
   },
 
@@ -111,19 +160,42 @@ export const QuestService = {
 
     let coinsAwarded = 0;
     if (!alreadyClaimed && reward > 0) {
-      coinsAwarded = reward;
-      updatedUser = {
-        ...updatedUser,
-        coins: updatedUser.coins + reward,
-        totalEarned: updatedUser.totalEarned + reward,
-        bountyPayoutClaimed: {
-          ...(updatedUser.bountyPayoutClaimed || {}),
-          [unitId]: true,
-        },
-      };
+      // Request server to adjust coins (award bounty)
+      try {
+        const resp = await fetch('/.netlify/functions/coinsAdjust', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ delta: reward, reason: 'bounty_reward', refType: 'unit', refId: unitId }),
+        });
+        const json = await resp.json();
+        const applied = typeof json.applied === 'number' ? json.applied : 0;
+        const coins = typeof json.coins === 'number' ? json.coins : updatedUser.coins + applied;
+        coinsAwarded = applied;
+        updatedUser = {
+          ...updatedUser,
+          coins,
+          totalEarned: (updatedUser.totalEarned || 0) + Math.max(0, applied),
+          bountyPayoutClaimed: {
+            ...(updatedUser.bountyPayoutClaimed || {}),
+            [unitId]: true,
+          },
+        };
+      } catch (err) {
+        console.warn('coinsAdjust failed for bounty reward', err);
+      }
     }
 
+    // persist local cache and progress to server
     await DataService.updateUser(updatedUser);
+    try {
+      await fetch('/.netlify/functions/progressSave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unitId, questCoinsEarned: updatedUser.questCoinsEarnedByUnit?.[unitId] || 0, questCompletedCount: (updatedUser.completedUnits || []).includes(unitId) ? 1 : 0, bountyCompleted: true }),
+      });
+    } catch (e) {
+      console.warn('progressSave failed', e);
+    }
     return { updatedUser, coinsAwarded };
   },
 
@@ -133,6 +205,15 @@ export const QuestService = {
       preClearedUnits: [...new Set([...user.preClearedUnits, unitId])],
     };
     await DataService.updateUser(updatedUser);
+    try {
+      await fetch('/.netlify/functions/progressSave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unitId, questCoinsEarned: updatedUser.questCoinsEarnedByUnit?.[unitId] || 0, questCompletedCount: 0, bountyCompleted: false }),
+      });
+    } catch (e) {
+      console.warn('progressSave failed', e);
+    }
     return updatedUser;
   },
 
@@ -140,6 +221,25 @@ export const QuestService = {
     if (entryFee <= 0) {
       return user;
     }
+    // Ask server to deduct entry fee
+    try {
+      const resp = await fetch('/.netlify/functions/coinsAdjust', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delta: -Math.abs(entryFee), reason: 'bounty_entry_fee', refType: 'unit', refId: unitId }),
+      });
+      const json = await resp.json();
+      const applied = typeof json.applied === 'number' ? json.applied : 0;
+      const coins = typeof json.coins === 'number' ? json.coins : user.coins + applied;
+      if (typeof coins === 'number') {
+        const updatedUser: User = { ...user, coins };
+        await DataService.updateUser(updatedUser);
+        return updatedUser;
+      }
+    } catch (err) {
+      console.warn('coinsAdjust failed for entry fee', err);
+    }
+    // Fallback: validate locally
     if (user.coins < entryFee) {
       throw new Error('INSUFFICIENT_COINS');
     }

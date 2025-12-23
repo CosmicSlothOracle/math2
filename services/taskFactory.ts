@@ -104,7 +104,7 @@ const createArcDrawing = (spec: AngleArcSpecConfig, origin: { x: number; y: numb
     x: labelX,
     y: labelY,
     color: spec.labelColor || '#0f172a',
-    fontSize: spec.labelFontSize || 11,
+    fontSize: spec.labelFontSize || 16,
     anchor: 'middle'
   };
 
@@ -174,19 +174,19 @@ const createAngleScene = (angle: number, options: AngleSceneOptions = {}): Angle
     labels.push({
       text: typeof options.baseLabel === 'string' ? options.baseLabel : 'Boden',
       x: baseLine.x2 - 10,
-      y: originY + 16,
-      color: '#475569',
-      fontSize: 10,
+      y: originY + 18,
+      color: '#1e293b',
+      fontSize: 14,
       anchor: 'end'
     });
   }
   if (wallLine) {
     labels.push({
       text: options.wallLabel || 'Wand',
-      x: wallLine.x2 + 6,
-      y: wallLine.y2 + 20,
-      color: '#475569',
-      fontSize: 10,
+      x: wallLine.x2 + 8,
+      y: wallLine.y2 + 22,
+      color: '#1e293b',
+      fontSize: 14,
       anchor: 'start'
     });
   }
@@ -194,9 +194,9 @@ const createAngleScene = (angle: number, options: AngleSceneOptions = {}): Angle
     labels.push({
       text: options.rayLabel,
       x: (ray.x1 + ray.x2) / 2,
-      y: (ray.y1 + ray.y2) / 2 - 6,
+      y: (ray.y1 + ray.y2) / 2 - 8,
       color: ray.stroke || '#2563eb',
-      fontSize: 10
+      fontSize: 14
     });
   }
   arcs.forEach(arc => {
@@ -317,8 +317,8 @@ const createRightTriangleSupportVisual = (alpha: number): SupportVisual => {
     text: `α = ${alpha}°`,
     x: 78,
     y: 176,
-    color: '#b45309',
-    fontSize: 12,
+    color: '#9a3412',
+    fontSize: 16,
     anchor: 'start'
   });
   elements.push({
@@ -326,8 +326,8 @@ const createRightTriangleSupportVisual = (alpha: number): SupportVisual => {
     text: 'β = ?',
     x: 188,
     y: 96,
-    color: '#1d4ed8',
-    fontSize: 12,
+    color: '#1e40af',
+    fontSize: 16,
     anchor: 'middle'
   });
   elements.push({
@@ -335,8 +335,8 @@ const createRightTriangleSupportVisual = (alpha: number): SupportVisual => {
     text: '90°',
     x: 186,
     y: 148,
-    color: '#475569',
-    fontSize: 10,
+    color: '#1e293b',
+    fontSize: 14,
     anchor: 'middle'
   });
 
@@ -400,7 +400,6 @@ export const TaskFactory = {
         this.createDragDropTask(0, seed) // Drag-and-Drop Klassifikation
       ];
       case 'u2': return [
-        this.createMultiAngleThrowTask(0, seed), // Neues Multi-Angle-Training - FIRST FOR TESTING
         this.createVisualAngleTask(0, seed),
         this.createAngleTask(0, seed),
         this.createAngleTask(1, seed),
@@ -691,21 +690,21 @@ export const TaskFactory = {
             baseLabel: 'Boden',
             rayLabel: 'Wurf',
             rayColor: '#22c55e',
-            arcs: [{ angle: 45, label: '45°', color: 'rgba(34,197,94,0.35)' }],
+            arcs: [{ angle: 45, label: '45°', color: 'rgba(34,197,94,0.35)', labelFontSize: 16, labelColor: '#166534' }],
             context: '45° Abwurf'
           }),
           createAngleVisualOption('b', 90, 'Recht (90°)', {
             baseLabel: 'Boden',
             rayLabel: 'Wurf',
             rayColor: '#facc15',
-            arcs: [{ angle: 90, label: '90°', color: 'rgba(251,191,36,0.35)' }],
+            arcs: [{ angle: 90, label: '90°', color: 'rgba(251,191,36,0.35)', labelFontSize: 16, labelColor: '#854d0e' }],
             context: '90° Abwurf'
           }),
           createAngleVisualOption('c', 135, 'Stumpf (>90°)', {
             baseLabel: 'Boden',
             rayLabel: 'Wurf',
             rayColor: '#f97316',
-            arcs: [{ angle: 135, label: '135°', color: 'rgba(249,115,22,0.35)' }],
+            arcs: [{ angle: 135, label: '135°', color: 'rgba(249,115,22,0.35)', labelFontSize: 16, labelColor: '#9a3412' }],
             context: '135° Abwurf'
           })
         ],
@@ -728,7 +727,7 @@ export const TaskFactory = {
             baseLabel: 'Boden',
             rayLabel: 'Neigung',
             rayColor: '#22c55e',
-            arcs: [{ angle: 60, label: '60°', color: 'rgba(34,197,94,0.35)' }],
+            arcs: [{ angle: 60, label: '60°', color: 'rgba(34,197,94,0.35)', labelFontSize: 16, labelColor: '#166534' }],
             context: '60° Neigung'
           }),
           createAngleVisualOption('b', 90, 'Recht', {
@@ -737,7 +736,7 @@ export const TaskFactory = {
             baseLabel: 'Boden',
             rayLabel: 'Neigung',
             rayColor: '#facc15',
-            arcs: [{ angle: 90, label: '90°', color: 'rgba(251,191,36,0.35)' }],
+            arcs: [{ angle: 90, label: '90°', color: 'rgba(251,191,36,0.35)', labelFontSize: 16, labelColor: '#854d0e' }],
             context: '90° Neigung'
           }),
           createAngleVisualOption('c', 120, 'Stumpf', {
@@ -746,7 +745,7 @@ export const TaskFactory = {
             baseLabel: 'Boden',
             rayLabel: 'Neigung',
             rayColor: '#f97316',
-            arcs: [{ angle: 120, label: '120°', color: 'rgba(249,115,22,0.35)' }],
+            arcs: [{ angle: 120, label: '120°', color: 'rgba(249,115,22,0.35)', labelFontSize: 16, labelColor: '#9a3412' }],
             context: '120° Neigung'
           })
         ],
@@ -918,8 +917,8 @@ export const TaskFactory = {
         rayLabel: 'Strahl',
         rayColor: '#f97316',
         arcs: [
-          { angle: beta, label: 'β = ?', color: 'rgba(59,130,246,0.35)', clockwise: true },
-          { angle: alpha, label: `α = ${alpha}°`, color: 'rgba(249,115,22,0.35)' }
+          { angle: beta, label: 'β = ?', color: 'rgba(59,130,246,0.35)', clockwise: true, labelFontSize: 16, labelColor: '#1e40af' },
+          { angle: alpha, label: `α = ${alpha}°`, color: 'rgba(249,115,22,0.35)', labelFontSize: 16, labelColor: '#9a3412' }
         ],
         referenceAngle: alpha
       });
@@ -949,8 +948,8 @@ export const TaskFactory = {
         rayLabel: 'Linie B',
         rayColor: '#6366f1',
         arcs: [
-          { angle: 45, label: 'α = 45°', color: 'rgba(99,102,241,0.35)' },
-          { angle: 45, label: 'α (gegenüber)', color: 'rgba(34,197,94,0.35)', clockwise: true }
+          { angle: 45, label: 'α = 45°', color: 'rgba(99,102,241,0.35)', labelFontSize: 16, labelColor: '#4338ca' },
+          { angle: 45, label: 'α (gegenüber)', color: 'rgba(34,197,94,0.35)', clockwise: true, labelFontSize: 16, labelColor: '#166534' }
         ],
         referenceAngle: 45
       });
@@ -1179,7 +1178,7 @@ export const TaskFactory = {
       baseLabel: 'Boden',
       rayLabel: 'Strahl',
       rayColor: selected.color,
-      arcs: [{ angle: selected.correctAngle, label: `${selected.correctAngle}°`, color: selected.arc }],
+      arcs: [{ angle: selected.correctAngle, label: `${selected.correctAngle}°`, color: selected.arc, labelFontSize: 16, labelColor: '#0f172a' }],
       referenceAngle: selected.correctAngle
     });
 
@@ -1522,39 +1521,4 @@ export const TaskFactory = {
     };
   },
 
-  // --- NEW: Multi-Angle Throw Training ---
-  createMultiAngleThrowTask(index: number, seed: number): Task {
-    const id = `u2-multi-angle-${index}-${seed}`;
-    const targetAngles = [
-      { target: 45, desc: '45° Winkel' },
-      { target: 30, desc: '30° Winkel' },
-      { target: 60, desc: '60° Winkel' },
-      { target: 35, desc: '35° Winkel' }
-    ];
-    const selected = targetAngles[index % targetAngles.length];
-
-    return {
-      id,
-      type: 'multiAngleThrow',
-      question: `Multi-Angle Throw: Triff den ${selected.desc}.`,
-      given: [
-        `Zielwinkel: ${selected.target}° (Toleranz ±5°).`,
-        'Startgebühr: 10 Coins • Belohnung: 5 Coins pro Treffer.',
-        'Du kannst bis zu 5 Winkel speichern, bevor die Serie automatisch gestartet wird.'
-      ],
-      asked: [
-        'Plane deine Winkel, starte die Simulation und erreiche so viele Treffer wie möglich.'
-      ],
-      instructions: '1) Winkel eingeben → „Winkel hinzufügen“. 2) Bis zu 5 Werte sammeln. 3) „Würfe starten“ drücken. Jeder gespeicherte Winkel wird nacheinander getestet.',
-      multiAngleThrowData: {
-        targetAngle: selected.target,
-        maxAngles: 5,
-        startCost: 10,
-        hitReward: 5,
-        tolerance: 5 // ±5° für Treffer
-      },
-      correctAnswer: selected.target.toString(),
-      explanation: `Der Zielwinkel war ${selected.target}°. Durch wiederholtes Experimentieren lernst du, wie unterschiedliche Winkel die Flugbahn beeinflussen. Jeder Treffer in der Nähe des Ziels zählt!`
-    };
-  }
 };

@@ -111,3 +111,34 @@ export const SocialService = {
     await this.sendMessage({ id: 'system', username: 'SYSTEM', avatar: '📢' } as User, `${username} ${event}`, 'system');
   }
 };
+
+// Attempt to bootstrap user from Netlify Functions backend (/me).
+// In dev (no SUPABASE env or no Authorization) the function returns a dev fallback.
+export async function bootstrapServerUser(): Promise<any | null> {
+  try {
+    const resp = await fetch('/.netlify/functions/me');
+    if (!resp.ok) {
+      console.warn('bootstrapServerUser: non-OK response', resp.status);
+      return null;
+    }
+    const json = await resp.json();
+    if (json && json.user) {
+      let users = db.get('mm_users') || [];
+      const idx = users.findIndex((u: any) => u.id === json.user.id);
+      if (idx !== -1) {
+        users[idx] = json.user;
+      } else {
+        users.push(json.user);
+      }
+      db.set('mm_users', users);
+      db.set('mm_current_user', json.user);
+      // persist progress locally for backward compatibility
+      if (json.progress) db.set('mm_progress', json.progress);
+      return json;
+    }
+    return json;
+  } catch (err) {
+    console.warn('bootstrapServerUser failed', err);
+    return null;
+  }
+}

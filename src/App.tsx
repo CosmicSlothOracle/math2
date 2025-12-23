@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LEARNING_UNITS, SHOP_ITEMS, PROGRESS_LEVELS, GEOMETRY_DEFINITIONS } from './constants';
 import { LearningUnit, User, Task, ShopItem, ChatMessage, CategoryGroup, BattleRequest, ToastMessage, ToastType } from './types';
-import { AuthService, DataService, SocialService } from './services/apiService';
+import { AuthService, DataService, SocialService, bootstrapServerUser } from './services/apiService';
 import { QuestService } from './services/questService';
 import { getMatheHint } from './services/geminiService';
 import { TaskFactory } from './services/taskFactory';
@@ -2740,6 +2740,7 @@ const InventoryModal: React.FC<{ user: User; onClose: () => void; onToggleEffect
 
 // --- INTERAKTIVE KOMPONENTE ---
 const AlienScannerTask: React.FC<{ task: Task; onComplete: (success: boolean) => void; }> = ({ task, onComplete }) => {
+    if (!task.interactiveData) return null;
     const { initialShape, steps, options } = task.interactiveData;
     const [currentStep, setCurrentStep] = useState(0);
     const [eliminated, setEliminated] = useState<string[]>([]);
@@ -2851,8 +2852,6 @@ const AlienScannerTask: React.FC<{ task: Task; onComplete: (success: boolean) =>
     );
 };
 
-// DEBUG helper
-console.log('%c[QuestExecution] task payload:', 'color:purple;font-weight:bold', task);
 // --- Multi-Angle Throw Training Component ---
 const MultiAngleThrowTraining: React.FC<{
   task: Task;
@@ -3492,6 +3491,21 @@ export default function App() {
 
   const [currentQuest, setCurrentQuest] = useState<{unit: LearningUnit, type: 'pre' | 'standard' | 'bounty', options?: { timeLimit?: number; noCheatSheet?: boolean }} | null>(null);
   const [isQuestActive, setIsQuestActive] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await bootstrapServerUser();
+        if (mounted && res && res.user) {
+          setUser(res.user);
+        }
+      } catch (e) {
+        console.warn('bootstrapServerUser failed', e);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const [isCoinPulsing, setIsCoinPulsing] = useState(false);
   const [isFlyingCoinActive, setIsFlyingCoinActive] = useState(false);

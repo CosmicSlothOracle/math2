@@ -1,5 +1,5 @@
-
 import { User, ChatMessage } from '../types';
+
 
 const db = {
   get: (key: string) => JSON.parse(localStorage.getItem(key) || 'null'),
@@ -20,6 +20,8 @@ export const AuthService = {
         completedUnits: [],
         masteredUnits: [],
         preClearedUnits: [],
+        perfectStandardQuizUnits: [],
+        perfectBountyUnits: [],
         unlockedItems: ['av_1', 'calc_default'],
         activeEffects: [],
         calculatorSkin: 'default',
@@ -28,31 +30,44 @@ export const AuthService = {
         questCoinsEarnedByUnit: {},
         bountyPayoutClaimed: {},
       };
-      users.push(user); db.set('mm_users', users);
+      users.push(user);
     }
-    db.set('mm_current_user', user); return user;
+
+    if (!user.preClearedUnits) user.preClearedUnits = [];
+    if (!user.perfectStandardQuizUnits) user.perfectStandardQuizUnits = [];
+    if (!user.perfectBountyUnits) user.perfectBountyUnits = [];
+
+    db.set('mm_users', users);
+    db.set('mm_current_user', user);
+    return user;
   },
-  getCurrentUser(): User | null { return db.get('mm_current_user'); }
+  getCurrentUser(): User | null {
+    return db.get('mm_current_user');
+  },
 };
 
 export const DataService = {
   async updateUser(user: User): Promise<void> {
     let users = db.get('mm_users') || [];
     const idx = users.findIndex((u: User) => u.id === user.id);
-    if (idx !== -1) { users[idx] = user; db.set('mm_users', users); db.set('mm_current_user', user); }
-  }
+    if (idx !== -1) {
+      users[idx] = user;
+      db.set('mm_users', users);
+      db.set('mm_current_user', user);
+    }
+  },
 };
 
 export const SocialService = {
   async getLeaderboard(): Promise<User[]> {
-    return (db.get('mm_users') || []).sort((a: any, b: any) => b.xp - a.xp);
+    return (db.get('mm_users') || []).sort((a: User, b: User) => b.xp - a.xp);
   },
   async getChatMessages(channelId: string = 'class:global', since?: number): Promise<ChatMessage[]> {
     try {
       const params = new URLSearchParams();
       params.set('channelId', channelId);
       if (since) params.set('since', String(since));
-      const resp = await fetch(`/.netlify/functions/chatPoll?${params.toString()}`);
+      const resp = await fetch(/.netlify/functions/chatPoll?);
       if (!resp.ok) throw new Error('non-ok');
       const json = await resp.json();
       if (json && Array.isArray(json.messages)) {
@@ -61,7 +76,9 @@ export const SocialService = {
           userId: m.sender_id || m.userId,
           username: m.username || m.username,
           text: m.text,
-          timestamp: new Date(m.created_at).valueOf ? new Date(m.created_at).valueOf() : (m.created_at || Date.now()),
+          timestamp: new Date(m.created_at).valueOf
+            ? new Date(m.created_at).valueOf()
+            : m.created_at || Date.now(),
           avatar: m.avatar || '👤',
         })) as ChatMessage[];
       }
@@ -80,22 +97,26 @@ export const SocialService = {
       });
       if (!resp.ok) {
         console.warn('chatSend: non-OK response', resp.status, resp.statusText);
-        throw new Error(`send failed: ${resp.status}`);
+        throw new Error(send failed: );
       }
-      // optionally process returned message
       const contentType = resp.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
-        const json = await resp.json();
-        if (json && json.message) return;
+        await resp.json();
       }
-      if (json && json.message) return;
     } catch (err) {
       // fallback to local storage
       let chat = db.get('mm_chat') || [];
-      chat.push({ id: Date.now().toString(), userId: user.id, username: user.username, text, timestamp: Date.now(), avatar: user.avatar });
+      chat.push({
+        id: Date.now().toString(),
+        userId: user.id,
+        username: user.username,
+        text,
+        timestamp: Date.now(),
+        avatar: user.avatar,
+      });
       db.set('mm_chat', chat.slice(-50));
     }
-  }
+  },
 };
 
 // Attempt to bootstrap user from Netlify Functions backend (/me).
@@ -135,12 +156,15 @@ export async function bootstrapServerUser(): Promise<any | null> {
         const mergedUser = {
           ...existingUser,
           ...json.user,
-          coins: Math.max(existingUser.coins || 0, json.user.coins || 0), // Keep higher coin count
+          coins: Math.max(existingUser.coins || 0, json.user.coins || 0),
           totalEarned: Math.max(existingUser.totalEarned || 0, json.user.totalEarned || 0),
-          // Preserve local arrays that might have more data
           completedUnits: existingUser.completedUnits || json.user.completedUnits || [],
           masteredUnits: existingUser.masteredUnits || json.user.masteredUnits || [],
           preClearedUnits: existingUser.preClearedUnits || json.user.preClearedUnits || [],
+          perfectStandardQuizUnits:
+            existingUser.perfectStandardQuizUnits || json.user.perfectStandardQuizUnits || [],
+          perfectBountyUnits:
+            existingUser.perfectBountyUnits || json.user.perfectBountyUnits || [],
         };
 
         if (idx !== -1) {
@@ -152,7 +176,6 @@ export async function bootstrapServerUser(): Promise<any | null> {
         db.set('mm_current_user', mergedUser);
         return { ...json, user: mergedUser };
       } else {
-        // New user from server
         if (idx !== -1) {
           users[idx] = json.user;
         } else {
@@ -162,7 +185,6 @@ export async function bootstrapServerUser(): Promise<any | null> {
         db.set('mm_current_user', json.user);
       }
 
-      // persist progress locally for backward compatibility
       if (json.progress) db.set('mm_progress', json.progress);
       return json;
     }

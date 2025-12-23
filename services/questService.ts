@@ -92,13 +92,14 @@ export const QuestService = {
     baseCoins: number,
     questType: QuestRunType
   ): Promise<{ updatedUser: User; coinsAwarded: number }> => {
-    if (user.solvedQuestionIds.includes(questionId) || baseCoins <= 0) {
+    const solvedIds = user.solvedQuestionIds || [];
+    if (solvedIds.includes(questionId) || baseCoins <= 0) {
       return { updatedUser: user, coinsAwarded: 0 };
     }
 
     const solvedUser: User = {
       ...user,
-      solvedQuestionIds: [...user.solvedQuestionIds, questionId],
+      solvedQuestionIds: [...solvedIds, questionId],
     };
 
     const { user: updatedUser, applied } = await applyQuestCoinsDelta(
@@ -116,9 +117,10 @@ export const QuestService = {
     unitId: string,
     reward: number
   ): Promise<{ updatedUser: User; coinsAwarded: number }> => {
+    const completed = user.completedUnits || [];
     const progressUser: User = {
       ...user,
-      completedUnits: [...new Set([...user.completedUnits, unitId])],
+      completedUnits: [...new Set([...completed, unitId])],
     };
 
     const { user: updatedUser, applied } = await applyQuestCoinsDelta(
@@ -147,7 +149,8 @@ export const QuestService = {
     reward: number
   ): Promise<{ updatedUser: User; coinsAwarded: number }> => {
     const alreadyClaimed = user.bountyPayoutClaimed?.[unitId] ?? false;
-    const masteredSet = [...new Set([...user.masteredUnits, unitId])];
+    const mastered = user.masteredUnits || [];
+    const masteredSet = [...new Set([...mastered, unitId])];
 
     let updatedUser: User = {
       ...user,
@@ -200,9 +203,10 @@ export const QuestService = {
   },
 
   completePreQuest: async (user: User, unitId: string): Promise<User> => {
+    const preCleared = user.preClearedUnits || [];
     const updatedUser: User = {
       ...user,
-      preClearedUnits: [...new Set([...user.preClearedUnits, unitId])],
+      preClearedUnits: [...new Set([...preCleared, unitId])],
     };
     await DataService.updateUser(updatedUser);
     try {

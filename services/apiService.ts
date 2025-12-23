@@ -165,6 +165,9 @@ export async function bootstrapServerUser(): Promise<any | null> {
             existingUser.perfectStandardQuizUnits || json.user.perfectStandardQuizUnits || [],
           perfectBountyUnits:
             existingUser.perfectBountyUnits || json.user.perfectBountyUnits || [],
+          solvedQuestionIds: existingUser.solvedQuestionIds || json.user.solvedQuestionIds || [],
+          questCoinsEarnedByUnit: existingUser.questCoinsEarnedByUnit || json.user.questCoinsEarnedByUnit || {},
+          bountyPayoutClaimed: existingUser.bountyPayoutClaimed || json.user.bountyPayoutClaimed || {},
         };
 
         if (idx !== -1) {
@@ -176,13 +179,25 @@ export async function bootstrapServerUser(): Promise<any | null> {
         db.set('mm_current_user', mergedUser);
         return { ...json, user: mergedUser };
       } else {
+        // New user from server - ensure all arrays are initialized
+        const newUser = {
+          ...json.user,
+          completedUnits: json.user.completedUnits || [],
+          masteredUnits: json.user.masteredUnits || [],
+          preClearedUnits: json.user.preClearedUnits || [],
+          perfectStandardQuizUnits: json.user.perfectStandardQuizUnits || [],
+          perfectBountyUnits: json.user.perfectBountyUnits || [],
+          solvedQuestionIds: json.user.solvedQuestionIds || [],
+          questCoinsEarnedByUnit: json.user.questCoinsEarnedByUnit || {},
+          bountyPayoutClaimed: json.user.bountyPayoutClaimed || {},
+        };
         if (idx !== -1) {
-          users[idx] = json.user;
+          users[idx] = newUser;
         } else {
-          users.push(json.user);
+          users.push(newUser);
         }
         db.set('mm_users', users);
-        db.set('mm_current_user', json.user);
+        db.set('mm_current_user', newUser);
       }
 
       if (json.progress) db.set('mm_progress', json.progress);

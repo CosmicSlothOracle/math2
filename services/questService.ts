@@ -178,9 +178,6 @@ async function applyQuestCoinsDelta(
         workingUser.coins = coins;
         appliedAmount = applied;
       }
-        workingUser.coins = Number.isFinite(workingUser.coins) ? workingUser.coins : 0;
-        appliedAmount = 0;
-      }
     } catch (err) {
       console.warn('coinsAdjust failed', err);
     }

@@ -1,7 +1,7 @@
 // Debug function to check Supabase configuration
 // Usage: GET /.netlify/functions/debugSupabase
 
-const { createSupabaseClient } = require('./_supabase');
+const { createSupabaseClient } = require('./_supabase.cjs');
 
 exports.handler = async function (event, context) {
   const headers = {

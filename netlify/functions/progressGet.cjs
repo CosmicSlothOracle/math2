@@ -1,5 +1,5 @@
-const { createSupabaseClient } = require('./_supabase');
-const { getUserIdFromEvent } = require('./_utils');
+const { createSupabaseClient } = require('./_supabase.cjs');
+const { getUserIdFromEvent } = require('./_utils.cjs');
 
 exports.handler = async function (event) {
   const headers = {

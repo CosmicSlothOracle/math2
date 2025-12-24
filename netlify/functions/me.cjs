@@ -2,20 +2,20 @@
 let createSupabaseClient = () => null; // Default fallback
 let getUserIdFromEvent = () => 'dev-user'; // Default fallback
 try {
-  const supabaseModule = require('./_supabase');
+  const supabaseModule = require('./_supabase.cjs');
   if (supabaseModule && typeof supabaseModule.createSupabaseClient === 'function') {
     createSupabaseClient = supabaseModule.createSupabaseClient;
   }
 } catch (requireErr) {
-  console.warn('[me.js] Failed to require _supabase:', requireErr.message);
+  console.warn('[me.cjs] Failed to require _supabase:', requireErr.message);
 }
 try {
-  const utilsModule = require('./_utils');
+  const utilsModule = require('./_utils.cjs');
   if (utilsModule && typeof utilsModule.getUserIdFromEvent === 'function') {
     getUserIdFromEvent = utilsModule.getUserIdFromEvent;
   }
 } catch (requireErr) {
-  console.warn('[me.js] Failed to require _utils:', requireErr.message);
+  console.warn('[me.cjs] Failed to require _utils:', requireErr.message);
 }
 
 exports.handler = async function (event, context) {
@@ -119,12 +119,25 @@ exports.handler = async function (event, context) {
     // Use userId from getUserIdFromEvent (stable anon ID if no JWT)
     const upsertId = userId;
 
-    // Upsert user row
+    // Check if user already exists to preserve coins
+    let existingUser = null;
+    try {
+      const { data: existingUserData } = await supabase.from('users').select('coins').eq('id', upsertId).single();
+      existingUser = existingUserData;
+    } catch (e) {
+      // User doesn't exist yet, that's fine
+    }
+
+    // Upsert user row - only set coins if user doesn't exist
     const upsertPayload = {
       id: upsertId,
       display_name: displayName,
-      coins: 0,
     };
+
+    // Only set coins to 0 if this is a new user
+    if (!existingUser) {
+      upsertPayload.coins = 0;
+    }
 
     let returnedUser;
     try {

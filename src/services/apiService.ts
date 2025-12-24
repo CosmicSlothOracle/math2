@@ -50,11 +50,18 @@ export const AuthService = {
     // Added migration for missing preClearedUnits
     if (!user.preClearedUnits) user.preClearedUnits = [];
     if (!user.calculatorSkin) user.calculatorSkin = 'default';
-    if (!user.unlockedItems.includes('calc_default')) user.unlockedItems.push('calc_default');
+
+    // Ensure unlockedItems is always an array
+    if (!Array.isArray(user.unlockedItems)) {
+      user.unlockedItems = [];
+    }
+
+    if (!user.unlockedItems.includes('calc_default')) {
+      user.unlockedItems.push('calc_default');
+    }
     if (!user.solvedQuestionIds) user.solvedQuestionIds = []; // Migration für Anti-Farming
 
     // Auto-activate Newbie avatar if unlocked and not already set
-    if (!user.unlockedItems) user.unlockedItems = [];
     if (!user.unlockedItems.includes('av_1')) {
       user.unlockedItems.push('av_1');
     }
@@ -75,6 +82,10 @@ export const AuthService = {
       if (!Number.isFinite(user.coins)) user.coins = 250;
       if (!Number.isFinite(user.totalEarned)) user.totalEarned = 250;
       if (!Number.isFinite(user.xp)) user.xp = 0;
+      // Ensure unlockedItems is always an array
+      if (!Array.isArray(user.unlockedItems)) {
+        user.unlockedItems = [];
+      }
     }
     return user;
   }
@@ -181,7 +192,6 @@ export async function bootstrapServerUser(): Promise<any | null> {
 
       // If we have an existing user, merge server data intelligently
       // IMPORTANT: Always use server ID to ensure consistency
-      const serverUserId = json.user.id;
 
       if (existingUser) {
         // Check if IDs match OR if we need to migrate to server ID
@@ -204,6 +214,12 @@ export async function bootstrapServerUser(): Promise<any | null> {
         const localTotalEarned = Number.isFinite(existingUser.totalEarned) ? existingUser.totalEarned : 0;
         const serverTotalEarned = Number.isFinite(json.user.totalEarned) ? json.user.totalEarned : 0;
         const serverXp = Number.isFinite(json.user.xp) ? json.user.xp : 0;
+
+        // Ensure unlockedItems is always an array
+        const localUnlockedItems = Array.isArray(existingUser.unlockedItems) ? existingUser.unlockedItems : [];
+        const serverUnlockedItems = Array.isArray(json.user.unlockedItems) ? json.user.unlockedItems : [];
+        const mergedUnlockedItems = [...new Set([...localUnlockedItems, ...serverUnlockedItems])];
+
         const mergedUser = {
           ...existingUser,
           ...json.user,
@@ -211,10 +227,11 @@ export async function bootstrapServerUser(): Promise<any | null> {
           coins: Math.max(localCoins, serverCoins), // Keep higher coin count
           totalEarned: Math.max(localTotalEarned, serverTotalEarned),
           xp: serverXp,
+          unlockedItems: mergedUnlockedItems, // Always an array
           // Preserve local arrays that might have more data
-          completedUnits: existingUser.completedUnits || json.user.completedUnits || [],
-          masteredUnits: existingUser.masteredUnits || json.user.masteredUnits || [],
-          preClearedUnits: existingUser.preClearedUnits || json.user.preClearedUnits || [],
+          completedUnits: Array.isArray(existingUser.completedUnits) ? existingUser.completedUnits : (Array.isArray(json.user.completedUnits) ? json.user.completedUnits : []),
+          masteredUnits: Array.isArray(existingUser.masteredUnits) ? existingUser.masteredUnits : (Array.isArray(json.user.masteredUnits) ? json.user.masteredUnits : []),
+          preClearedUnits: Array.isArray(existingUser.preClearedUnits) ? existingUser.preClearedUnits : (Array.isArray(json.user.preClearedUnits) ? json.user.preClearedUnits : []),
         };
 
         if (idx !== -1) {
@@ -235,6 +252,10 @@ export async function bootstrapServerUser(): Promise<any | null> {
           coins: Number.isFinite(json.user.coins) ? json.user.coins : 250,
           totalEarned: Number.isFinite(json.user.totalEarned) ? json.user.totalEarned : 250,
           xp: Number.isFinite(json.user.xp) ? json.user.xp : 0,
+          unlockedItems: Array.isArray(json.user.unlockedItems) ? json.user.unlockedItems : [],
+          completedUnits: Array.isArray(json.user.completedUnits) ? json.user.completedUnits : [],
+          masteredUnits: Array.isArray(json.user.masteredUnits) ? json.user.masteredUnits : [],
+          preClearedUnits: Array.isArray(json.user.preClearedUnits) ? json.user.preClearedUnits : [],
         };
 
         // Remove any old entries with different IDs (migration cleanup)

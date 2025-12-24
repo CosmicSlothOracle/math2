@@ -2483,7 +2483,8 @@ const ShopView: React.FC<{
   }, [filter, filteredItems]);
 
   const renderItem = (item: ShopItem) => {
-    const owned = user.unlockedItems?.includes(item.id) && item.type !== 'feature' && item.type !== 'voucher';
+    const unlockedItems = Array.isArray(user.unlockedItems) ? user.unlockedItems : [];
+    const owned = unlockedItems.includes(item.id) && item.type !== 'feature' && item.type !== 'voucher';
     const userCoins = Number.isFinite(user.coins) ? user.coins : 0;
     const canAfford = userCoins >= item.cost;
     const isPreviewActive = previewEffect === item.value;
@@ -2725,9 +2726,10 @@ const ShopView: React.FC<{
 };
 
 const InventoryModal: React.FC<{ user: User; onClose: () => void; onToggleEffect: (id: string) => void; onAvatarChange: (val: string) => void; onSkinChange: (val: string) => void }> = ({ user, onClose, onToggleEffect, onAvatarChange, onSkinChange }) => {
-  const ownedAvatars = SHOP_ITEMS.filter(i => i.type === 'avatar' && (i.cost === 0 || user.unlockedItems?.includes(i.id)));
-  const ownedEffects = SHOP_ITEMS.filter(i => i.type === 'effect' && user.unlockedItems?.includes(i.id));
-  const ownedSkins = SHOP_ITEMS.filter(i => i.type === 'calculator' && (i.cost === 0 || user.unlockedItems?.includes(i.id)));
+  const unlockedItems = Array.isArray(user.unlockedItems) ? user.unlockedItems : [];
+  const ownedAvatars = SHOP_ITEMS.filter(i => i.type === 'avatar' && (i.cost === 0 || unlockedItems.includes(i.id)));
+  const ownedEffects = SHOP_ITEMS.filter(i => i.type === 'effect' && unlockedItems.includes(i.id));
+  const ownedSkins = SHOP_ITEMS.filter(i => i.type === 'calculator' && (i.cost === 0 || unlockedItems.includes(i.id)));
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -3732,10 +3734,15 @@ export default function App() {
     }
 
     // Optimistic update
+    const currentUnlockedItems = Array.isArray(user.unlockedItems) ? user.unlockedItems : [];
     let updatedUser = { ...user, coins: userCoins - item.cost };
     if (item.type !== 'feature' && item.type !== 'voucher') {
-      updatedUser.unlockedItems = [...new Set([...user.unlockedItems, item.id])];
+      updatedUser.unlockedItems = [...new Set([...currentUnlockedItems, item.id])];
       if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
+    }
+    // Ensure unlockedItems is always an array
+    if (!Array.isArray(updatedUser.unlockedItems)) {
+      updatedUser.unlockedItems = [];
     }
     setUser(updatedUser);
 
@@ -3777,7 +3784,11 @@ export default function App() {
         updatedUser.coins = json.coins;
       }
       if (json.unlockedItems) {
-        updatedUser.unlockedItems = json.unlockedItems;
+        updatedUser.unlockedItems = Array.isArray(json.unlockedItems) ? json.unlockedItems : [];
+      }
+      // Ensure unlockedItems is always an array
+      if (!Array.isArray(updatedUser.unlockedItems)) {
+        updatedUser.unlockedItems = [];
       }
       setUser(updatedUser);
       await DataService.updateUser(updatedUser);

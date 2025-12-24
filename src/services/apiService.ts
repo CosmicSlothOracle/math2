@@ -61,8 +61,9 @@ export const AuthService = {
     const user = db.get('mm_current_user');
     if (user) {
       // Ensure all numeric fields are valid numbers
-      if (!Number.isFinite(user.coins)) user.coins = 0;
-      if (!Number.isFinite(user.totalEarned)) user.totalEarned = 0;
+      // New users should start with 250 coins, not 0
+      if (!Number.isFinite(user.coins)) user.coins = 250;
+      if (!Number.isFinite(user.totalEarned)) user.totalEarned = 250;
       if (!Number.isFinite(user.xp)) user.xp = 0;
     }
     return user;
@@ -146,8 +147,9 @@ export async function bootstrapServerUser(): Promise<any | null> {
       if (existingUser && existingUser.id === json.user.id) {
         // Merge: keep local coins if they're higher (user might have earned more)
         // but update other fields from server
-        const localCoins = Number.isFinite(existingUser.coins) ? existingUser.coins : 0;
-        const serverCoins = Number.isFinite(json.user.coins) ? json.user.coins : 0;
+        // Preserve existing coins or default to 250 for new users
+        const localCoins = Number.isFinite(existingUser.coins) ? existingUser.coins : 250;
+        const serverCoins = Number.isFinite(json.user.coins) ? json.user.coins : 250;
         const localTotalEarned = Number.isFinite(existingUser.totalEarned) ? existingUser.totalEarned : 0;
         const serverTotalEarned = Number.isFinite(json.user.totalEarned) ? json.user.totalEarned : 0;
         const serverXp = Number.isFinite(json.user.xp) ? json.user.xp : 0;
@@ -173,10 +175,11 @@ export async function bootstrapServerUser(): Promise<any | null> {
         return { ...json, user: mergedUser };
       } else {
         // New user from server - ensure all numeric fields are valid
+        // New users should start with 250 coins, not 0
         const newUser = {
           ...json.user,
-          coins: Number.isFinite(json.user.coins) ? json.user.coins : 0,
-          totalEarned: Number.isFinite(json.user.totalEarned) ? json.user.totalEarned : 0,
+          coins: Number.isFinite(json.user.coins) ? json.user.coins : 250,
+          totalEarned: Number.isFinite(json.user.totalEarned) ? json.user.totalEarned : 250,
           xp: Number.isFinite(json.user.xp) ? json.user.xp : 0,
         };
         if (idx !== -1) {

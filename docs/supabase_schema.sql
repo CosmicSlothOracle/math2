@@ -8,7 +8,7 @@ create extension if not exists "pgcrypto";
 create table if not exists users (
   id text primary key,
   display_name text,
-  coins int default 0,
+  coins int default 250,
   created_at timestamp with time zone default now()
 );
 

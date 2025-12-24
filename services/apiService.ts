@@ -45,8 +45,9 @@ export const AuthService = {
     const user = db.get('mm_current_user');
     if (user) {
       // Ensure all numeric fields are valid numbers
-      if (!Number.isFinite(user.coins)) user.coins = 0;
-      if (!Number.isFinite(user.totalEarned)) user.totalEarned = 0;
+      // New users should start with 250 coins, not 0
+      if (!Number.isFinite(user.coins)) user.coins = 250;
+      if (!Number.isFinite(user.totalEarned)) user.totalEarned = 250;
       if (!Number.isFinite(user.xp)) user.xp = 0;
     }
     return user;
@@ -292,10 +293,11 @@ export async function bootstrapServerUser(): Promise<any | null> {
         return { ...json, user: mergedUser };
       } else {
         // New user from server - ensure all arrays and numeric fields are initialized
+        // New users should start with 250 coins, not 0
         const newUser = {
           ...json.user,
-          coins: Number.isFinite(json.user.coins) ? json.user.coins : 0,
-          totalEarned: Number.isFinite(json.user.totalEarned) ? json.user.totalEarned : 0,
+          coins: Number.isFinite(json.user.coins) ? json.user.coins : 250,
+          totalEarned: Number.isFinite(json.user.totalEarned) ? json.user.totalEarned : 250,
           xp: Number.isFinite(json.user.xp) ? json.user.xp : 0,
           completedUnits: json.user.completedUnits || [],
           masteredUnits: json.user.masteredUnits || [],

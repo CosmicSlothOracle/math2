@@ -134,9 +134,9 @@ exports.handler = async function (event, context) {
       display_name: displayName,
     };
 
-    // Only set coins to 0 if this is a new user
+    // Only set coins to 250 if this is a new user (starting coins)
     if (!existingUser) {
-      upsertPayload.coins = 0;
+      upsertPayload.coins = 250;
     }
 
     let returnedUser;
@@ -181,7 +181,7 @@ exports.handler = async function (event, context) {
       } else {
         // If no user returned, fetch it
         const { data: fetchedUser } = await supabase.from('users').select('*').eq('id', upsertId).single();
-        returnedUser = fetchedUser || { id: upsertId, display_name: displayName, coins: 0 };
+        returnedUser = fetchedUser || { id: upsertId, display_name: displayName, coins: 250 };
       }
     } catch (upsertErr) {
       console.error('[me.js] Upsert exception:', upsertErr.message);

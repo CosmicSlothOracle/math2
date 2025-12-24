@@ -53,6 +53,16 @@ export const AuthService = {
     if (!user.unlockedItems.includes('calc_default')) user.unlockedItems.push('calc_default');
     if (!user.solvedQuestionIds) user.solvedQuestionIds = []; // Migration für Anti-Farming
 
+    // Auto-activate Newbie avatar if unlocked and not already set
+    if (!user.unlockedItems) user.unlockedItems = [];
+    if (!user.unlockedItems.includes('av_1')) {
+      user.unlockedItems.push('av_1');
+    }
+    // If user has no avatar set or avatar is not a valid emoji, set to Newbie
+    if (!user.avatar || user.avatar === '') {
+      user.avatar = '👤'; // Newbie avatar value
+    }
+
     db.set('mm_current_user', user);
     return user;
   },
@@ -126,12 +136,37 @@ export async function bootstrapServerUser(): Promise<any | null> {
   try {
     const existingUser = AuthService.getCurrentUser();
 
-    const resp = await fetch('/.netlify/functions/me');
+    // Read existing anonymous ID from localStorage or cookie
+    let anonId = localStorage.getItem('mm_anon_id');
+    if (!anonId && existingUser?.id && existingUser.id.startsWith('anon_')) {
+      // Use existing user ID if it's already an anon ID
+      anonId = existingUser.id;
+      localStorage.setItem('mm_anon_id', anonId);
+    }
+
+    // Build headers with anonymous ID if available
+    const headers: Record<string, string> = {};
+    if (anonId) {
+      headers['x-anon-id'] = anonId;
+    }
+    // Also send existing user ID if available (for dev/testing)
+    if (existingUser?.id && !existingUser.id.startsWith('anon_')) {
+      headers['x-dev-user'] = existingUser.id;
+    }
+
+    const resp = await fetch('/.netlify/functions/me', {
+      headers
+    });
     if (!resp.ok) {
       console.warn('bootstrapServerUser: non-OK response', resp.status);
       return null;
     }
     const json = await resp.json();
+
+    // Store the anonymous ID from server response (cookie or response)
+    if (json.user?.id && json.user.id.startsWith('anon_')) {
+      localStorage.setItem('mm_anon_id', json.user.id);
+    }
 
     // If server returned dev fallback, don't overwrite existing user
     if (json && json.note && (json.note.includes('dev-fallback') || json.note.includes('dev'))) {
@@ -141,10 +176,26 @@ export async function bootstrapServerUser(): Promise<any | null> {
 
     if (json && json.user) {
       let users = db.get('mm_users') || [];
-      const idx = users.findIndex((u: any) => u.id === json.user.id);
+      const serverUserId = json.user.id;
+      const idx = users.findIndex((u: any) => u.id === serverUserId);
 
       // If we have an existing user, merge server data intelligently
-      if (existingUser && existingUser.id === json.user.id) {
+      // IMPORTANT: Always use server ID to ensure consistency
+      const serverUserId = json.user.id;
+
+      if (existingUser) {
+        // Check if IDs match OR if we need to migrate to server ID
+        const needsIdMigration = existingUser.id !== serverUserId;
+
+        if (needsIdMigration) {
+          console.log(`[Bootstrap] Migrating user ID from ${existingUser.id} to ${serverUserId}`);
+          // Remove old user entry and create new one with server ID
+          const oldIdx = users.findIndex((u: any) => u.id === existingUser.id);
+          if (oldIdx !== -1) {
+            users.splice(oldIdx, 1);
+          }
+        }
+
         // Merge: keep local coins if they're higher (user might have earned more)
         // but update other fields from server
         // Preserve existing coins or default to 250 for new users
@@ -156,6 +207,7 @@ export async function bootstrapServerUser(): Promise<any | null> {
         const mergedUser = {
           ...existingUser,
           ...json.user,
+          id: serverUserId, // ALWAYS use server ID
           coins: Math.max(localCoins, serverCoins), // Keep higher coin count
           totalEarned: Math.max(localTotalEarned, serverTotalEarned),
           xp: serverXp,
@@ -176,12 +228,18 @@ export async function bootstrapServerUser(): Promise<any | null> {
       } else {
         // New user from server - ensure all numeric fields are valid
         // New users should start with 250 coins, not 0
+        // IMPORTANT: Use server ID, not local random ID
         const newUser = {
           ...json.user,
+          id: serverUserId, // ALWAYS use server ID
           coins: Number.isFinite(json.user.coins) ? json.user.coins : 250,
           totalEarned: Number.isFinite(json.user.totalEarned) ? json.user.totalEarned : 250,
           xp: Number.isFinite(json.user.xp) ? json.user.xp : 0,
         };
+
+        // Remove any old entries with different IDs (migration cleanup)
+        users = users.filter((u: any) => u.id !== serverUserId || u.username === json.user.username);
+
         if (idx !== -1) {
           users[idx] = newUser;
         } else {

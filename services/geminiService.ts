@@ -1,27 +1,24 @@
 
-import { GoogleGenAI } from "@google/genai";
-
-export async function getMatheHint(topic: string, question: string) {
-  // Use recommended initialization with process.env.API_KEY directly
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Hinweis: Lokale Hilfsfunktion ruft das Netlify-Backend auf, das wiederum Gemini anspricht
+export async function getMatheHint(topic: string, question: string): Promise<string> {
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `Du bist ein freundlicher Mathelehrer für 9. Klässler. Gib einen kurzen Tipp für folgende Frage zum Thema ${topic}: "${question}". 
-      REGELN: 
-      1. Verrate NIEMALS die direkte Lösung oder das Endergebnis.
-      2. Erkläre das zugrundeliegende mathematische Prinzip.
-      3. Hilf dem Schüler, den nächsten Denkschritt selbst zu finden.
-      4. Maximal 3 Sätze.`,
-      config: {
-        temperature: 0.7,
-        // Avoid setting maxOutputTokens without a thinkingBudget to prevent empty responses due to thinking consumption
-      }
+    const res = await fetch("/.netlify/functions/hint", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ topic, question }),
     });
-    return response.text;
+
+    if (!res.ok) {
+      throw new Error(`Backend returned ${res.status}`);
+    }
+
+    const data = await res.json();
+    return data.hint || "Kein Tipp verfügbar.";
   } catch (error) {
-    console.error("Gemini Error:", error);
-    return "Ups, der Mathelehrer ist gerade in der Pause. Versuch es nochmal!";
+    console.error("Hint fetch failed:", error);
+    return "Ups, der Tipp-Service ist gerade nicht verfügbar. Versuch es nochmal!";
   }
 }
 

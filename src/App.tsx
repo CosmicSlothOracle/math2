@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LEARNING_UNITS, SHOP_ITEMS, PROGRESS_LEVELS, GEOMETRY_DEFINITIONS } from './constants';
-import { LearningUnit, User, Task, ShopItem, ChatMessage, CategoryGroup, BattleRequest, ToastMessage, ToastType } from './types';
+import { LearningUnit, User, Task, ShopItem, ChatMessage, CategoryGroup, BattleRequest, ToastMessage, ToastType, getTileStatus, isGoldUnlocked } from './types';
 import { AuthService, DataService, SocialService, bootstrapServerUser } from './services/apiService';
+import { getApiHeaders } from './lib/userId';
 import { QuestService } from './services/questService';
 import { getMatheHint } from './services/geminiService';
 import { TaskFactory } from './services/taskFactory';
@@ -12,6 +13,7 @@ import {
   CalculatorWidget
 } from './ui-components';
 import { subscribeVirtualPointer } from './utils/virtualPointer';
+import { DragDropTask } from '../components/DragDropTask';
 
 // --- Theme Helpers ---
 const GROUP_THEME: Record<CategoryGroup, { color: string; bg: string; text: string; border: string; darkBg: string }> = {
@@ -2287,6 +2289,8 @@ const AuthScreen: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) =>
 const ChatView: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [msg, setMsg] = useState('');
   const [chat, setChat] = useState<ChatMessage[]>([]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const loadChat = async () => {
     const msgs = await SocialService.getChatMessages();
@@ -2299,6 +2303,13 @@ const ChatView: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     return () => clearInterval(interval);
   }, []);
 
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chat]);
+
   const send = async () => {
     if (!msg.trim()) return;
     await SocialService.sendMessage(currentUser, msg);
@@ -2306,36 +2317,73 @@ const ChatView: React.FC<{ currentUser: User }> = ({ currentUser }) => {
     loadChat();
   };
 
+  const formatTimestamp = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return 'gerade eben';
+    if (diffMins < 60) return `vor ${diffMins} Min`;
+
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `vor ${diffHours} Std`;
+
+    return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <GlassCard className="h-full flex flex-col !p-0 overflow-hidden col-span-2">
       <div className="p-4 border-b bg-slate-50/50 backdrop-blur-md">
         <CardTitle>Klassen-Chat</CardTitle>
       </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar flex flex-col-reverse">
-        {[...chat].reverse().map(c => (
+      <div
+        ref={chatContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar"
+      >
+        {chat.map(c => (
           <div key={c.id} className={`flex gap-3 ${c.userId === currentUser.id ? 'flex-row-reverse' : ''}`}>
-             <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-lg shadow-sm border border-white">
+             <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-lg shadow-sm border border-white shrink-0">
                 {c.avatar}
              </div>
              <div className={`max-w-[80%] p-3 rounded-2xl text-sm font-medium leading-relaxed shadow-sm ${
                 c.type === 'system' ? 'bg-amber-50 text-amber-800 border border-amber-100 w-full text-center italic' :
                 c.userId === currentUser.id ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'
              }`}>
-                {c.type !== 'system' && <div className={`text-[10px] font-black uppercase mb-1 opacity-50 ${c.userId === currentUser.id ? 'text-indigo-200' : 'text-slate-400'}`}>{c.username}</div>}
+                {c.type !== 'system' && (
+                  <div className={`text-[10px] font-black uppercase mb-1 opacity-50 ${c.userId === currentUser.id ? 'text-indigo-200' : 'text-slate-400'}`}>
+                    {c.username} • {formatTimestamp(c.timestamp)}
+                  </div>
+                )}
                 {c.text}
              </div>
           </div>
         ))}
+        <div ref={chatEndRef} />
       </div>
       <div className="p-4 bg-white border-t flex gap-2">
         <input
           className="flex-1 bg-slate-100 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500"
-          placeholder="Nachricht..."
+          placeholder="Nachricht eingeben... (Enter zum Senden)"
           value={msg}
           onChange={e => setMsg(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && send()}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
         />
-        <Button size="sm" onClick={send}>→</Button>
+        <Button
+          size="sm"
+          onClick={send}
+          disabled={!msg.trim()}
+          className="px-4"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
+        </Button>
       </div>
     </GlassCard>
   );
@@ -3072,6 +3120,7 @@ const QuestExecutionView: React.FC<{
     const [isLoadingHint, setIsLoadingHint] = useState(false);
     const [wager, setWager] = useState<number>(0);
     const [classification, setClassification] = useState<Record<string, string>>({});
+    const [classificationFeedback, setClassificationFeedback] = useState<Record<string, 'correct' | 'incorrect' | null>>({});
     const [angleInput, setAngleInput] = useState('');
     const [sliderValue, setSliderValue] = useState<number>(1);
     const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
@@ -3111,6 +3160,14 @@ const QuestExecutionView: React.FC<{
                 addToast('Bitte ordne alle Figuren zu, bevor du überprüfst!', 'error');
                 return;
             }
+
+            // Generate detailed feedback for each shape
+            const feedbackMap: Record<string, 'correct' | 'incorrect' | null> = {};
+            Object.keys(answerMap).forEach(shapeId => {
+                feedbackMap[shapeId] = classification[shapeId] === answerMap[shapeId] ? 'correct' : 'incorrect';
+            });
+            setClassificationFeedback(feedbackMap);
+
             isCorrect = Object.keys(answerMap).every(key => classification[key] === answerMap[key]);
         } else if (task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') {
             isCorrect = selectedOption === task.correctAnswer || (task.type === 'boolean' && (selectedOption === 0 && task.correctAnswer === 'wahr' || selectedOption === 1 && task.correctAnswer === 'falsch'));
@@ -3163,6 +3220,7 @@ const QuestExecutionView: React.FC<{
             setWager(0);
             setTimeLeft(timeLimit || 60);
             setClassification({});
+            setClassificationFeedback({});
             setAngleInput('');
             setSliderValue(1);
             setSelectedParts(new Set());
@@ -3248,7 +3306,15 @@ const QuestExecutionView: React.FC<{
                 ) : (
                     <>
                         <div className="mb-10 text-center">
-                            <h3 className={`text-xl sm:text-3xl font-black italic leading-tight mb-4 ${isBountyMode ? 'text-amber-100' : 'text-slate-900'}`}>{task.question}</h3>
+                            <h3 className={`text-xl sm:text-3xl font-black italic leading-tight mb-1 ${isBountyMode ? 'text-amber-100' : 'text-slate-900'}`}>{task.question}</h3>
+                                {/* Gegebene Variablen anzeigen */}
+                                {task.given && task.given.length > 0 && (
+                                    <div className="mb-4 space-y-1 text-sm font-medium text-slate-600">
+                                        {task.given.map((g, idx) => (
+                                            <p key={idx}>{g}</p>
+                                        ))}
+                                    </div>
+                                )}
                             {!noCheatSheet && !feedback && (
                                 <button
                                     onClick={handleRequestHint}
@@ -3327,31 +3393,25 @@ const QuestExecutionView: React.FC<{
                                 </>
                             )}
                             {task.type === 'dragDrop' && task.dragDropData && (
-                                <div className="grid grid-cols-1 gap-4">
-                                    <p className="text-sm font-bold text-slate-600 mb-2">Ordne jede Figur der passenden Kategorie zu:</p>
-                                    <div className="space-y-6">
-                                        {task.dragDropData.shapes?.map((shape: any) => (
-                                            <div key={shape.id} className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-200 flex items-center gap-4">
-                                                <svg viewBox="0 0 200 150" className="w-24 h-16 shrink-0">
-                                                    <path d={shape.path} fill="none" stroke="currentColor" strokeWidth="3" />
-                                                </svg>
-                                                <select
-                                                    value={classification[shape.id] || ''}
-                                                    onChange={(e) => setClassification({ ...classification, [shape.id]: e.target.value })}
-                                                    className="flex-1 p-3 rounded-xl border-2 bg-white text-sm font-black"
-                                                >
-                                                    <option value="" disabled>– Kategorie wählen –</option>
-                                                    {task.dragDropData.categories.map((cat: any) => (
-                                                        <option key={cat.id} value={cat.id}>{cat.label}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
+                                <DragDropTask
+                                    task={task}
+                                    classification={classification}
+                                    onClassificationChange={setClassification}
+                                    disabled={!!feedback}
+                                    feedback={classificationFeedback}
+                                    correctAnswerMap={task.correctAnswer ? JSON.parse(String(task.correctAnswer)) : undefined}
+                                />
                             )}
                             {task.type === 'angleMeasure' && task.angleData && (
                                 <div className="flex flex-col items-center gap-4">
+                                    {/* Anzeige gegebener Werte */}
+                                    {task.given && task.given.length > 0 && (
+                                        <div className="mb-2 space-y-1 text-sm font-bold text-slate-600 text-center">
+                                            {task.given.map((g, idx) => (
+                                                <p key={idx}>{g}</p>
+                                            ))}
+                                        </div>
+                                    )}
                                     <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center">
                                         <svg viewBox="0 0 300 300" className="w-full h-full">
                                             <path d={task.angleData.path} fill="none" stroke="currentColor" strokeWidth="3" />
@@ -3518,12 +3578,27 @@ export default function App() {
     return () => { mounted = false; };
   }, []);
 
+  // Monitor online/offline status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const [isCoinPulsing, setIsCoinPulsing] = useState(false);
   const [isFlyingCoinActive, setIsFlyingCoinActive] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [previewEffect, setPreviewEffect] = useState<string | null>(null);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isDevFallback, setIsDevFallback] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // Moved memo hook before any potential early return
   const tasksForCurrentQuest = useMemo(() => {
@@ -3554,6 +3629,13 @@ export default function App() {
 
   const handleTaskCorrect = async (task: Task, wager: number) => {
     if(!user) return;
+
+    // Check if offline
+    if (!isOnline || isDevFallback) {
+      addToast('⚠️ Offline-Modus: Coins werden nicht gespeichert. Bitte verbinde dich mit dem Internet.', 'info');
+      return;
+    }
+
     const baseCoins = task.type === 'wager' ? 10 + wager : 10;
     const { updatedUser, coinsAwarded } = await QuestService.awardCoinsForQuestion(user, task.id, baseCoins);
     setUser(updatedUser);
@@ -3563,9 +3645,17 @@ export default function App() {
   const handleQuestComplete = async (isPerfectRun: boolean) => {
     if (!currentQuest || !user) return;
 
+    // Check if offline
+    if (!isOnline || isDevFallback) {
+      addToast('⚠️ Offline-Modus: Fortschritt und Coins werden nicht gespeichert. Bitte verbinde dich mit dem Internet.', 'info');
+      // Still allow completion, but without saving
+      return;
+    }
+
     let u = user;
     if (isPerfectRun) {
         if (currentQuest.type === 'standard') {
+            const previousStatus = getTileStatus(currentQuest.unit.id, user);
             const alreadyDone = user.completedUnits?.includes(currentQuest.unit.id) || false;
             const { updatedUser, coinsAwarded } = await QuestService.completeStandardQuest(
               user,
@@ -3574,6 +3664,11 @@ export default function App() {
               isPerfectRun
             );
             u = updatedUser;
+            const newStatus = getTileStatus(currentQuest.unit.id, u);
+
+            // Check if Bounties were just unlocked
+            const bountiesJustUnlocked = previousStatus === 'locked' && newStatus === 'gold_unlocked';
+
             if (coinsAwarded > 0) {
                 addToast(`Quiz perfekt! +${coinsAwarded} Coins`, 'success');
                 triggerCoinAnimation();
@@ -3581,6 +3676,13 @@ export default function App() {
                 addToast("Quiz perfekt! (Keine neuen Coins - Limit erreicht)", "info");
             } else {
                 addToast("Wiederholt! (Keine neuen Coins)", "info");
+            }
+
+            // Show special message if Bounties were unlocked
+            if (bountiesJustUnlocked) {
+                setTimeout(() => {
+                    addToast(`🏆 BOUNTY-MODUS FREIGESCHALTET! Jetzt ${currentQuest.unit.bounty} Coins verdienen!`, 'success');
+                }, 1000);
             }
         } else if (currentQuest.type === 'bounty') {
             const alreadyMastered = user.masteredUnits?.includes(currentQuest.unit.id) || false;
@@ -3622,14 +3724,70 @@ export default function App() {
       addToast("Nicht genug Coins!", 'error');
       return;
     }
+
+    // Check if offline
+    if (!isOnline || isDevFallback) {
+      addToast('⚠️ Offline-Modus: Kauf wird nicht gespeichert. Bitte verbinde dich mit dem Internet.', 'info');
+      return;
+    }
+
+    // Optimistic update
     let updatedUser = { ...user, coins: userCoins - item.cost };
     if (item.type !== 'feature' && item.type !== 'voucher') {
       updatedUser.unlockedItems = [...new Set([...user.unlockedItems, item.id])];
       if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
     }
     setUser(updatedUser);
-    await DataService.updateUser(updatedUser);
-    addToast(`"${item.name}" gekauft!`, 'success');
+
+    // Server-side purchase
+    try {
+      const resp = await fetch('/.netlify/functions/shopBuy', {
+        method: 'POST',
+        headers: {
+          ...getApiHeaders(),
+          ...(user.id && !user.id.startsWith('anon_') ? { 'x-dev-user': user.id } : {})
+        },
+        body: JSON.stringify({ itemId: item.id, itemCost: item.cost }),
+      });
+
+      if (!resp.ok) {
+        throw new Error(`shopBuy failed: ${resp.status}`);
+      }
+
+      const json = await resp.json();
+
+      if (!json.ok) {
+        if (json.error === 'INSUFFICIENT_COINS') {
+          addToast("Nicht genug Coins!", 'error');
+          // Revert optimistic update
+          setUser(user);
+          return;
+        }
+        if (json.error === 'ITEM_ALREADY_OWNED') {
+          addToast("Item bereits gekauft!", 'info');
+          // Revert optimistic update
+          setUser(user);
+          return;
+        }
+        throw new Error(json.error || 'shopBuy failed');
+      }
+
+      // Update with server response
+      if (json.coins !== undefined) {
+        updatedUser.coins = json.coins;
+      }
+      if (json.unlockedItems) {
+        updatedUser.unlockedItems = json.unlockedItems;
+      }
+      setUser(updatedUser);
+      await DataService.updateUser(updatedUser);
+      addToast(`"${item.name}" gekauft!`, 'success');
+    } catch (err) {
+      console.warn('shopBuy failed, using local update', err);
+      // Keep optimistic update but warn user
+      await DataService.updateUser(updatedUser);
+      addToast(`"${item.name}" gekauft! (Lokal gespeichert)`, 'info');
+    }
   };
 
   const handleToggleEffect = async (effect: string) => {
@@ -3645,10 +3803,15 @@ export default function App() {
 
   return (
     <div className={`min-h-screen transition-all ${isDarkMode ? 'bg-slate-950 text-white' : 'bg-[#f8fafc] text-slate-900'}`}>
-      {/* Dev Fallback Banner */}
-      {isDevFallback && (
-        <div className="fixed top-0 left-0 right-0 z-[300] bg-yellow-500 text-slate-900 px-4 py-2 text-center text-sm font-bold shadow-lg">
-          ⚠️ Backend offline / Dev Fallback - Daten werden nicht gespeichert
+      {/* Offline / Dev Fallback Banner */}
+      {(!isOnline || isDevFallback) && (
+        <div className={`fixed top-0 left-0 right-0 z-[300] px-4 py-2 text-center text-sm font-bold shadow-lg ${
+          !isOnline ? 'bg-red-500 text-white' : 'bg-yellow-500 text-slate-900'
+        }`}>
+          {!isOnline
+            ? '⚠️ Offline-Modus: Coins und Fortschritt werden nicht gespeichert. Bitte verbinde dich mit dem Internet.'
+            : '⚠️ Backend offline / Dev Fallback - Daten werden nicht gespeichert'
+          }
         </div>
       )}
       <ToastContainer toasts={toasts} />
@@ -3706,16 +3869,29 @@ export default function App() {
             {activeTab === 'learn' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {(LEARNING_UNITS || []).map(unit => {
-                    const isGold = user.completedUnits?.includes(unit.id) || false;
-                    const isMastered = user.masteredUnits?.includes(unit.id) || false;
+                    const tileStatus = getTileStatus(unit.id, user);
+                    const isGold = tileStatus === 'gold_unlocked' || tileStatus === 'bounty_cleared';
+                    const isBountyCleared = tileStatus === 'bounty_cleared';
+                    const isBountyAvailable = isGold && !isBountyCleared;
 
                     return (
                       <GlassCard
                         key={unit.id}
                         onClick={() => setSelectedUnit(unit)}
                         isInteractive={true}
-                        className={`overflow-hidden border-b-4 ${isMastered ? 'border-emerald-500 tile-bounty-cleared' : isGold ? 'border-amber-500 tile-gold-unlocked' : `!border-b-${GROUP_THEME[unit.group].color}-500`} ${isDarkMode ? 'bg-slate-900/50' : 'bg-white'}`}
+                        className={`overflow-hidden border-b-4 relative ${
+                          isBountyCleared
+                            ? 'border-emerald-500 tile-bounty-cleared'
+                            : isGold
+                            ? 'border-amber-500 tile-gold-unlocked'
+                            : `!border-b-${GROUP_THEME[unit.group].color}-500`
+                        } ${isDarkMode ? 'bg-slate-900/50' : 'bg-white'}`}
                       >
+                         {isBountyAvailable && (
+                           <div className="absolute top-2 right-2 bg-amber-500 text-white text-[10px] font-black px-2 py-1 rounded-full animate-pulse">
+                             🏆 BOUNTY VERFÜGBAR
+                           </div>
+                         )}
                          <div className="flex justify-between items-start mb-4">
                             <Badge color={GROUP_THEME[unit.group].color as any}>{unit.category}</Badge>
                             <DifficultyStars difficulty={unit.difficulty} />
@@ -3725,7 +3901,7 @@ export default function App() {
                          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase">
                             <span>{isGold ? '✅ Erhalten' : `Reward: ${unit.coinsReward}`}</span>
                             <span>•</span>
-                            <span>{isMastered ? '🔥 Kassiert' : `Bounty: ${unit.bounty}`}</span>
+                            <span>{isBountyCleared ? '🔥 Kassiert' : isBountyAvailable ? `🏆 Bounty: ${unit.bounty}` : `Bounty: ${unit.bounty}`}</span>
                          </div>
                       </GlassCard>
                     );
@@ -3782,6 +3958,9 @@ const UnitView: React.FC<{ unit: LearningUnit; user: User; onClose: () => void; 
     const [timeLimitSeconds, setTimeLimitSeconds] = useState(60);
     const [noCheatSheet, setNoCheatSheet] = useState(false);
     const definition = GEOMETRY_DEFINITIONS.find(d => d.id === unit.definitionId);
+    const tileStatus = getTileStatus(unit.id, user);
+    const isBountyAvailable = tileStatus === 'gold_unlocked';
+    const isBountyCleared = tileStatus === 'bounty_cleared';
 
     const handleStart = () => {
         const options = {
@@ -3846,6 +4025,19 @@ const UnitView: React.FC<{ unit: LearningUnit; user: User; onClose: () => void; 
                     </label>
                 </div>
 
+                {/* Bounty Available Notice */}
+                {isBountyAvailable && !isBountyCleared && (
+                    <div className="mb-6 p-4 bg-amber-50 rounded-xl border-2 border-amber-400 animate-pulse">
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="text-2xl">🏆</span>
+                            <span className="font-black text-amber-700 uppercase tracking-widest text-sm">Bounty verfügbar!</span>
+                        </div>
+                        <p className="text-sm text-amber-800 font-bold">
+                            Du hast das Standard-Quiz perfekt abgeschlossen! Starte jetzt den Bounty-Modus und verdiene <span className="text-amber-600">{unit.bounty} Coins</span>.
+                        </p>
+                    </div>
+                )}
+
                 {/* Info */}
                 <div className="mb-6 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
                     <p className="text-sm text-slate-700">
@@ -3858,9 +4050,20 @@ const UnitView: React.FC<{ unit: LearningUnit; user: User; onClose: () => void; 
                     </p>
                 </div>
 
-                <Button onClick={handleStart} size="lg" className="w-full">
-                    Quest starten
-                </Button>
+                <div className="space-y-3">
+                    {isBountyAvailable && !isBountyCleared && (
+                        <Button
+                            onClick={() => onStartQuest(unit, 'bounty')}
+                            size="lg"
+                            className="w-full bg-amber-500 hover:bg-amber-600 text-white border-amber-600"
+                        >
+                            🏆 Bounty-Modus starten ({unit.bounty} Coins)
+                        </Button>
+                    )}
+                    <Button onClick={handleStart} size="lg" className="w-full">
+                        Standard-Quest starten
+                    </Button>
+                </div>
             </div>
         </ModalOverlay>
     );

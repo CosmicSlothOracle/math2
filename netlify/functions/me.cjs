@@ -122,10 +122,11 @@ exports.handler = async function (event, context) {
     // Check if user already exists to preserve coins
     let existingUser = null;
     try {
-      const { data: existingUserData } = await supabase.from('users').select('coins').eq('id', upsertId).single();
-      existingUser = existingUserData;
+      const { data: existingUserData } = await supabase.from('users').select('coins').eq('id', upsertId).limit(1);
+      existingUser = (existingUserData && existingUserData.length > 0) ? existingUserData[0] : null;
     } catch (e) {
       // User doesn't exist yet, that's fine
+      console.warn('[me.js] User check error:', e.message);
     }
 
     // Upsert user row - only set coins if user doesn't exist
@@ -180,8 +181,8 @@ exports.handler = async function (event, context) {
         returnedUser = upsertResult;
       } else {
         // If no user returned, fetch it
-        const { data: fetchedUser } = await supabase.from('users').select('*').eq('id', upsertId).single();
-        returnedUser = fetchedUser || { id: upsertId, display_name: displayName, coins: 250 };
+        const { data: fetchedUser } = await supabase.from('users').select('*').eq('id', upsertId).limit(1);
+        returnedUser = (fetchedUser && fetchedUser.length > 0) ? fetchedUser[0] : { id: upsertId, display_name: displayName, coins: 250 };
       }
     } catch (upsertErr) {
       console.error('[me.js] Upsert exception:', upsertErr.message);

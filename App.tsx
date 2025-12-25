@@ -3616,21 +3616,31 @@ export default function App() {
     let u = user;
     if (isPerfectRun) {
         if (currentQuest.type === 'standard') {
-            const alreadyDone = user.completedUnits?.includes(currentQuest.unit.id) || false;
-            u = await QuestService.completeStandardQuest(user, currentQuest.unit.id);
-            if (!alreadyDone) {
-                u.coins += currentQuest.unit.coinsReward;
-                addToast(`Quiz perfekt! +${currentQuest.unit.coinsReward} Coins`, 'success');
+            // QuestService now handles coin rewards and server persistence
+            const result = await QuestService.completeStandardQuest(
+              user,
+              currentQuest.unit.id,
+              currentQuest.unit.coinsReward,
+              true // isPerfectRun
+            );
+            u = result.updatedUser;
+            if (result.coinsAwarded > 0) {
+                addToast(`Quiz perfekt! +${result.coinsAwarded} Coins`, 'success');
                 triggerCoinAnimation();
             } else {
                 addToast("Wiederholt! (Keine neuen Coins)", "info");
             }
         } else if (currentQuest.type === 'bounty') {
-            const alreadyMastered = user.masteredUnits?.includes(currentQuest.unit.id) || false;
-            u = await QuestService.completeBountyQuest(user, currentQuest.unit.id);
-            if (!alreadyMastered) {
-                u.coins += currentQuest.unit.bounty;
-                addToast(`BOUNTY gemeistert! +${currentQuest.unit.bounty} Coins`, 'success');
+            // QuestService now handles bounty rewards and server persistence
+            const result = await QuestService.completeBountyQuest(
+              user,
+              currentQuest.unit.id,
+              currentQuest.unit.bounty,
+              true // isPerfectRun
+            );
+            u = result.updatedUser;
+            if (result.coinsAwarded > 0) {
+                addToast(`BOUNTY gemeistert! +${result.coinsAwarded} Coins`, 'success');
                 triggerCoinAnimation();
             } else {
                 addToast("Bounty bereits kassiert!", "info");
@@ -3643,6 +3653,9 @@ export default function App() {
     setUser(u);
     setIsQuestActive(false);
     setCurrentQuest(null);
+
+    // Refresh user from server to ensure we have latest state
+    await bootstrapServerUser();
   };
 
   const startQuest = (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty', options?: { timeLimit?: number; noCheatSheet?: boolean }) => {
@@ -3658,31 +3671,88 @@ export default function App() {
       addToast("Nicht genug Coins!", 'error');
       return;
     }
-    // Optimistic update
-    let updatedUser = { ...user, coins: userCoins - item.cost };
-    if (item.type !== 'feature' && item.type !== 'voucher') {
-      updatedUser.unlockedItems = [...new Set([...user.unlockedItems, item.id])];
-      if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
-    }
-    setUser(updatedUser);
-    // Server-side coin adjustment
+
+    // Call server shopBuy endpoint which handles coins AND unlocked items atomically
     try {
-      const resp = await fetch('/.netlify/functions/coinsAdjust', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ delta: -item.cost, reason: 'shop_purchase', refType: 'shop_item', refId: item.id }),
-      });
-      const json = await resp.json();
-      if (json.coins !== undefined) {
-        updatedUser.coins = json.coins;
-        setUser(updatedUser);
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      // Add anon ID header
+      try {
+        const cookies = document.cookie.split(';');
+        for (const cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'mm_anon_id' && value) {
+            headers['x-anon-id'] = value;
+            break;
+          }
+        }
+        if (!headers['x-anon-id']) {
+          const stored = localStorage.getItem('mm_anon_id');
+          if (stored) headers['x-anon-id'] = stored;
+        }
+      } catch (e) {
+        // ignore
       }
+
+      const resp = await fetch('/.netlify/functions/shopBuy', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ itemId: item.id, itemCost: item.cost }),
+      });
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        console.error('[handleBuy] Server error:', resp.status, text);
+        addToast("Kauf fehlgeschlagen - bitte erneut versuchen", 'error');
+        return;
+      }
+
+      const json = await resp.json();
+
+      if (json.note && json.note.includes('dev-fallback')) {
+        console.warn('[handleBuy] Dev fallback - purchase not persisted');
+        // Optimistic local update for dev mode
+        const updatedUser = {
+          ...user,
+          coins: userCoins - item.cost,
+          unlockedItems: [...new Set([...user.unlockedItems, item.id])]
+        };
+        if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
+        setUser(updatedUser);
+        await DataService.updateUser(updatedUser);
+        addToast(`"${item.name}" gekauft! (Dev Mode)`, 'success');
+        return;
+      }
+
+      if (!json.ok) {
+        console.error('[handleBuy] Purchase failed:', json.error);
+        if (json.error === 'INSUFFICIENT_COINS') {
+          addToast("Nicht genug Coins!", 'error');
+        } else if (json.error === 'ITEM_ALREADY_OWNED') {
+          addToast("Item bereits gekauft!", 'info');
+        } else {
+          addToast("Kauf fehlgeschlagen", 'error');
+        }
+        return;
+      }
+
+      // Update local user state from server response
+      const updatedUser = {
+        ...user,
+        coins: json.coins,
+        unlockedItems: json.unlockedItems || [...new Set([...user.unlockedItems, item.id])]
+      };
+      if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
+      setUser(updatedUser);
+      await DataService.updateUser(updatedUser);
+
+      addToast(`"${item.name}" gekauft!`, 'success');
+
+      // Refresh from server to ensure consistency
+      await bootstrapServerUser();
     } catch (err) {
-      console.warn('coinsAdjust failed, using local update', err);
+      console.error('[handleBuy] Exception:', err);
+      addToast("Kauf fehlgeschlagen - Netzwerkfehler", 'error');
     }
-    // Save user data (unlockedItems, etc.)
-    await DataService.updateUser(updatedUser);
-    addToast(`"${item.name}" gekauft!`, 'success');
   };
 
   const handleToggleEffect = async (effect: string) => {

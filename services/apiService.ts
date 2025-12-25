@@ -1,18 +1,157 @@
 import { User, ChatMessage } from '../types';
 
+/**
+ * CRITICAL: This file now uses server as source of truth.
+ * LocalStorage is ONLY used as a cache. All mutations go through Netlify functions.
+ */
 
 const db = {
   get: (key: string) => JSON.parse(localStorage.getItem(key) || 'null'),
   set: (key: string, val: any) => localStorage.setItem(key, JSON.stringify(val)),
 };
 
+// Helper to get API headers with anon ID
+function getApiHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+  try {
+    // Try cookie first
+    const cookies = document.cookie.split(';');
+    for (const cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'mm_anon_id' && value) {
+        headers['x-anon-id'] = value;
+        break;
+      }
+    }
+
+    // Fallback to localStorage
+    if (!headers['x-anon-id']) {
+      const stored = localStorage.getItem('mm_anon_id');
+      if (stored) headers['x-anon-id'] = stored;
+    }
+  } catch (e) {
+    console.warn('[getApiHeaders] Error reading anon ID:', e);
+  }
+
+  return headers;
+}
+
+// Helper to persist anon ID from response
+function persistAnonId(resp: Response): void {
+  try {
+    const setCookie = resp.headers.get('set-cookie');
+    if (setCookie) {
+      const match = setCookie.match(/mm_anon_id=([^;]+)/);
+      if (match && match[1]) {
+        localStorage.setItem('mm_anon_id', match[1]);
+      }
+    }
+  } catch (e) {
+    console.warn('[persistAnonId] Error persisting anon ID:', e);
+  }
+}
+
+// Helper to normalize user object from server
+function normalizeUser(serverUser: any): User {
+  return {
+    ...serverUser,
+    coins: Number.isFinite(serverUser.coins) ? serverUser.coins : 250,
+    totalEarned: Number.isFinite(serverUser.totalEarned) ? serverUser.totalEarned : 250,
+    xp: Number.isFinite(serverUser.xp) ? serverUser.xp : 0,
+    completedUnits: Array.isArray(serverUser.completedUnits) ? serverUser.completedUnits : [],
+    masteredUnits: Array.isArray(serverUser.masteredUnits) ? serverUser.masteredUnits : [],
+    preClearedUnits: Array.isArray(serverUser.preClearedUnits) ? serverUser.preClearedUnits : [],
+    perfectStandardQuizUnits: Array.isArray(serverUser.perfectStandardQuizUnits) ? serverUser.perfectStandardQuizUnits : [],
+    perfectBountyUnits: Array.isArray(serverUser.perfectBountyUnits) ? serverUser.perfectBountyUnits : [],
+    unlockedItems: Array.isArray(serverUser.unlockedItems) ? serverUser.unlockedItems : ['av_1', 'calc_default'],
+    activeEffects: Array.isArray(serverUser.activeEffects) ? serverUser.activeEffects : [],
+    solvedQuestionIds: Array.isArray(serverUser.solvedQuestionIds) ? serverUser.solvedQuestionIds : [],
+    questCoinsEarnedByUnit: serverUser.questCoinsEarnedByUnit || {},
+    bountyPayoutClaimed: serverUser.bountyPayoutClaimed || {},
+    username: serverUser.username || serverUser.display_name || 'User',
+    avatar: serverUser.avatar || '👤',
+    calculatorSkin: serverUser.calculatorSkin || 'default',
+  };
+}
+
 export const AuthService = {
+  /**
+   * Login now calls /me endpoint to get or create user on server.
+   * Username is stored as display_name in the backend.
+   */
   async login(username: string): Promise<User> {
-    let users = db.get('mm_users') || [];
-    let user = users.find((u: User) => u.username === username);
-    if (!user) {
-      user = {
-        id: Math.random().toString(36).substr(2, 9),
+    try {
+      console.log('[AuthService.login] Calling /me with username:', username);
+      const headers = getApiHeaders();
+
+      // Call /me endpoint which will create user if needed
+      const resp = await fetch('/.netlify/functions/me', {
+        method: 'GET',
+        headers,
+      });
+
+      persistAnonId(resp);
+
+      if (!resp.ok) {
+        throw new Error(`/me failed: ${resp.status}`);
+      }
+
+      const json = await resp.json();
+
+      // Check if dev fallback
+      if (json.note && json.note.includes('dev-fallback')) {
+        console.warn('[AuthService.login] Dev fallback - creating local user');
+        // In dev mode without backend, create local user
+        const localUser: User = {
+          id: `local_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          username,
+          avatar: '👤',
+          coins: 2000, // Dev mode coins
+          totalEarned: 2000,
+          completedUnits: [],
+          masteredUnits: [],
+          preClearedUnits: [],
+          perfectStandardQuizUnits: [],
+          perfectBountyUnits: [],
+          unlockedItems: ['av_1', 'calc_default'],
+          activeEffects: [],
+          calculatorSkin: 'default',
+          xp: 0,
+          solvedQuestionIds: [],
+          questCoinsEarnedByUnit: {},
+          bountyPayoutClaimed: {},
+        };
+        db.set('mm_current_user', localUser);
+        return localUser;
+      }
+
+      if (!json.user) {
+        throw new Error('No user in /me response');
+      }
+
+      // Normalize and cache user
+      const user = normalizeUser(json.user);
+
+      // Update username/display_name if needed
+      if (user.username !== username) {
+        user.username = username;
+        // TODO: Optionally call a /setDisplayName endpoint
+      }
+
+      db.set('mm_current_user', user);
+      if (json.progress) {
+        db.set('mm_progress', json.progress);
+      }
+
+      console.log('[AuthService.login] Success:', { userId: user.id, coins: user.coins });
+      return user;
+    } catch (err) {
+      console.error('[AuthService.login] Error:', err);
+
+      // Fallback to local user in case of network failure
+      const localUser: User = {
+        id: `local_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
         username,
         avatar: '👤',
         coins: 250,
@@ -30,85 +169,56 @@ export const AuthService = {
         questCoinsEarnedByUnit: {},
         bountyPayoutClaimed: {},
       };
-      users.push(user);
+      db.set('mm_current_user', localUser);
+      return localUser;
     }
-
-    if (!user.preClearedUnits) user.preClearedUnits = [];
-    if (!user.perfectStandardQuizUnits) user.perfectStandardQuizUnits = [];
-    if (!user.perfectBountyUnits) user.perfectBountyUnits = [];
-
-    db.set('mm_users', users);
-    db.set('mm_current_user', user);
-    return user;
   },
+
   getCurrentUser(): User | null {
     const user = db.get('mm_current_user');
     if (user) {
       // Ensure all numeric fields are valid numbers
-      // New users should start with 250 coins, not 0
       if (!Number.isFinite(user.coins)) user.coins = 250;
       if (!Number.isFinite(user.totalEarned)) user.totalEarned = 250;
       if (!Number.isFinite(user.xp)) user.xp = 0;
+      if (!Array.isArray(user.unlockedItems)) user.unlockedItems = ['av_1', 'calc_default'];
     }
     return user;
   },
 };
 
 export const DataService = {
+  /**
+   * DEPRECATED: Use specific API endpoints instead.
+   * This is kept for backward compatibility but should not be used for coins/progress.
+   */
   async updateUser(user: User): Promise<void> {
-    let users = db.get('mm_users') || [];
-    const idx = users.findIndex((u: User) => u.id === user.id);
-    if (idx !== -1) {
-      users[idx] = user;
-      db.set('mm_users', users);
-      db.set('mm_current_user', user);
-    }
+    console.warn('[DataService.updateUser] DEPRECATED - use specific API endpoints');
+    // Only update local cache
+    db.set('mm_current_user', user);
   },
 };
 
 export const SocialService = {
   async getLeaderboard(): Promise<User[]> {
+    // Leaderboard is local-only for now
     return (db.get('mm_users') || []).sort((a: User, b: User) => b.xp - a.xp);
   },
+
   async getChatMessages(channelId: string = 'class:global', since?: number): Promise<ChatMessage[]> {
     try {
       const params = new URLSearchParams();
       params.set('channelId', channelId);
       if (since) params.set('since', String(since));
 
-      // Get headers with anon ID
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      try {
-        // Try to read anon ID from cookie or localStorage
-        const cookies = document.cookie.split(';');
-        for (const cookie of cookies) {
-          const [name, value] = cookie.trim().split('=');
-          if (name === 'mm_anon_id' && value) {
-            headers['x-anon-id'] = value;
-            break;
-          }
-        }
-        if (!headers['x-anon-id']) {
-          const stored = localStorage.getItem('mm_anon_id');
-          if (stored) headers['x-anon-id'] = stored;
-        }
-      } catch (e) {
-        // ignore
-      }
-
+      const headers = getApiHeaders();
       const resp = await fetch(`/.netlify/functions/chatPoll?${params.toString()}`, { headers });
 
-      // Store anon ID from Set-Cookie if present
-      const setCookie = resp.headers.get('set-cookie');
-      if (setCookie) {
-        const match = setCookie.match(/mm_anon_id=([^;]+)/);
-        if (match && match[1]) {
-          localStorage.setItem('mm_anon_id', match[1]);
-        }
-      }
+      persistAnonId(resp);
 
       if (!resp.ok) throw new Error('non-ok');
       const json = await resp.json();
+
       if (json && Array.isArray(json.messages)) {
         return json.messages.map((m: any) => ({
           id: m.id,
@@ -122,51 +232,29 @@ export const SocialService = {
         })) as ChatMessage[];
       }
     } catch (err) {
-      // fallback to localStorage chat
+      console.warn('[getChatMessages] Error:', err);
+      // Fallback to localStorage chat
       return db.get('mm_chat') || [];
     }
     return [];
   },
+
   async sendMessage(user: User, text: string, channelId: string = 'class:global'): Promise<void> {
     try {
-      // Get headers with anon ID
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      try {
-        const cookies = document.cookie.split(';');
-        for (const cookie of cookies) {
-          const [name, value] = cookie.trim().split('=');
-          if (name === 'mm_anon_id' && value) {
-            headers['x-anon-id'] = value;
-            break;
-          }
-        }
-        if (!headers['x-anon-id']) {
-          const stored = localStorage.getItem('mm_anon_id');
-          if (stored) headers['x-anon-id'] = stored;
-        }
-      } catch (e) {
-        // ignore
-      }
-
+      const headers = getApiHeaders();
       const resp = await fetch('/.netlify/functions/chatSend', {
         method: 'POST',
         headers,
         body: JSON.stringify({ text, channelId, username: user.username }),
       });
 
-      // Store anon ID from Set-Cookie if present
-      const setCookie = resp.headers.get('set-cookie');
-      if (setCookie) {
-        const match = setCookie.match(/mm_anon_id=([^;]+)/);
-        if (match && match[1]) {
-          localStorage.setItem('mm_anon_id', match[1]);
-        }
-      }
+      persistAnonId(resp);
 
       if (!resp.ok) {
         console.warn('chatSend: non-OK response', resp.status, resp.statusText);
         throw new Error(`send failed: ${resp.status}`);
       }
+
       const contentType = resp.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
         const json = await resp.json();
@@ -182,7 +270,8 @@ export const SocialService = {
         }
       }
     } catch (err) {
-      // fallback to local storage
+      console.warn('[sendMessage] Error:', err);
+      // Fallback to local storage
       let chat = db.get('mm_chat') || [];
       chat.push({
         id: Date.now().toString(),
@@ -197,130 +286,73 @@ export const SocialService = {
   },
 };
 
-// Attempt to bootstrap user from Netlify Functions backend (/me).
-// Only updates if server has real data (not dev fallback) and preserves existing user data.
+/**
+ * Bootstrap user from server on app load.
+ * This is the SINGLE SOURCE OF TRUTH for user state.
+ * ALWAYS call this on app boot and after any major state change.
+ */
 export async function bootstrapServerUser(): Promise<any | null> {
   try {
-    const existingUser = AuthService.getCurrentUser();
-
-    // Get headers with anon ID
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    try {
-      const cookies = document.cookie.split(';');
-      for (const cookie of cookies) {
-        const [name, value] = cookie.trim().split('=');
-        if (name === 'mm_anon_id' && value) {
-          headers['x-anon-id'] = value;
-          break;
-        }
-      }
-      if (!headers['x-anon-id']) {
-        const stored = localStorage.getItem('mm_anon_id');
-        if (stored) headers['x-anon-id'] = stored;
-      }
-    } catch (e) {
-      // ignore
-    }
-
+    console.log('[bootstrapServerUser] Fetching user from server...');
+    const headers = getApiHeaders();
     const resp = await fetch('/.netlify/functions/me', { headers });
 
-    // Store anon ID from Set-Cookie if present
-    const setCookie = resp.headers.get('set-cookie');
-    if (setCookie) {
-      const match = setCookie.match(/mm_anon_id=([^;]+)/);
-      if (match && match[1]) {
-        localStorage.setItem('mm_anon_id', match[1]);
-      }
-    }
+    persistAnonId(resp);
 
     if (!resp.ok) {
-      console.warn('bootstrapServerUser: non-OK response', resp.status);
+      console.warn('[bootstrapServerUser] non-OK response', resp.status);
       return null;
     }
+
     const contentType = resp.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
-      console.warn('bootstrapServerUser: Response is not JSON, got:', contentType);
+      console.warn('[bootstrapServerUser] Response is not JSON, got:', contentType);
       const text = await resp.text();
       console.warn('Response text (first 200 chars):', text.substring(0, 200));
       return null;
     }
+
     const json = await resp.json();
 
-    // If server returned dev fallback, don't overwrite existing user
+    // If server returned dev fallback, keep existing user if any
     if (json && json.note && (json.note.includes('dev-fallback') || json.note.includes('dev'))) {
-      console.log('[Bootstrap] Server returned dev fallback, preserving existing user');
-      return null; // Don't overwrite
+      console.log('[bootstrapServerUser] Server returned dev fallback');
+      return null;
     }
 
     if (json && json.user) {
-      let users = db.get('mm_users') || [];
-      const idx = users.findIndex((u: any) => u.id === json.user.id);
+      // Server is source of truth - normalize and cache
+      const user = normalizeUser(json.user);
 
-      // If we have an existing user, merge server data intelligently
-      if (existingUser && existingUser.id === json.user.id) {
-        // Merge: use server coins as source of truth (server-authoritative)
-        // but preserve local arrays if server doesn't have them
-        const serverCoins = Number.isFinite(json.user.coins) ? json.user.coins : 0;
-        const serverTotalEarned = Number.isFinite(json.user.totalEarned) ? json.user.totalEarned : 0;
-        const localCoins = Number.isFinite(existingUser.coins) ? existingUser.coins : 0;
-        const localTotalEarned = Number.isFinite(existingUser.totalEarned) ? existingUser.totalEarned : 0;
-
-        // Use server values as source of truth, but merge arrays
-        const serverXp = Number.isFinite(json.user.xp) ? json.user.xp : 0;
-        const mergedUser = {
-          ...existingUser,
-          ...json.user,
-          coins: serverCoins, // Server-authoritative
-          totalEarned: serverTotalEarned, // Server-authoritative
-          xp: serverXp, // Server-authoritative
-          completedUnits: json.user.completedUnits || existingUser.completedUnits || [],
-          masteredUnits: json.user.masteredUnits || existingUser.masteredUnits || [],
-          perfectStandardQuizUnits:
-            json.user.perfectStandardQuizUnits || existingUser.perfectStandardQuizUnits || [],
-          perfectBountyUnits:
-            json.user.perfectBountyUnits || existingUser.perfectBountyUnits || [],
-          questCoinsEarnedByUnit: json.user.questCoinsEarnedByUnit || existingUser.questCoinsEarnedByUnit || {},
-          bountyPayoutClaimed: json.user.bountyPayoutClaimed || existingUser.bountyPayoutClaimed || {},
-        };
-
-        if (idx !== -1) {
-          users[idx] = mergedUser;
-        } else {
-          users.push(mergedUser);
-        }
-        db.set('mm_users', users);
-        db.set('mm_current_user', mergedUser);
-        return { ...json, user: mergedUser };
-      } else {
-        // New user from server - ensure all arrays and numeric fields are initialized
-        // New users should start with 250 coins, not 0
-        const newUser = {
-          ...json.user,
-          coins: Number.isFinite(json.user.coins) ? json.user.coins : 250,
-          totalEarned: Number.isFinite(json.user.totalEarned) ? json.user.totalEarned : 250,
-          xp: Number.isFinite(json.user.xp) ? json.user.xp : 0,
-          completedUnits: json.user.completedUnits || [],
-          masteredUnits: json.user.masteredUnits || [],
-          perfectStandardQuizUnits: json.user.perfectStandardQuizUnits || [],
-          perfectBountyUnits: json.user.perfectBountyUnits || [],
-          questCoinsEarnedByUnit: json.user.questCoinsEarnedByUnit || {},
-          bountyPayoutClaimed: json.user.bountyPayoutClaimed || {},
-        };
-        if (idx !== -1) {
-          users[idx] = newUser;
-        } else {
-          users.push(newUser);
-        }
-        db.set('mm_users', users);
-        db.set('mm_current_user', newUser);
+      db.set('mm_current_user', user);
+      if (json.progress) {
+        db.set('mm_progress', json.progress);
       }
 
-      if (json.progress) db.set('mm_progress', json.progress);
+      console.log('[bootstrapServerUser] Success:', {
+        userId: user.id,
+        coins: user.coins,
+        progressCount: json.progress ? json.progress.length : 0
+      });
+
       return json;
     }
+
     return json;
   } catch (err) {
-    console.warn('bootstrapServerUser failed', err);
+    console.warn('[bootstrapServerUser] Error:', err);
     return null;
   }
+}
+
+/**
+ * Refresh user state from server.
+ * Call this after any operation that modifies server state (coins, progress, purchases).
+ */
+export async function refreshUserFromServer(): Promise<User | null> {
+  const result = await bootstrapServerUser();
+  if (result && result.user) {
+    return result.user;
+  }
+  return null;
 }

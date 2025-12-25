@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:supabase": "node test-supabase.js"
+    "test:supabase": "node test-supabase.js",
+    "diagnose": "node tests/supabase-diagnostic.mjs",
+    "diagnose:prod": "node tests/supabase-diagnostic.mjs https://realer-math.netlify.app"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -9,6 +9,7 @@ create table if not exists users (
   id text primary key,
   display_name text,
   coins int default 250,
+  unlocked_items text[] default array[]::text[],  -- Für Shop-Käufe
   created_at timestamp with time zone default now()
 );
 

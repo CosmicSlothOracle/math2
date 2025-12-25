@@ -238,8 +238,13 @@ exports.handler = async function (event, context) {
       .map((p) => p.unit_id);
 
     // Merge with existing user arrays (for backward compatibility)
+    // IMPORTANT: Convert snake_case from Supabase to camelCase for frontend
     const mergedUser = {
       ...returnedUser,
+      // Convert unlocked_items (snake_case) to unlockedItems (camelCase) for frontend
+      unlockedItems: Array.isArray(returnedUser.unlocked_items)
+        ? returnedUser.unlocked_items
+        : (Array.isArray(returnedUser.unlockedItems) ? returnedUser.unlockedItems : []),
       perfectStandardQuizUnits: [
         ...new Set([...(returnedUser.perfectStandardQuizUnits || []), ...perfectStandardQuizUnits])
       ],

@@ -58,6 +58,42 @@ exports.handler = async function (event, context) {
           error: queryErr.message,
         };
       }
+
+      // Test if unlocked_items column exists (common missing column)
+      try {
+        const { data: schemaData, error: schemaError } = await client
+          .from('users')
+          .select('id, coins, unlocked_items')
+          .limit(1);
+
+        debug.schema = {
+          unlocked_items_exists: !schemaError,
+          error: schemaError ? schemaError.message : null,
+        };
+
+        if (schemaError && schemaError.message.includes('unlocked_items')) {
+          debug.schema.fix = 'Run: ALTER TABLE users ADD COLUMN unlocked_items text[] DEFAULT ARRAY[]::text[];';
+        }
+      } catch (schemaErr) {
+        debug.schema = {
+          unlocked_items_exists: false,
+          error: schemaErr.message,
+        };
+      }
+
+      // Count tables for verification
+      try {
+        const tables = ['users', 'progress', 'messages', 'coin_ledger'];
+        debug.tables = {};
+        for (const table of tables) {
+          const { count, error: countErr } = await client
+            .from(table)
+            .select('*', { count: 'exact', head: true });
+          debug.tables[table] = countErr ? { error: countErr.message } : { count };
+        }
+      } catch (tableErr) {
+        debug.tables = { error: tableErr.message };
+      }
     } else {
       debug.client.error = 'createSupabaseClient returned null';
     }
@@ -116,6 +152,15 @@ function generateRecommendations(debug) {
     recs.push(`Supabase connection test failed: ${debug.client.testQuery.error}`);
     if (debug.client.testQuery.code === 'PGRST116') {
       recs.push('Possible RLS issue - check Supabase RLS policies or use SERVICE_ROLE_KEY');
+    }
+  }
+
+  // Schema recommendations
+  if (debug.schema && !debug.schema.unlocked_items_exists) {
+    recs.push('🚨 CRITICAL: unlocked_items column missing in users table!');
+    recs.push('Fix: Run docs/migration_fix_schema.sql in Supabase SQL Editor');
+    if (debug.schema.fix) {
+      recs.push(debug.schema.fix);
     }
   }
 

@@ -219,7 +219,8 @@ export const QuestService = {
     user: User,
     unitId: string,
     reward: number,
-    isPerfectRun: boolean = false
+    isPerfectRun: boolean = false,
+    percentage: number = 100
   ): Promise<{ updatedUser: User; coinsAwarded: number }> => {
     const completed = user.completedUnits || [];
     const progressUser: User = {
@@ -227,8 +228,8 @@ export const QuestService = {
       completedUnits: [...new Set([...completed, unitId])],
     };
 
-    // If perfect run, add to perfectStandardQuizUnits
-    if (isPerfectRun) {
+    // If perfect run OR ≥80% correct, add to perfectStandardQuizUnits (unlocks bounty)
+    if (isPerfectRun || percentage >= 80) {
       const perfectStandard = progressUser.perfectStandardQuizUnits || [];
       if (!perfectStandard.includes(unitId)) {
         progressUser.perfectStandardQuizUnits = [...perfectStandard, unitId];

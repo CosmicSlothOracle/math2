@@ -13,6 +13,8 @@ import {
   CalculatorWidget
 } from './ui-components';
 import { subscribeVirtualPointer } from './src/utils/virtualPointer';
+import { MultiFieldInput } from './components/MultiFieldInput';
+import { validateAnswer } from './utils/answerValidators';
 
 // --- Theme Helpers ---
 const GROUP_THEME: Record<CategoryGroup, { color: string; bg: string; text: string; border: string; darkBg: string }> = {
@@ -3068,11 +3070,12 @@ const QuestExecutionView: React.FC<{
   timeLimit?: number;
   noCheatSheet?: boolean;
   onTaskCorrect: (task: Task, wager: number) => void;
-  onComplete: (isPerfect: boolean) => void;
+  onComplete: (isPerfect: boolean, percentage?: number) => void;
   onCancel: () => void;
 }> = ({ unit, tasks, isBountyMode, timeLimit, noCheatSheet = false, onTaskCorrect, onComplete, onCancel }) => {
     const [currentIdx, setCurrentIdx] = useState(0);
     const [mistakes, setMistakes] = useState(0);
+    const [correctAnswers, setCorrectAnswers] = useState(0);
     const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
     const [selectedOption, setSelectedOption] = useState<any>(null);
     const [textInput, setTextInput] = useState('');
@@ -3085,6 +3088,7 @@ const QuestExecutionView: React.FC<{
     const [angleInput, setAngleInput] = useState('');
     const [sliderValue, setSliderValue] = useState<number>(1);
     const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
+    const [multiFieldValues, setMultiFieldValues] = useState<Record<string, string>>({});
 
     useEffect(() => {
         if (isBountyMode && !feedback && tasks.length > 0) {
@@ -3125,14 +3129,70 @@ const QuestExecutionView: React.FC<{
         } else if (task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') {
             isCorrect = selectedOption === task.correctAnswer || (task.type === 'boolean' && (selectedOption === 0 && task.correctAnswer === 'wahr' || selectedOption === 1 && task.correctAnswer === 'falsch'));
         } else if (task.type === 'input' || task.type === 'shorttext') {
-            const clean = (s: string) => s.replace(/\s+/g, '').toLowerCase();
-            const userAns = clean(textInput);
+            // Check if task has multiInputFields
+            if (task.multiInputFields && task.multiInputFields.length > 0) {
+                // Validate each field
+                let allFieldsValid = true;
+                let parsedCorrectAnswer: Record<string, any> = {};
 
-            if (userAns === '') {
-                isCorrect = false;
+                try {
+                    parsedCorrectAnswer = JSON.parse(String(task.correctAnswer));
+                } catch {
+                    // Fallback: treat as string
+                    parsedCorrectAnswer = {};
+                }
+
+                for (const field of task.multiInputFields) {
+                    const userValue = multiFieldValues[field.id] || '';
+                    const expectedValue = parsedCorrectAnswer[field.id];
+
+                    if (!userValue.trim()) {
+                        allFieldsValid = false;
+                        break;
+                    }
+
+                    // Use validator if available
+                    if (field.validator) {
+                        const fieldValid = validateAnswer(userValue, field.validator);
+                        if (!fieldValid) {
+                            // Also check against expected value if validator fails
+                            if (expectedValue) {
+                                const clean = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+                                const userClean = clean(userValue);
+                                const expectedClean = clean(String(expectedValue));
+                                if (!userClean.includes(expectedClean) && !expectedClean.includes(userClean)) {
+                                    allFieldsValid = false;
+                                    break;
+                                }
+                            } else {
+                                allFieldsValid = false;
+                                break;
+                            }
+                        }
+                    } else if (expectedValue) {
+                        // Fallback: simple text comparison
+                        const clean = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+                        const userClean = clean(userValue);
+                        const expectedClean = clean(String(expectedValue));
+                        if (!userClean.includes(expectedClean) && !expectedClean.includes(userClean)) {
+                            allFieldsValid = false;
+                            break;
+                        }
+                    }
+                }
+
+                isCorrect = allFieldsValid;
             } else {
-                const correctAnswers = String(task.correctAnswer).split(',').map(s => clean(s.trim()));
-                isCorrect = correctAnswers.some(ans => userAns.includes(ans));
+                // Single input field (original logic)
+                const clean = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+                const userAns = clean(textInput);
+
+                if (userAns === '') {
+                    isCorrect = false;
+                } else {
+                    const correctAnswers = String(task.correctAnswer).split(',').map(s => clean(s.trim()));
+                    isCorrect = correctAnswers.some(ans => userAns.includes(ans));
+                }
             }
         } else if (task.type === 'visualChoice') {
             isCorrect = selectedOption === task.correctAnswer;
@@ -3157,6 +3217,7 @@ const QuestExecutionView: React.FC<{
 
         if (isCorrect) {
             setFeedback('correct');
+            setCorrectAnswers(c => c + 1);
             onTaskCorrect(task, task.type === 'wager' ? wager : 0);
         } else {
             setFeedback('wrong');
@@ -3176,10 +3237,17 @@ const QuestExecutionView: React.FC<{
             setAngleInput('');
             setSliderValue(1);
             setSelectedParts(new Set());
+            setMultiFieldValues({});
             setCurrentHint(null);
+            // Don't reset correctAnswers - we want to track total across all tasks
         } else {
+            // Calculate percentage of correct answers
+            const totalTasks = tasks.length;
+            const correctCount = correctAnswers;
+            const percentage = totalTasks > 0 ? Math.round((correctCount / totalTasks) * 100) : 0;
             // Perfect run means no mistakes AND no hints used
-            onComplete(mistakes === 0 && hintsUsed === 0);
+            const isPerfect = mistakes === 0 && hintsUsed === 0;
+            onComplete(isPerfect, percentage);
         }
     };
 
@@ -3257,16 +3325,59 @@ const QuestExecutionView: React.FC<{
                     </div>
                 ) : (
                     <>
-                        <div className="mb-10 text-center">
-                            <h3 className={`text-xl sm:text-3xl font-black italic leading-tight mb-4 ${isBountyMode ? 'text-amber-100' : 'text-slate-900'}`}>{task.question}</h3>
+                        <div className="mb-10">
+                            <div className="text-center mb-6">
+                                <h3 className={`text-xl sm:text-3xl font-black italic leading-tight mb-4 ${isBountyMode ? 'text-amber-100' : 'text-slate-900'}`}>{task.question}</h3>
+                            </div>
+
+                            {/* Context, Given, Asked, Instructions */}
+                            {(task.context || task.given || task.asked || task.instructions) && (
+                                <div className={`p-6 rounded-2xl border-2 mb-6 text-left ${isBountyMode ? 'bg-amber-900/20 border-amber-500/30' : 'bg-slate-50 border-slate-200'}`}>
+                                    {task.context && (
+                                        <div className="mb-4">
+                                            <p className={`text-xs font-black uppercase tracking-widest mb-2 ${isBountyMode ? 'text-amber-400' : 'text-slate-500'}`}>Kontext</p>
+                                            <p className={`text-sm font-medium ${isBountyMode ? 'text-slate-200' : 'text-slate-700'}`}>{task.context}</p>
+                                        </div>
+                                    )}
+                                    {task.given && task.given.length > 0 && (
+                                        <div className="mb-4">
+                                            <p className={`text-xs font-black uppercase tracking-widest mb-2 ${isBountyMode ? 'text-amber-400' : 'text-slate-500'}`}>Gegeben</p>
+                                            <ul className={`list-disc list-inside space-y-1 text-sm ${isBountyMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                                                {task.given.map((item, i) => (
+                                                    <li key={i} className="font-medium">{item}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    {task.asked && task.asked.length > 0 && (
+                                        <div className="mb-4">
+                                            <p className={`text-xs font-black uppercase tracking-widest mb-2 ${isBountyMode ? 'text-amber-400' : 'text-slate-500'}`}>Gesucht</p>
+                                            <ul className={`list-disc list-inside space-y-1 text-sm ${isBountyMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                                                {task.asked.map((item, i) => (
+                                                    <li key={i} className="font-medium">{item}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    {task.instructions && (
+                                        <div>
+                                            <p className={`text-xs font-black uppercase tracking-widest mb-2 ${isBountyMode ? 'text-amber-400' : 'text-slate-500'}`}>Hinweis</p>
+                                            <p className={`text-sm font-medium italic ${isBountyMode ? 'text-amber-300' : 'text-indigo-700'}`}>{task.instructions}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {!noCheatSheet && !feedback && (
-                                <button
-                                    onClick={handleRequestHint}
-                                    disabled={isLoadingHint || !!currentHint}
-                                    className="text-sm text-indigo-600 hover:text-indigo-800 underline font-bold disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-                                >
-                                    {isLoadingHint ? 'Lade Tipp...' : currentHint ? '✓ Tipp angezeigt' : 'Ich brauche einen Tipp (-1 Perfect)'}
-                                </button>
+                                <div className="text-center">
+                                    <button
+                                        onClick={handleRequestHint}
+                                        disabled={isLoadingHint || !!currentHint}
+                                        className="text-sm text-indigo-600 hover:text-indigo-800 underline font-bold disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+                                    >
+                                        {isLoadingHint ? 'Lade Tipp...' : currentHint ? '✓ Tipp angezeigt' : 'Ich brauche einen Tipp (-1 Perfect)'}
+                                    </button>
+                                </div>
                             )}
                             {currentHint && (
                                 <div className="mt-4 p-4 bg-indigo-50 border-2 border-indigo-200 rounded-xl text-left">
@@ -3497,18 +3608,28 @@ const QuestExecutionView: React.FC<{
                             )}
                             {(task.type === 'input' || task.type === 'shorttext') && (
                                 <div className="relative z-10">
-                                    <input
-                                        type="text"
-                                        value={textInput}
-                                        onChange={(e) => setTextInput(e.target.value)}
-                                        placeholder={task.placeholder || "Deine Antwort hier..."}
-                                        disabled={!!feedback}
-                                        readOnly={!!feedback}
-                                        autoFocus
-                                        className={`w-full p-6 text-xl font-black rounded-2xl border-4 outline-none transition-all ${isBountyMode ? 'bounty-input' : 'border-slate-100 focus:border-indigo-500 bg-slate-50'} ${feedback ? 'opacity-50 cursor-not-allowed' : 'cursor-text'}`}
-                                        style={{ pointerEvents: feedback ? 'none' : 'auto', WebkitUserSelect: 'text', userSelect: 'text' }}
-                                    />
-                                    {isBountyMode && <div className="absolute -top-3 left-6 px-2 bg-slate-900 text-amber-500 text-[10px] font-black uppercase tracking-widest">Eingabe erforderlich</div>}
+                                    {task.multiInputFields && task.multiInputFields.length > 0 ? (
+                                        <MultiFieldInput
+                                            fields={task.multiInputFields}
+                                            values={multiFieldValues}
+                                            onChange={setMultiFieldValues}
+                                            disabled={!!feedback}
+                                            isBountyMode={isBountyMode}
+                                        />
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            value={textInput}
+                                            onChange={(e) => setTextInput(e.target.value)}
+                                            placeholder={task.placeholder || "Deine Antwort hier..."}
+                                            disabled={!!feedback}
+                                            readOnly={!!feedback}
+                                            autoFocus
+                                            className={`w-full p-6 text-xl font-black rounded-2xl border-4 outline-none transition-all ${isBountyMode ? 'bounty-input' : 'border-slate-100 focus:border-indigo-500 bg-slate-50'} ${feedback ? 'opacity-50 cursor-not-allowed' : 'cursor-text'}`}
+                                            style={{ pointerEvents: feedback ? 'none' : 'auto', WebkitUserSelect: 'text', userSelect: 'text' }}
+                                        />
+                                    )}
+                                    {isBountyMode && !task.multiInputFields && <div className="absolute -top-3 left-6 px-2 bg-slate-900 text-amber-500 text-[10px] font-black uppercase tracking-widest">Eingabe erforderlich</div>}
                                 </div>
                             )}
                         </div>
@@ -3651,45 +3772,54 @@ export default function App() {
     if(coinsAwarded > 0) triggerCoinAnimation();
   };
 
-  const handleQuestComplete = async (isPerfectRun: boolean) => {
+  const handleQuestComplete = async (isPerfectRun: boolean, percentage: number = 100) => {
     if (!currentQuest || !user) return;
 
     let u = user;
-    if (isPerfectRun) {
-        if (currentQuest.type === 'standard') {
-            // QuestService now handles coin rewards and server persistence
-            const result = await QuestService.completeStandardQuest(
-              user,
-              currentQuest.unit.id,
-              currentQuest.unit.coinsReward,
-              true // isPerfectRun
-            );
-            u = result.updatedUser;
-            if (result.coinsAwarded > 0) {
+    if (currentQuest.type === 'standard') {
+        // Calculate partial reward based on percentage
+        const baseReward = currentQuest.unit.coinsReward;
+        const partialReward = percentage >= 80 ? baseReward : Math.round((percentage / 100) * baseReward);
+
+        // QuestService now handles coin rewards and server persistence
+        const result = await QuestService.completeStandardQuest(
+          user,
+          currentQuest.unit.id,
+          partialReward,
+          isPerfectRun,
+          percentage
+        );
+        u = result.updatedUser;
+        if (result.coinsAwarded > 0) {
+            if (percentage === 100) {
                 addToast(`Quiz perfekt! +${result.coinsAwarded} Coins`, 'success');
-                triggerCoinAnimation();
+            } else if (percentage >= 80) {
+                addToast(`Gut gemacht! ${percentage}% richtig - +${result.coinsAwarded} Coins`, 'success');
             } else {
-                addToast("Wiederholt! (Keine neuen Coins)", "info");
+                addToast(`${percentage}% richtig - +${result.coinsAwarded} Coins`, 'info');
             }
-        } else if (currentQuest.type === 'bounty') {
-            // QuestService now handles bounty rewards and server persistence
-            const result = await QuestService.completeBountyQuest(
-              user,
-              currentQuest.unit.id,
-              currentQuest.unit.bounty,
-              true // isPerfectRun
-            );
-            u = result.updatedUser;
-            if (result.coinsAwarded > 0) {
-                addToast(`BOUNTY gemeistert! +${result.coinsAwarded} Coins`, 'success');
-                triggerCoinAnimation();
-            } else {
-                addToast("Bounty bereits kassiert!", "info");
-            }
-        } else if (currentQuest.type === 'pre') {
-          u = await QuestService.completePreQuest(user, currentQuest.unit.id);
-          addToast("Übung abgeschlossen!", "success");
+            triggerCoinAnimation();
+        } else {
+            addToast("Wiederholt! (Keine neuen Coins)", "info");
         }
+    } else if (currentQuest.type === 'bounty') {
+        // QuestService now handles bounty rewards and server persistence
+        const result = await QuestService.completeBountyQuest(
+          user,
+          currentQuest.unit.id,
+          currentQuest.unit.bounty,
+          isPerfectRun
+        );
+        u = result.updatedUser;
+        if (result.coinsAwarded > 0) {
+            addToast(`BOUNTY gemeistert! +${result.coinsAwarded} Coins`, 'success');
+            triggerCoinAnimation();
+        } else {
+            addToast("Bounty bereits kassiert!", "info");
+        }
+    } else if (currentQuest.type === 'pre') {
+      u = await QuestService.completePreQuest(user, currentQuest.unit.id);
+      addToast("Übung abgeschlossen!", "success");
     }
     setUser(u);
     setIsQuestActive(false);

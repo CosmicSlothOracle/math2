@@ -4,15 +4,33 @@ import { sanitizeMathInput } from './inputSanitizer';
 const NEGATION_WORDS = ['nicht', 'kein', 'keine', 'keiner', 'keines', 'ohne'];
 const MULTI_VALUE_SEPARATORS = /(?:\r?\n|;|,|\/|\||\s+-\s+|\s+–\s+)/;
 const SYNONYM_RULES: Array<{ pattern: RegExp; replacement: string }> = [
-  { pattern: /\brhomb(us|us)?\b/g, replacement: 'raute' },
-  { pattern: /\brhombus\b/g, replacement: 'raute' },
-  { pattern: /\bdiamond\b/g, replacement: 'raute' },
-  { pattern: /\bparallelogram\b/g, replacement: 'parallelogramm' },
-  { pattern: /\brectangle\b/g, replacement: 'rechteck' },
-  { pattern: /\bsquare\b/g, replacement: 'quadrat' },
-  { pattern: /\bcircle\b/g, replacement: 'kreis' },
-  { pattern: /\bangle\b/g, replacement: 'winkel' },
-  { pattern: /\bdegree(s)?\b/g, replacement: 'grad' },
+  // Geometric shapes
+  { pattern: /\brhomb(us|us)?\b/gi, replacement: 'raute' },
+  { pattern: /\bdiamond\b/gi, replacement: 'raute' },
+  { pattern: /\bparallelogram\b/gi, replacement: 'parallelogramm' },
+  { pattern: /\brectangle\b/gi, replacement: 'rechteck' },
+  { pattern: /\bsquare\b/gi, replacement: 'quadrat' },
+  { pattern: /\bcircle\b/gi, replacement: 'kreis' },
+  { pattern: /\btriangle\b/gi, replacement: 'dreieck' },
+  { pattern: /\btrapez(oid)?\b/gi, replacement: 'trapez' },
+  // Angles
+  { pattern: /\bangle\b/gi, replacement: 'winkel' },
+  { pattern: /\bdegree(s)?\b/gi, replacement: 'grad' },
+  { pattern: /\b°\b/g, replacement: 'grad' },
+  // Boolean responses
+  { pattern: /\brichtig\b/gi, replacement: 'wahr' },
+  { pattern: /\bstimmt\b/gi, replacement: 'wahr' },
+  { pattern: /\bja\b/gi, replacement: 'wahr' },
+  { pattern: /\bfalsch\b/gi, replacement: 'falsch' },
+  { pattern: /\bstimmt nicht\b/gi, replacement: 'falsch' },
+  { pattern: /\bnein\b/gi, replacement: 'falsch' },
+  // Common phrases
+  { pattern: /\brechte winkel\b/gi, replacement: 'rechte winkel' },
+  { pattern: /\brechten winkel\b/gi, replacement: 'rechte winkel' },
+  { pattern: /\bgleich lange seiten\b/gi, replacement: 'gleich lange seiten' },
+  { pattern: /\bparallele gegenseiten\b/gi, replacement: 'parallele gegenseiten' },
+  { pattern: /\bwinkelsumme\b/gi, replacement: 'winkelsumme' },
+  { pattern: /\bwinkelsumme im dreieck\b/gi, replacement: 'winkelsumme dreieck' },
 ];
 
 export function normalizeTextAnswer(value: string): string {
@@ -50,7 +68,27 @@ export function matchKeywords(text: string, keywords: string[], mode: 'any' | 'a
   if (!keywords || keywords.length === 0) return true;
   const normalized = normalizeTextAnswer(text);
   const normalizedKeywords = keywords.map(normalizeTextAnswer).filter(Boolean);
-  const checks = normalizedKeywords.map(keyword => normalized.includes(keyword));
+
+  // More tolerant matching: check if any word from keyword appears
+  const checks = normalizedKeywords.map(keyword => {
+    // Exact match
+    if (normalized.includes(keyword)) return true;
+
+    // Word-by-word match (for multi-word keywords)
+    const keywordWords = keyword.split(/\s+/).filter(Boolean);
+    if (keywordWords.length > 1) {
+      // Check if all words appear (order-independent)
+      return keywordWords.every(word => normalized.includes(word));
+    }
+
+    // Partial match for single words (at least 4 characters)
+    if (keyword.length >= 4) {
+      return normalized.includes(keyword.substring(0, Math.min(4, keyword.length)));
+    }
+
+    return false;
+  });
+
   return mode === 'all' ? checks.every(Boolean) : checks.some(Boolean);
 }
 
@@ -133,15 +171,16 @@ export function validateAnswer(value: string, config: InputValidatorConfig): boo
       const parsed = sanitizeNumberInput(value);
       if (parsed === null) return false;
       if (config.acceptedNumbers && config.acceptedNumbers.length > 0) {
-        return config.acceptedNumbers.some(num => Math.abs(parsed - num) < 1e-9);
+        return config.acceptedNumbers.some(num => Math.abs(parsed - num) < 1e-6);
       }
       if (config.numericAnswer === undefined) return false;
-      return Math.abs(parsed - config.numericAnswer) < 1e-9;
+      // More tolerant: allow small rounding differences
+      return Math.abs(parsed - config.numericAnswer) < 1e-6;
     }
     case 'numericTolerance': {
       const parsed = sanitizeNumberInput(value);
       if (parsed === null || config.numericAnswer === undefined) return false;
-      const tolerance = config.tolerance ?? 0;
+      const tolerance = config.tolerance ?? 0.1; // Default tolerance of 0.1 if not specified
       return Math.abs(parsed - config.numericAnswer) <= tolerance;
     }
     case 'coordinatePair': {

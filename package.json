@@ -26,6 +26,7 @@
     "@vitejs/plugin-react": "^5.0.0",
     "@vitest/ui": "^4.0.16",
     "jsdom": "^27.3.0",
+    "netlify-cli": "^23.13.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vitest": "^4.0.16"

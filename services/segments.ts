@@ -110,19 +110,75 @@ export const SEGMENT_FIGUREN_VERSTEHEN: SegmentConfig = {
       id: 'bounty-1',
       question: 'Ein Viereck hat parallele Gegenseiten und gleich lange Seiten. a) Welcher Figurenklasse gehört es an? b) Begründe deine Antwort. c) Nenne eine Eigenschaft, die nicht zwingend gilt.',
       type: 'input',
+      context: 'Klassifikation von Vierecken: Ein Viereck mit parallelen Gegenseiten und gleich langen Seiten.',
+      given: [
+        'Das Viereck hat parallele Gegenseiten (mindestens ein Paar).',
+        'Alle vier Seiten sind gleich lang.'
+      ],
+      asked: [
+        'a) Zu welcher Figurenklasse gehört dieses Viereck?',
+        'b) Begründe deine Antwort kurz.',
+        'c) Nenne eine Eigenschaft, die für diese Figurenklasse nicht zwingend gilt.'
+      ],
+      answerFormat: {
+        type: 'multiField',
+        fields: [
+          { id: 'a', label: 'a) Figurenklasse', type: 'dropdown', options: ['Quadrat', 'Raute', 'Parallelogramm', 'Rechteck'] },
+          { id: 'b', label: 'b) Begründung', type: 'text' },
+          { id: 'c', label: 'c) Nicht zwingende Eigenschaft', type: 'text' }
+        ]
+      },
       correctAnswer: JSON.stringify({
-        a: 'quadrat',
+        a: 'raute',
         b: 'parallele gegenseiten und gleich lange seiten',
         c: 'rechte winkel'
       }),
       explanation: 'Es könnte ein Quadrat oder eine Raute sein. Rechte Winkel sind nicht zwingend.',
       difficultyLevel: 'Mittel',
-      placeholder: 'Antwort eingeben...'
+      multiInputFields: [
+        {
+          id: 'a',
+          label: 'a) Figurenklasse',
+          placeholder: 'z.B. Raute oder Quadrat',
+          validator: { type: 'keywords', keywordsAny: ['raute', 'rhombus', 'quadrat', 'square'] }
+        },
+        {
+          id: 'b',
+          label: 'b) Begründung',
+          placeholder: 'Warum gehört es zu dieser Klasse?',
+          validator: { type: 'keywords', keywordsAny: ['parallele gegenseiten', 'gleich lange seiten', 'vier seiten gleich'] }
+        },
+        {
+          id: 'c',
+          label: 'c) Nicht zwingende Eigenschaft',
+          placeholder: 'z.B. rechte Winkel',
+          validator: { type: 'keywords', keywordsAny: ['rechte winkel', 'rechten winkel', 'rechtwinklig', '90°', '90 grad'], requireNegation: true }
+        }
+      ]
     },
     {
       id: 'bounty-2',
       question: 'Die Aussage "Jedes Rechteck ist ein Quadrat" ist: a) richtig oder falsch? b) Begründe. c) Formuliere die korrekte Aussage.',
       type: 'input',
+      context: 'Beurteilung einer mathematischen Aussage über die Beziehung zwischen Rechtecken und Quadraten.',
+      given: [
+        'Die Aussage lautet: "Jedes Rechteck ist ein Quadrat".',
+        'Ein Rechteck hat vier rechte Winkel und parallele Gegenseiten.',
+        'Ein Quadrat hat vier rechte Winkel, parallele Gegenseiten und vier gleich lange Seiten.'
+      ],
+      asked: [
+        'a) Ist die Aussage richtig oder falsch?',
+        'b) Begründe deine Antwort kurz.',
+        'c) Formuliere die korrekte Aussage (falls die gegebene falsch ist).'
+      ],
+      answerFormat: {
+        type: 'multiField',
+        fields: [
+          { id: 'a', label: 'a) Bewertung', type: 'dropdown', options: ['Richtig', 'Falsch'] },
+          { id: 'b', label: 'b) Begründung', type: 'text' },
+          { id: 'c', label: 'c) Korrekte Aussage', type: 'text' }
+        ]
+      },
       correctAnswer: JSON.stringify({
         a: 'falsch',
         b: 'nicht jedes rechteck hat gleich lange seiten',
@@ -130,19 +186,69 @@ export const SEGMENT_FIGUREN_VERSTEHEN: SegmentConfig = {
       }),
       explanation: 'Falsch! Nicht jedes Rechteck ist ein Quadrat, aber jedes Quadrat ist ein Rechteck.',
       difficultyLevel: 'Schwer',
-      placeholder: 'Antwort eingeben...'
+      multiInputFields: [
+        {
+          id: 'a',
+          label: 'a) Bewertung',
+          placeholder: 'richtig / falsch',
+          validator: { type: 'boolean', booleanExpected: 'false' }
+        },
+        {
+          id: 'b',
+          label: 'b) Begründung',
+          placeholder: 'Warum ist die Aussage falsch?',
+          validator: { type: 'keywords', keywordsAny: ['rechte winkel', 'rechten winkel', 'gleich lange seiten', 'nicht jedes'], requireNegation: true }
+        },
+        {
+          id: 'c',
+          label: 'c) Korrekte Aussage',
+          placeholder: 'z.B. Jedes Quadrat ist ein Rechteck',
+          validator: { type: 'keywords', keywordsAny: ['jedes quadrat ist ein rechteck', 'jedes quadrat ist ein parallelogramm', 'jedes quadrat ist ein rechteck und eine raute'] }
+        }
+      ]
     },
     {
       id: 'bounty-3',
       question: 'Ordne die Begriffe logisch: Viereck – Parallelogramm – Rechteck – Quadrat. a) Nenne die richtige Reihenfolge. b) Begründe die Ordnung.',
       type: 'input',
+      context: 'Hierarchische Klassifikation von Vierecken: Von allgemein zu speziell.',
+      given: [
+        'Viereck: Allgemeine Form mit vier Seiten.',
+        'Parallelogramm: Viereck mit parallelen Gegenseiten.',
+        'Rechteck: Parallelogramm mit vier rechten Winkeln.',
+        'Quadrat: Rechteck mit vier gleich langen Seiten.'
+      ],
+      asked: [
+        'a) Nenne die Begriffe in der richtigen Reihenfolge (von allgemein zu speziell).',
+        'b) Begründe, warum diese Ordnung logisch ist.'
+      ],
+      answerFormat: {
+        type: 'multiField',
+        fields: [
+          { id: 'a', label: 'a) Reihenfolge', type: 'text', hint: 'z.B. Viereck, Parallelogramm, Rechteck, Quadrat' },
+          { id: 'b', label: 'b) Begründung', type: 'text' }
+        ]
+      },
       correctAnswer: JSON.stringify({
         a: 'viereck parallelogramm rechteck quadrat',
         b: 'jede form ist spezialisierung der vorherigen'
       }),
       explanation: 'Viereck → Parallelogramm (parallele Gegenseiten) → Rechteck (rechte Winkel) → Quadrat (gleich lange Seiten).',
       difficultyLevel: 'Schwer',
-      placeholder: 'Antwort eingeben...'
+      multiInputFields: [
+        {
+          id: 'a',
+          label: 'a) Reihenfolge',
+          placeholder: 'z.B. Viereck, Parallelogramm, Rechteck, Quadrat',
+          validator: { type: 'keywords', keywordsAll: ['viereck', 'parallelogramm', 'rechteck', 'quadrat'] }
+        },
+        {
+          id: 'b',
+          label: 'b) Begründung',
+          placeholder: 'Warum ist diese Ordnung logisch?',
+          validator: { type: 'keywords', keywordsAny: ['spezialisierung', 'hierarchie', 'jede form ist', 'erfüllt alle bedingungen', 'zusätzliche eigenschaft'] }
+        }
+      ]
     }
   ]
 };
@@ -289,46 +395,154 @@ export const SEGMENT_WINKEL_BEZIEHUNGEN: SegmentConfig = {
       id: 'bounty-1',
       question: 'Zwei parallele Geraden werden von einer Querlinie geschnitten. Ein Winkel beträgt 38°. a) Bestimme alle weiteren Winkel. b) Begründe deine Antwort mit den Winkelbeziehungen.',
       type: 'input',
+      context: 'Winkelbeziehungen bei parallelen Geraden: Zwei parallele Geraden werden von einer Querlinie (Transversale) geschnitten.',
+      given: [
+        'Zwei parallele Geraden werden von einer Querlinie geschnitten.',
+        'Ein Winkel an der Schnittstelle beträgt 38°.',
+        'Winkelbeziehungen: Nebenwinkel ergänzen sich zu 180°, Scheitelwinkel sind gleich groß, Stufenwinkel an parallelen Geraden sind gleich groß.'
+      ],
+      asked: [
+        'a) Bestimme alle weiteren Winkel in Grad (durch Komma getrennt, z.B. 142, 38, 142).',
+        'b) Begründe deine Antwort mit den verwendeten Winkelbeziehungen.'
+      ],
+      answerFormat: {
+        type: 'multiField',
+        fields: [
+          { id: 'a', label: 'a) Alle weiteren Winkel (°)', type: 'text', hint: 'Durch Komma getrennt, z.B. 142, 38, 142' },
+          { id: 'b', label: 'b) Begründung', type: 'text' }
+        ]
+      },
       correctAnswer: JSON.stringify({
-        a: '142 38 142',
+        a: '142, 38, 142',
         b: 'nebenwinkel scheitelwinkel stufenwinkel'
       }),
       explanation: 'Nebenwinkel: 180° - 38° = 142°, Scheitelwinkel: 38°, Stufenwinkel: 38° und 142°',
       difficultyLevel: 'Mittel',
-      placeholder: 'Antwort eingeben...'
+      multiInputFields: [
+        {
+          id: 'a',
+          label: 'a) Alle weiteren Winkel (°)',
+          placeholder: 'z.B. 142, 38, 142',
+          validator: { type: 'keywords', keywordsAny: ['142', '38'] }
+        },
+        {
+          id: 'b',
+          label: 'b) Begründung',
+          placeholder: 'Welche Winkelbeziehungen hast du verwendet?',
+          validator: { type: 'keywords', keywordsAny: ['nebenwinkel', 'scheitelwinkel', 'stufenwinkel', 'wechselwinkel'] }
+        }
+      ]
     },
     {
       id: 'bounty-pythagoras',
       question: 'Ein rechtwinkliges Dreieck hat die Katheten a=6cm und b=8cm. Berechne die Hypotenuse c mit dem Satz des Pythagoras.',
       type: 'input',
+      context: 'Satz des Pythagoras: In einem rechtwinkligen Dreieck gilt a² + b² = c², wobei c die Hypotenuse ist.',
+      given: [
+        'Rechtwinkliges Dreieck mit rechtem Winkel zwischen den Katheten.',
+        'Kathete a = 6 cm',
+        'Kathete b = 8 cm',
+        'Gesucht: Hypotenuse c'
+      ],
+      asked: [
+        'Berechne die Hypotenuse c in cm (nur die Zahl, ohne Einheit).',
+        'Hinweis: Runde auf zwei Dezimalstellen, falls nötig.'
+      ],
+      answerFormat: {
+        type: 'single',
+        hint: 'Nur die Zahl eingeben (z.B. 10 oder 10.00)'
+      },
       correctAnswer: '10',
       explanation: 'Satz des Pythagoras: c² = a² + b² = 6² + 8² = 36 + 64 = 100. Also c = √100 = 10cm.',
       difficultyLevel: 'Mittel',
-      placeholder: 'cm'
+      placeholder: 'cm (nur Zahl)',
+      validator: { type: 'numericTolerance', numericAnswer: 10, tolerance: 0.1 }
     },
     {
       id: 'bounty-2',
       question: 'Ein Dreieck hat die Winkel 47° und 63°. a) Berechne den dritten Winkel. b) Begründe deine Antwort.',
       type: 'input',
+      context: 'Winkelsumme im Dreieck: Die Summe aller drei Innenwinkel beträgt immer 180°.',
+      given: [
+        'Ein Dreieck mit drei Innenwinkeln.',
+        'Winkel 1 = 47°',
+        'Winkel 2 = 63°',
+        'Gesucht: Winkel 3'
+      ],
+      asked: [
+        'a) Berechne den dritten Winkel in Grad (nur die Zahl).',
+        'b) Begründe deine Antwort kurz.'
+      ],
+      answerFormat: {
+        type: 'multiField',
+        fields: [
+          { id: 'a', label: 'a) Dritter Winkel (°)', type: 'text', hint: 'Nur die Zahl' },
+          { id: 'b', label: 'b) Begründung', type: 'text' }
+        ]
+      },
       correctAnswer: JSON.stringify({
         a: '70',
         b: 'winkelsumme dreieck 180'
       }),
       explanation: 'Winkelsumme im Dreieck: 180° - 47° - 63° = 70°',
       difficultyLevel: 'Mittel',
-      placeholder: 'Antwort eingeben...'
+      multiInputFields: [
+        {
+          id: 'a',
+          label: 'a) Dritter Winkel (°)',
+          placeholder: 'z.B. 70',
+          validator: { type: 'numeric', numericAnswer: 70 }
+        },
+        {
+          id: 'b',
+          label: 'b) Begründung',
+          placeholder: 'Warum ist das so?',
+          validator: { type: 'keywords', keywordsAny: ['winkelsumme', '180', 'dreieck', 'summe'] }
+        }
+      ]
     },
     {
       id: 'bounty-3',
       question: 'Ein Dreieck hat die Winkel 61°, 59° und 59°. a) Prüfe, ob diese Winkelwerte möglich sind. b) Begründe deine Antwort.',
       type: 'input',
+      context: 'Winkelsumme im Dreieck: Die Summe aller drei Innenwinkel muss genau 180° betragen.',
+      given: [
+        'Ein Dreieck mit drei gegebenen Winkeln.',
+        'Winkel 1 = 61°',
+        'Winkel 2 = 59°',
+        'Winkel 3 = 59°'
+      ],
+      asked: [
+        'a) Prüfe, ob diese Winkelwerte möglich sind (ja/nein).',
+        'b) Begründe deine Antwort mit einer Rechnung.'
+      ],
+      answerFormat: {
+        type: 'multiField',
+        fields: [
+          { id: 'a', label: 'a) Möglich?', type: 'dropdown', options: ['Ja', 'Nein'] },
+          { id: 'b', label: 'b) Begründung', type: 'text' }
+        ]
+      },
       correctAnswer: JSON.stringify({
         a: 'nein',
         b: 'summe 179 nicht 180'
       }),
       explanation: 'Summe: 61° + 59° + 59° = 179° ≠ 180°. Die Winkelsumme im Dreieck muss genau 180° betragen.',
       difficultyLevel: 'Schwer',
-      placeholder: 'Antwort eingeben...'
+      multiInputFields: [
+        {
+          id: 'a',
+          label: 'a) Möglich?',
+          placeholder: 'ja / nein',
+          validator: { type: 'boolean', booleanExpected: 'false' }
+        },
+        {
+          id: 'b',
+          label: 'b) Begründung',
+          placeholder: 'Warum ist das so?',
+          validator: { type: 'keywords', keywordsAny: ['summe', '179', '180', 'nicht', 'gleich'] }
+        }
+      ]
     }
   ]
 };

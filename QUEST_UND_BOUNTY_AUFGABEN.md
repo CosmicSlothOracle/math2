@@ -217,6 +217,14 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
   - `trapez` → `viereck`
 - **Erklärung**: "Das Haus der Vierecke zeigt die Hierarchie: Jedes Quadrat ist auch ein Rechteck und eine Raute. Jedes Rechteck und jede Raute ist auch ein Parallelogramm."
 
+#### 10. Text-Aufgabe ohne Bild – Verzogenen Regalbrett
+- **Typ**: `choice`
+- **Frage**: "Verzogenes Regalbrett: Vier Seiten gleich lang, Gegenseiten parallel, Winkel 110°/70°, kein rechter Winkel. Welche Figurenklasse passt?"
+- **Optionen**: Quadrat, Rechteck, Raute, Parallelogramm, Trapez
+- **Richtige Antwort**: Raute
+- **Antwortformat**: Dropdown, genau eine Auswahl
+- **Erklärung**: "Vier gleiche Seiten + parallele Gegenseiten → Raute. Keine 90° → kein Rechteck/Quadrat."
+
 ### Bounty-Aufgaben (Update Dez 2025)
 
 1. **Bounty A – Figurenklassifikation (Medium)**
@@ -234,6 +242,11 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
    - Typ: `input`
    - Prompt: „Parallelogramm ABCD mit A(1\|1), B(4\|2), C(6\|5). Bestimme D.“
    - Validator: Koordinatenpaar (D = (3\|4)), toleranter Parser akzeptiert Formate wie `3|4`, `(3,4)` etc.
+
+4. **Neu: Verzoge­nes Regalbrett (Mittel)**
+   - Typ: `input` mit drei Feldern (Dropdown + Dropdown + Freitext kurz)
+   - Prompt: „Viereck mit vier gleich langen Seiten, Winkel 110°/70°. a) Figurenklasse? b) Eine zwingende Eigenschaft? c) Eine nicht zwingende Eigenschaft?“
+   - Validator: a) Keywords „Raute/Rhombus“ (Dropdown), b) Keywords „gleich lange Seiten“ oder „Gegenseiten parallel“, c) Negation zu „rechten Winkeln“.
 
 - **Entry Fee**: 45 Coins (automatisch bei „Accept Bounty ⚔️“ abgezogen).
 - **Bounty Reward**: 300 Coins einmalig pro Unit; nach Abschluss wird die Auszahlung gesperrt.
@@ -322,6 +335,13 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
 - **Toleranz**: ±5°
 - **Erklärung**: Variiert je nach Winkel (z.B. "Das ist ein rechter Winkel!" für 90°)
 
+#### 8. Parallele Geraden klar im Text
+- **Typ**: `input` mit drei Feldern
+- **Frage**: "Zwei parallele Geraden, Querlinie schneidet sie. Ein Innenwinkel ist 128°. a) Nebenwinkel? b) Scheitelwinkel? c) Stufenwinkel?"
+- **Antwortformat**: Drei Zahlenfelder (Grad, nur Zahl), Toleranz 0
+- **Richtige Antwort**: 52°, 128°, 128°/52° je nach Lage
+- **Erklärung**: Nebenwinkel ergänzen zu 180°. Scheitelwinkel entspricht dem gegebenen. Stufenwinkel entspricht dem gegebenen bzw. seinem Ergänzungswinkel.
+
 ### Bounty-Aufgaben (Update Dez 2025)
 
 1. **Bounty A – Parallelen + Querlinie (Medium)**
@@ -338,6 +358,11 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
    - Typ: `input`
    - Prompt: „ΔABC auf einem Thaleskreis, ∠CAB = 20°. Bestimme ∠CBA.“
    - Validator: numeric 70°.
+
+4. **Neu: Querlinie Klartext (Mittel)**
+   - Typ: `input` mit drei Feldern
+   - Prompt: „Parallele Schienen, Querbrücke, Innenwinkel 52°. a) Nebenwinkel? b) Stufenwinkel? c) Wechselwinkel?“
+   - Validator: 128°, 52°, 52° (numerisch)
 
 - **Entry Fee**: 48 Coins.
 - **Einmalige Bounty-Auszahlung**: 320 Coins nach perfektem Durchlauf.
@@ -396,6 +421,13 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
 - **Richtige Antwort**: `7200` (Gesamtfläche in cm²)
 - **Erklärung**: "Die Gesamtfläche ist die Summe der Teilflächen: 4800 cm² + 2400 cm² = 7200 cm²."
 
+#### 7. L-Form nur per Text
+- **Typ**: `input`
+- **Frage**: "Badezimmerboden als L-Form: Rechteck A 2,4 m × 1,6 m; Rechteck B 1,0 m × 1,6 m. Gesamtfläche?"
+- **Richtige Antwort**: `5.44`
+- **Antwortformat**: Zahl ohne Einheit, zwei Nachkommastellen
+- **Erklärung**: "A=3,84 m², B=1,60 m², Summe 5,44 m²."
+
 ### Bounty-Aufgaben (Update Dez 2025)
 
 1. **Bounty A – Garten-Gleichung (Medium)**
@@ -412,6 +444,11 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
    - Typ: `input`
    - Prompt: „Rechteck (x, x+10) vs. rechtwinkliges Dreieck (x+2, x+10). Finde x bei gleicher Fläche.“
    - Validator: numeric 2.
+
+4. **Neu: Gartenbeet mit Gleichung (Schwer)**
+   - Typ: `input` mit drei Feldern
+   - Prompt: „Länge x+3, Breite x−1, Fläche 120 m². a) Gleichung, b) x (0,1-genau), c) Rahmen 0,5 m rundum (m²).“
+   - Validator: Gleichung (x+3)(x-1)=120; x≈10,16; Rahmen≈23,8 (Toleranzen gesetzt)
 
 - **Entry Fee**: 53 Coins.
 - **Bounty Reward**: 350 Coins (einmalig).
@@ -453,6 +490,13 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
 - **Richtige Antwort**: `a * a * a` (z.B. wenn a=4, dann: `64`)
 - **Erklärung**: "Volumen = a * a * a."
 
+#### 6. Regenfass in Litern (Text)
+- **Typ**: `input`
+- **Frage**: "Zylinder mit r=0,35 m und h=0,9 m, π≈3,14. Volumen in Litern (gerundet)?"
+- **Antwortformat**: Zahl ohne Einheit, Toleranz ±1
+- **Richtige Antwort**: `346`
+- **Erklärung**: "V ≈0,346 m³ → 346 L."
+
 ### Bounty-Aufgaben
 
 #### Bounty 1 (aus taskFactory.ts)
@@ -487,6 +531,12 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
   - b: `berührungsflächen werden doppelt gezählt`
 - **Erklärung**: "Volumen: Einfach addieren. Oberfläche: Berührungsflächen müssen abgezogen werden, da sie nicht zur äußeren Oberfläche gehören."
 - **Schwierigkeit**: Schwer
+
+#### Bounty 5 (neu, textbasiert)
+- **Typ**: `input` mit zwei Feldern
+- **Frage**: "Quader 12×8×5 cm, oben Zylinder r=3 cm, h=5 cm, Kontaktfläche nicht sichtbar. a) Gesamtvolumen? b) sichtbare Oberfläche?"
+- **Richtige Antwort**: Volumen ≈621,3 cm³ (±0,5); Oberfläche ≈486,2 cm² (±1)
+- **Erklärung**: "V: 480 + π·3²·5 ≈ 621,3. O: Quader 392 − Kreis 28,3 + Zylinder-Mantel 94,2 + Kreis oben 28,3 ≈ 486,2."
 
 ---
 
@@ -592,6 +642,13 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
 - **Toleranz**: ±0.1
 - **Erklärung**: Variiert je nach Aufgabe
 
+#### 9. Maßstab doppelt prüfen (m und km)
+- **Typ**: `input` mit zwei Feldern
+- **Frage**: "Maßstab 1:25 000, Kartenstrecke 3,2 cm. a) Meter? b) Kilometer?"
+- **Antwortformat**: Zwei Zahlenfelder, erst Meter, dann Kilometer
+- **Richtige Antwort**: 800 m; 0,8 km
+- **Erklärung**: "3,2 cm · 25 000 = 80 000 cm = 800 m = 0,8 km."
+
 ### Bounty-Aufgaben
 
 #### Bounty 1 (aus taskFactory.ts)
@@ -626,6 +683,12 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
   - b: `strahlensatz oder dreisatz`
 - **Erklärung**: "Verhältnis: 1,80 m / 2,4 m = Turmhöhe / 12 m → Turmhöhe = 9 m"
 - **Schwierigkeit**: Schwer
+
+#### Bounty 5 (neu)
+- **Typ**: `input` mit drei Feldern
+- **Frage**: "Foto 30×20 cm → Poster, lange Seite 90 cm. a) k? b) kurze Seite? c) Flächenfaktor?"
+- **Richtige Antwort**: k=3; 60 cm; 9
+- **Erklärung**: "k = 90/30 = 3. Neue kurze Seite: 20·3 = 60. Fläche skaliert mit k² → 9."
 
 ---
 
@@ -678,6 +741,13 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
 - **Richtige Antwort**: 0
 - **Erklärung**: "Das Verhältnis 18 zu 9 lässt sich kürzen auf 2 zu 1. Die Höhe ist also doppelt so groß wie die Breite. 7 * 2 = 14."
 
+#### 6. Drohnenflug im Park (Pythagoras)
+- **Typ**: `input`
+- **Frage**: "Start A, 120 m nach Osten zu B, dann 50 m nach Norden zu C (rechter Winkel bei B). Wie lang ist AC?"
+- **Antwortformat**: Eine ganze Zahl, ohne Einheit
+- **Richtige Antwort**: 130
+- **Erklärung**: "AC = √(120² + 50²) = √16900 = 130."
+
 ### Bounty-Aufgaben
 
 #### Bounty 1 (aus taskFactory.ts)
@@ -685,6 +755,12 @@ Diese Datei listet alle im Projekt vorhandenen Quest- und Bounty-Aufgaben mit ih
 - **Frage**: "BOUNTY FRAGE: Ein rechtwinkliges Dreieck hat die Katheten a=6cm und b=8cm. Berechne die Hypotenuse c."
 - **Richtige Antwort**: `10`
 - **Erklärung**: "Satz des Pythagoras: a² + b² = c². 36 + 64 = 100. Wurzel aus 100 ist 10."
+
+#### Bounty 2 (neu)
+- **Typ**: `input` mit zwei Feldern
+- **Frage**: "L(-2|1) zu K(7|9), 1 Einheit = 100 m. a) Luftlinie in km (auf 0,1 runden) b) Steigung m = Δy/Δx (1 Nachkommastelle)"
+- **Richtige Antwort**: 1,2 km; 0,9
+- **Erklärung**: "Δx=9, Δy=8 → Distanz √145 ≈12,0 → 1,2 km. Steigung 8/9 ≈0,9."
 
 ---
 

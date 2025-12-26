@@ -97,6 +97,7 @@ export interface MultiInputField {
   id: string;
   label: string;
   placeholder?: string;
+  options?: string[]; // Optional: renders a dropdown instead of free text
   validator: InputValidatorConfig;
 }
 
@@ -132,6 +133,7 @@ export interface Task {
   validator?: InputValidatorConfig;
   multiInputFields?: MultiInputField[];
   difficultyLevel?: 'Mittel' | 'Schwer';
+  context?: string;
   given?: string[];
   asked?: string[];
   instructions?: string;

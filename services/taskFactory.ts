@@ -397,7 +397,8 @@ export const TaskFactory = {
         this.createShapeTask(2, seed), // Smartphone
         this.createVisualShapeTask(1, seed), // Alternative Visuals
         this.createVisualShapeTask(2, seed),
-        this.createDragDropTask(0, seed) // Drag-and-Drop Klassifikation
+        this.createDragDropTask(0, seed), // Drag-and-Drop Klassifikation
+        this.createU1RegalbrettTask(seed) // Textvollständige Klassifikation
       ];
       case 'u2': return [
         this.createVisualAngleTask(0, seed),
@@ -408,7 +409,8 @@ export const TaskFactory = {
         this.createVisualAngleTask(2, seed),
         this.createAngleMeasurementTask(0, seed), // Animierte Winkel-Messung
         this.createParallelLinesTask(0, seed), // Parallel lines + transversal
-        this.createThalesTask(0, seed) // Thales theorem
+        this.createThalesTask(0, seed), // Thales theorem
+        this.createParallelClearTextTask(seed) // Klare Text-Aufgabe ohne Bild
       ];
       case 'u3': return [
         this.createAreaTask(0, seed),
@@ -418,7 +420,11 @@ export const TaskFactory = {
         this.createAreaTask(4, seed),
         this.createAreaDecompositionTask(0, seed), // Interaktive Flächen-Zerlegung
         this.createCircleTask(0, seed), // Circle circumference/area
-        this.createAlgebraGeometryTask(0, seed) // Algebra-geometry terms
+        this.createCircleTask(1, seed), // Circle area variation
+        this.createKreissektorTask(0, seed), // Kreissektor (NEW)
+        this.createKreisbogenTask(0, seed), // Kreisbogen (NEW)
+        this.createAlgebraGeometryTask(0, seed), // Algebra-geometry terms
+        this.createFliesenLTask(seed) // L-Form Fläche textbasiert
       ];
       case 'u4': return [
         this.createVolumeTask(0, seed),
@@ -428,7 +434,9 @@ export const TaskFactory = {
         this.createVolumeTask(4, seed),
         this.createNetTask(0, seed), // Nets
         this.createCylinderTask(0, seed), // Cylinder surface/volume
-        this.createCompositeBodyTask(0, seed) // Composite bodies
+        this.createCompositeBodyTask(0, seed), // Composite bodies
+        this.createCompositePrismTask(0, seed), // Zusammengesetzte Prismen (NEW)
+        this.createCylinderLiterTask(seed) // Zylinder in Litern, reine Textdaten
       ];
       case 'u5': return [
         this.createVisualSimilarityTask(0, seed),
@@ -440,14 +448,20 @@ export const TaskFactory = {
         this.createTransformTask(0, seed),
         this.createScalingFactorTask(0, seed), // Skalierungsfaktor verstehen (ersetzt Slider)
         this.createSimilarityTask(0, seed), // Similar triangles
-        this.createStrahlensatzTask(0, seed) // Strahlensatz
+        this.createStrahlensatzTask(0, seed), // Strahlensatz
+        this.createStrahlensatzUmkehrungTask(0, seed), // Umkehrung Strahlensatz (NEW)
+        this.createZentrischeStreckungTask(0, seed), // Zentrische Streckung (NEW)
+        this.createAehnlichkeitssaetzeTask(0, seed), // Ähnlichkeitssätze Dreiecke (NEW)
+        this.createMassstabDualTask(seed) // Maßstab Meter/Kilometer, getrennte Felder
       ];
       case 'u6': return [
         this.createContextTask(0, seed),
         this.createContextTask(1, seed),
         this.createContextTask(2, seed),
         this.createContextTask(3, seed),
-        this.createContextTask(4, seed)
+        this.createContextTask(4, seed),
+        this.createParkPythagorasTask(seed), // Pythagoras im Park, rein textlich
+        this.createHoehenKathetensatzTask(0, seed) // Höhen- und Kathetensatz (NEW)
       ];
       default: return [];
     }
@@ -535,6 +549,18 @@ export const TaskFactory = {
       id: `u1-wager-${seed}`,
       type: 'wager',
       question: "Wette darauf: 'Jedes Quadrat ist automatisch auch ein Rechteck.'",
+      context: 'Mathematische Aussage über die Beziehung zwischen Quadraten und Rechtecken. Du kannst Coins setzen, um deine Antwort zu verstärken.',
+      given: [
+        'Die Aussage lautet: "Jedes Quadrat ist automatisch auch ein Rechteck".',
+        'Ein Quadrat hat: vier rechte Winkel, parallele Gegenseiten, vier gleich lange Seiten.',
+        'Ein Rechteck hat: vier rechte Winkel, parallele Gegenseiten (Seitenlängen können unterschiedlich sein).',
+        'Wichtig: Bei falscher Antwort verlierst du deinen Einsatz. Bei richtiger Antwort erhältst du zusätzliche Coins.'
+      ],
+      asked: [
+        'Ist die Aussage richtig oder falsch?',
+        'Wie viele Coins möchtest du setzen? (10, 20 oder 50 Coins)'
+      ],
+      instructions: 'Wähle deine Antwort und setze Coins. Bei richtiger Antwort erhältst du zusätzliche Coins, bei falscher verlierst du deinen Einsatz.',
       options: ["Stimmt", "Stimmt nicht"],
       wagerOptions: [10, 20, 50],
       correctAnswer: 0, // Stimmt
@@ -548,7 +574,15 @@ export const TaskFactory = {
       {
         q: "Welche geometrische Form hat eine klassische Schallplatte?",
         ans: 'circle',
-        expl: 'Eine Schallplatte ist ein perfekter Kreis.',
+        expl: 'Eine Schallplatte ist ein perfekter Kreis. Alle Punkte auf dem Rand sind gleich weit vom Mittelpunkt entfernt.',
+        context: 'Geometrische Formen in der Realität: Eine Schallplatte ist eine runde Scheibe.',
+        given: [
+          'Eine klassische Schallplatte ist eine runde Scheibe.',
+          'Sie hat einen Mittelpunkt und alle Punkte auf dem Rand sind gleich weit vom Mittelpunkt entfernt.',
+          'Die Form ist gleichmäßig rund ohne Ecken.'
+        ],
+        asked: ['Welche geometrische Form beschreibt eine Schallplatte am besten?'],
+        instructions: 'Wähle die geometrische Form, die eine Schallplatte am besten beschreibt.',
         data: [
             {
               id: 'rect',
@@ -576,7 +610,16 @@ export const TaskFactory = {
       {
         q: "Die markierte Wandfläche für das Graffiti. Welche Form soll hier gefüllt werden?",
         ans: 'rect',
-        expl: 'Die Fläche hat vier rechte Winkel. Es ist ein Rechteck.',
+        expl: 'Die Fläche hat vier rechte Winkel. Es ist ein Rechteck. Auch wenn die Wand schräg gezeichnet ist, sind alle vier Winkel 90°.',
+        context: 'Geometrische Formen in der Realität: Eine Wandfläche für Graffiti.',
+        given: [
+          'Eine Wandfläche soll für Graffiti gestaltet werden.',
+          'Die Wand hat vier Ecken und vier Seiten.',
+          'Alle vier Winkel sind rechte Winkel (90°).',
+          'Gegenüberliegende Seiten sind parallel und gleich lang.'
+        ],
+        asked: ['Welche geometrische Form hat diese Wandfläche?'],
+        instructions: 'Achte auf die Winkel: Alle vier Winkel sind 90° (rechte Winkel).',
         data: [
             {
               id: 'tri',
@@ -877,9 +920,17 @@ export const TaskFactory = {
     const questions = [
       {
         q: "Ein Trapez hat genau zwei parallele Seiten. Welche Aussage ist richtig?",
+        context: 'Definition und Eigenschaften von Trapezen: Ein Trapez ist ein Viereck mit mindestens zwei parallelen Seiten.',
+        given: [
+          'Ein Trapez ist ein Viereck mit mindestens zwei parallelen Seiten.',
+          'Es hat genau zwei parallele Seiten (nicht vier wie ein Parallelogramm).',
+          'Die anderen beiden Seiten sind nicht parallel.'
+        ],
+        asked: ['Welche der folgenden Aussagen über Trapeze ist richtig?'],
+        instructions: 'Überlege: Ein Trapez hat nur zwei parallele Seiten. Kann es trotzdem rechte Winkel haben?',
         o: ["Jedes Trapez ist auch ein Parallelogramm.", "Ein Trapez kann rechte Winkel haben.", "Ein Trapez hat immer vier gleich lange Seiten.", "Ein Trapez ist immer ein Rechteck."],
         a: 1,
-        e: "Ein Trapez kann durchaus rechte Winkel haben (rechtwinkliges Trapez). Es hat aber nur zwei parallele Seiten, nicht vier wie ein Parallelogramm."
+        e: "Ein Trapez kann durchaus rechte Winkel haben (rechtwinkliges Trapez). Es hat aber nur zwei parallele Seiten, nicht vier wie ein Parallelogramm. Ein Trapez mit rechten Winkeln heißt rechtwinkliges Trapez."
       },
       // REPLACED PIZZA TASK
       {
@@ -890,9 +941,19 @@ export const TaskFactory = {
       },
       {
         q: "Welche geometrische Form hat eine typische Kreditkarte?",
+        context: 'Geometrische Formen in der Realität: Eine Kreditkarte ist eine rechteckige Karte.',
+        given: [
+          'Eine typische Kreditkarte hat die Form einer rechteckigen Karte.',
+          'Sie hat vier Ecken und vier Seiten.',
+          'Gegenüberliegende Seiten sind parallel und gleich lang.',
+          'Alle vier Winkel sind rechte Winkel (90°).',
+          'Hinweis: Abgerundete Ecken ändern die grundlegende geometrische Form nicht.'
+        ],
+        asked: ['Welche geometrische Form beschreibt eine Kreditkarte am besten?'],
+        instructions: 'Auch wenn die Ecken abgerundet sind, bleibt die grundlegende Form erhalten.',
         o: ["Raute", "Rechteck", "Trapez", "Drachenviereck"],
         a: 1,
-        e: "Kreditkarten sind Rechtecke. Sie haben vier rechte Winkel und gegenüberliegende Seiten sind parallel."
+        e: "Kreditkarten sind Rechtecke. Sie haben vier rechte Winkel und gegenüberliegende Seiten sind parallel. Abgerundete Ecken ändern die grundlegende geometrische Form nicht."
       }
     ];
     const s = questions[index % questions.length];
@@ -973,16 +1034,19 @@ export const TaskFactory = {
         id,
         type: 'choice',
         question: 'Scheitelwinkel beim Scheinwerfer',
+        context: 'Winkelbeziehungen: Scheitelwinkel entstehen, wenn sich zwei Geraden schneiden.',
         given: [
-          'Die lilafarbene Linie zeigt den Winkel α = 45°.',
-          'Der grüne Winkel liegt direkt gegenüber (Scheitelwinkel).'
+          'Zwei Geraden schneiden sich in einem Punkt.',
+          'Der gegebene Winkel α = 45° liegt an einer der Geraden.',
+          'Der gesuchte Winkel liegt direkt gegenüber (Scheitelwinkel).',
+          'Scheitelwinkel liegen sich gegenüber am Schnittpunkt der Geraden.'
         ],
-        asked: ['Wie groß ist der grüne Scheitelwinkel?'],
-        instructions: 'Scheitelwinkel liegen sich gegenüber und sind immer exakt gleich groß.',
+        asked: ['Wie groß ist der Scheitelwinkel zu α = 45°?'],
+        instructions: 'Scheitelwinkel liegen sich gegenüber und sind immer exakt gleich groß wie der gegebene Winkel.',
         supportVisual,
         options: ["45°", "90°", "135°", "180°"],
         correctAnswer: 0,
-        explanation: 'Scheitelwinkel liegen sich gegenüber und sind immer exakt gleich groß.'
+        explanation: 'Scheitelwinkel liegen sich gegenüber und sind immer exakt gleich groß. Da α = 45° gegeben ist, ist auch der Scheitelwinkel 45°.'
       };
     } else {
       const alpha = getRandomInt(20, 60);
@@ -992,17 +1056,24 @@ export const TaskFactory = {
         id,
         type: 'input',
         question: 'Rampe im rechtwinkligen Dreieck',
+        context: 'Rechtwinkliges Dreieck: Eine Rampe lehnt an einer Wand. Der Winkel zwischen Rampe und Boden ist gegeben.',
         given: [
-          'Graue Linie = Boden, dunkle Linie = Wand (rechter Winkel).',
-          `Der orange Winkel α = ${alpha}° sitzt unten auf der Bodenlinie.`,
-          'Der blaue Winkel β liegt oben zwischen Rampe und Wand.'
+          'Ein rechtwinkliges Dreieck: Boden (waagerecht), Wand (senkrecht), Rampe (schräg).',
+          'Der rechte Winkel (90°) liegt zwischen Boden und Wand.',
+          `Der Winkel α = ${alpha}° liegt zwischen Boden und Rampe (unten).`,
+          'Der gesuchte Winkel β liegt zwischen Rampe und Wand (oben).',
+          'In einem rechtwinkligen Dreieck gilt: Die beiden spitzen Winkel ergeben zusammen 90°.'
         ],
-        asked: ['Berechne β in Grad.'],
-        instructions: 'In einem rechtwinkligen Dreieck gilt: α + β = 90°.',
+        asked: [
+          'Berechne den Winkel β in Grad (nur die Zahl, ohne Einheit).',
+          'Hinweis: α + β = 90°'
+        ],
+        instructions: 'In einem rechtwinkligen Dreieck gilt: α + β = 90°. Also β = 90° - α.',
         supportVisual,
         correctAnswer: beta.toString(),
-        explanation: 'In einem rechtwinkligen Dreieck müssen die beiden spitzen Winkel zusammen 90° ergeben.',
-        placeholder: 'Grad...'
+        explanation: `In einem rechtwinkligen Dreieck müssen die beiden spitzen Winkel zusammen 90° ergeben. Da α = ${alpha}° gegeben ist, gilt: β = 90° - ${alpha}° = ${beta}°.`,
+        placeholder: 'Grad (nur Zahl)',
+        validator: { type: 'numeric', numericAnswer: beta }
       };
     }
   },
@@ -1295,6 +1366,17 @@ export const TaskFactory = {
       id,
       type: 'input',
       question: t.q,
+      context: 'Winkelbeziehungen bei parallelen Geraden: Zwei parallele Geraden werden von einer Querlinie geschnitten.',
+      given: [
+        'Zwei parallele Geraden werden von einer Querlinie (Transversale) geschnitten.',
+        `Ein Winkel an der Schnittstelle beträgt ${givenAngle}°.`,
+        'Winkelbeziehungen: Nebenwinkel ergänzen sich zu 180°, Scheitelwinkel sind gleich groß, Stufenwinkel an parallelen Geraden sind gleich groß.'
+      ],
+      asked: [
+        `Berechne alle weiteren Winkel in Grad.`,
+        'Gib die Winkel durch Komma getrennt ein (z.B. 142, 38, 142).'
+      ],
+      instructions: 'Nebenwinkel: 180° - gegebener Winkel. Scheitelwinkel: gleich groß wie gegebener Winkel. Stufenwinkel: gleich groß wie entsprechender Winkel.',
       correctAnswer: t.correctAnswer,
       explanation: t.explanation,
       placeholder: t.placeholder
@@ -1519,6 +1601,396 @@ export const TaskFactory = {
       explanation: `Strahlensatz: ${h1}cm / ${s1}cm = Turmhöhe / ${s2}cm. Also Turmhöhe = (${h1} × ${s2}) / ${s1} = ${h2}cm`,
       placeholder: 'cm'
     };
+  },
+
+  // === NEW: Textvollständige Zusatz-Quests (ohne Bildabhängigkeit) ===
+  createU1RegalbrettTask(seed: number): Task {
+    const id = `u1-regal-${seed}`;
+    return {
+      id,
+      type: 'choice',
+      question: 'Verzogenes Regalbrett klassifizieren',
+      context: 'Ein Regalbrett ist leicht verzogen, bildet aber weiterhin ein Viereck.',
+      given: [
+        'Vier Seiten, gegenüberliegende Seiten sind parallel.',
+        'Alle vier Seiten sind gleich lang.',
+        'Die Winkel sind paarweise gleich: zwei Winkel = 110°, die anderen beiden = 70°.',
+        'Kein Winkel ist 90° (nicht rechtwinklig).'
+      ],
+      asked: [
+        'Welche Figurenklasse beschreibt das Regalbrett korrekt?'
+      ],
+      instructions: 'Antwortformat: Dropdown, wähle genau eine Option.',
+      options: ['Quadrat', 'Rechteck', 'Raute', 'Parallelogramm', 'Trapez'],
+      correctAnswer: 2,
+      explanation: 'Gleiche Seiten + parallele Gegenseiten → Raute. Keine rechten Winkel, daher kein Rechteck/Quadrat.'
+    };
+  },
+
+  createParallelClearTextTask(seed: number): Task {
+    const id = `u2-parallel-clarity-${seed}`;
+    const givenAngle = 128;
+    const adjacent = 180 - givenAngle; // 52
+    return {
+      id,
+      type: 'input',
+      question: 'Parallele Geraden + Querlinie (klarer Textfall)',
+      context: 'Zwei parallele Straßen werden von einer schrägen Querstraße geschnitten.',
+      given: [
+        'Die beiden Straßen sind parallel.',
+        `An einem Schnittpunkt ist ein Innenwinkel angegeben: ${givenAngle}°.`
+      ],
+      asked: [
+        'a) Nebenwinkel in Grad',
+        'b) Scheitelwinkel in Grad',
+        'c) Ein Stufenwinkel in Grad'
+      ],
+      instructions: 'Antwortformat: drei Felder, nur Zahl ohne Einheit.',
+      multiInputFields: [
+        { id: 'adjacent', label: 'a) Nebenwinkel (°)', validator: { type: 'numeric', numericAnswer: adjacent } },
+        { id: 'vertical', label: 'b) Scheitelwinkel (°)', validator: { type: 'numeric', numericAnswer: givenAngle } },
+        { id: 'corresponding', label: 'c) Stufenwinkel (°)', validator: { type: 'numeric', acceptedNumbers: [givenAngle, adjacent] } }
+      ],
+      correctAnswer: JSON.stringify({ adjacent: adjacent.toString(), vertical: givenAngle.toString(), corresponding: givenAngle.toString() }),
+      explanation: `Nebenwinkel ergänzen zu 180° → ${adjacent}°. Scheitelwinkel = ${givenAngle}°. Stufenwinkel entsprechen dem gegebenen Winkel (${givenAngle}°) oder dem Ergänzungswinkel (${adjacent}°), je nach Lage.`
+    };
+  },
+
+  createFliesenLTask(seed: number): Task {
+    const id = `u3-fliesen-${seed}`;
+    const areaA = 2.4 * 1.6; // 3.84
+    const areaB = 1.0 * 1.6; // 1.6
+    const total = +(areaA + areaB).toFixed(2); // 5.44
+    return {
+      id,
+      type: 'input',
+      question: 'Fliesenfläche in L-Form (ohne Bild)',
+      context: 'Badezimmerboden als L-Form, zerlegt in zwei Rechtecke.',
+      given: [
+        'Rechteck A: 2,4 m × 1,6 m.',
+        'Rechteck B schließt direkt an: 1,0 m × 1,6 m.',
+        'Beide liegen auf einer Ebene, keine Überlappung.'
+      ],
+      asked: ['Gesamtfläche in Quadratmetern (m²).'],
+      instructions: 'Antwortformat: eine Zahl, ohne Einheit, auf zwei Nachkommastellen gerundet.',
+      correctAnswer: total.toString(),
+      explanation: `A = 2,4 · 1,6 = ${areaA.toFixed(2)} m². B = 1,0 · 1,6 = ${areaB.toFixed(2)} m². Summe = ${total.toFixed(2)} m².`
+    };
+  },
+
+  createCylinderLiterTask(seed: number): Task {
+    const id = `u4-zylinder-liter-${seed}`;
+    const radius = 0.35;
+    const height = 0.9;
+    const volumeCubicMeters = 3.14 * radius * radius * height; // ≈0.346185
+    const liters = Math.round(volumeCubicMeters * 1000); // ≈346 L
+    return {
+      id,
+      type: 'input',
+      question: 'Regenfass: Zylindervolumen in Litern',
+      context: 'Regenfass als Zylinder.',
+      given: [
+        `Radius r = ${radius} m, Höhe h = ${height} m.`,
+        'π ≈ 3,14. 1 m³ = 1000 Liter.'
+      ],
+      asked: ['Volumen in Litern (auf ganze Zahl runden).'],
+      instructions: 'Antwortformat: eine ganze Zahl, ohne Einheit. Toleranz ±1 Liter.',
+      correctAnswer: liters.toString(),
+      explanation: `V = π · r² · h = 3,14 · ${radius}² · ${height} ≈ ${(volumeCubicMeters).toFixed(6)} m³ ≈ ${liters} L.`,
+      validator: { type: 'numericTolerance', numericAnswer: liters, tolerance: 1 }
+    };
+  },
+
+  createMassstabDualTask(seed: number): Task {
+    const id = `u5-massstab-dual-${seed}`;
+    const mapCm = 3.2;
+    const factor = 25000;
+    const meters = (mapCm * factor) / 100; // 800 m
+    const km = meters / 1000; // 0.8 km
+    return {
+      id,
+      type: 'input',
+      question: 'Maßstab doppelt prüfen (m und km)',
+      context: 'Stadtplan mit Maßstab 1 : 25 000.',
+      given: [
+        `Gemessene Strecke auf der Karte: ${mapCm} cm.`,
+        'Maßstab: 1 : 25 000.',
+        '1 m = 100 cm, 1 km = 1000 m.'
+      ],
+      asked: [
+        'a) Reale Strecke in Metern',
+        'b) Reale Strecke in Kilometern'
+      ],
+      instructions: 'Antwortformat: zwei Felder, nur Zahl (erst Meter, dann Kilometer).',
+      multiInputFields: [
+        { id: 'meters', label: 'a) Meter', validator: { type: 'numeric', numericAnswer: meters } },
+        { id: 'kilometers', label: 'b) Kilometer', validator: { type: 'numericTolerance', numericAnswer: km, tolerance: 0.01 } }
+      ],
+      correctAnswer: `${meters};${km}`,
+      explanation: `${mapCm} cm · 25 000 = ${meters} m. Das sind ${km} km.`
+    };
+  },
+
+  createParkPythagorasTask(seed: number): Task {
+    const id = `u6-park-pyth-${seed}`;
+    const east = 120;
+    const north = 50;
+    const distance = Math.round(Math.sqrt(east * east + north * north)); // 130
+    return {
+      id,
+      type: 'input',
+      question: 'Drohnenflug über Park (Pythagoras)',
+      context: 'Rechtwinklige Strecke: erst Ost, dann Nord.',
+      given: [
+        `Strecke AB: ${east} m nach Osten.`,
+        `Strecke BC: ${north} m nach Norden, rechter Winkel bei B.`
+      ],
+      asked: ['Gesuchte Luftlinie AC in Metern (nur Zahl).'],
+      instructions: 'Antwortformat: eine ganze Zahl, ohne Einheit.',
+      correctAnswer: distance.toString(),
+      explanation: `c² = ${east}² + ${north}² = ${east * east} + ${north * north} = ${east * east + north * north}. c = √${east * east + north * north} = ${distance} m.`,
+      placeholder: 'Meter'
+    };
+  },
+
+  // === NEUE PRÜFUNGSRELEVANTE AUFGABEN (Mathegym-Lehrplan 9. Klasse NRW) ===
+
+  // --- Kreissektor (u3) ---
+  createKreissektorTask(index: number, seed: number): Task {
+    const id = `u3-kreissektor-${index}-${seed}`;
+    const r = getRandomInt(5, 10);
+    const alpha = getRandomInt(60, 150); // Winkel in Grad
+    const sektorArea = (Math.PI * r * r * alpha) / 360;
+    return {
+      id,
+      type: 'input',
+      question: 'Kreissektor berechnen',
+      context: 'Ein Tortenstück (Kreissektor) soll berechnet werden.',
+      given: [
+        `Kreisradius r = ${r} cm.`,
+        `Mittelpunktswinkel α = ${alpha}°.`,
+        'Verwende π ≈ 3,14.'
+      ],
+      asked: [
+        'Berechne den Flächeninhalt des Kreissektors in cm² (auf ganze Zahl runden).'
+      ],
+      instructions: 'Formel: A = (π · r² · α) / 360°',
+      correctAnswer: Math.round(sektorArea).toString(),
+      explanation: `A = (π · r² · α) / 360° = (3,14 · ${r}² · ${alpha}) / 360 ≈ ${sektorArea.toFixed(2)} cm² ≈ ${Math.round(sektorArea)} cm²`,
+      placeholder: 'cm²',
+      validator: { type: 'numericTolerance', numericAnswer: Math.round(sektorArea), tolerance: 1 }
+    };
+  },
+
+  // --- Kreisbogen (u3) ---
+  createKreisbogenTask(index: number, seed: number): Task {
+    const id = `u3-kreisbogen-${index}-${seed}`;
+    const r = getRandomInt(4, 12);
+    const alpha = getRandomInt(45, 120); // Winkel in Grad
+    const bogenLength = (2 * Math.PI * r * alpha) / 360;
+    return {
+      id,
+      type: 'input',
+      question: 'Kreisbogen berechnen',
+      context: 'Ein gekrümmter Wegabschnitt (Kreisbogen) soll gemessen werden.',
+      given: [
+        `Kreisradius r = ${r} m.`,
+        `Mittelpunktswinkel α = ${alpha}°.`,
+        'Verwende π ≈ 3,14.'
+      ],
+      asked: [
+        'Berechne die Länge des Kreisbogens in Metern (auf eine Nachkommastelle runden).'
+      ],
+      instructions: 'Formel: b = (2π · r · α) / 360°',
+      correctAnswer: bogenLength.toFixed(1),
+      explanation: `b = (2π · r · α) / 360° = (2 · 3,14 · ${r} · ${alpha}) / 360 ≈ ${bogenLength.toFixed(2)} m ≈ ${bogenLength.toFixed(1)} m`,
+      placeholder: 'm',
+      validator: { type: 'numericTolerance', numericAnswer: parseFloat(bogenLength.toFixed(1)), tolerance: 0.1 }
+    };
+  },
+
+  // --- Zusammengesetzte Prismen (u4) ---
+  createCompositePrismTask(index: number, seed: number): Task {
+    const id = `u4-composite-prism-${index}-${seed}`;
+    const a = getRandomInt(3, 5);
+    const b = getRandomInt(4, 6);
+    const h1 = getRandomInt(5, 8);
+    const h2 = getRandomInt(3, 5);
+    // Zusammengesetztes Prisma: Quader + Dreiecksprisma
+    const volumeQuader = a * a * h1;
+    const volumeDreieck = (a * b * h2) / 2;
+    const totalVolume = volumeQuader + volumeDreieck;
+    return {
+      id,
+      type: 'input',
+      question: 'Zusammengesetztes Prisma: Volumen',
+      context: 'Ein Gebäudeteil besteht aus einem quaderförmigen Unterbau und einem dreieckigen Dach (Dreiecksprisma).',
+      given: [
+        `Unterbau (Quader): Grundfläche ${a} cm × ${a} cm, Höhe ${h1} cm.`,
+        `Dach (Dreiecksprisma): Grundfläche ist ein rechtwinkliges Dreieck mit Katheten ${a} cm und ${b} cm, Höhe ${h2} cm.`,
+        'Die beiden Körper sind an der Grundfläche verbunden.'
+      ],
+      asked: [
+        'Berechne das Gesamtvolumen in cm³.'
+      ],
+      instructions: 'Volumen = Quader-Volumen + Dreiecksprisma-Volumen',
+      correctAnswer: totalVolume.toString(),
+      explanation: `V_gesamt = V_Quader + V_Dreieck = ${a} · ${a} · ${h1} + (${a} · ${b} · ${h2}) / 2 = ${volumeQuader} + ${volumeDreieck} = ${totalVolume} cm³`,
+      placeholder: 'cm³'
+    };
+  },
+
+  // --- Umkehrung der Strahlensätze (u5) ---
+  createStrahlensatzUmkehrungTask(index: number, seed: number): Task {
+    const id = `u5-strahlensatz-umkehrung-${index}-${seed}`;
+    const h1 = getRandomInt(160, 180);
+    const h2 = getRandomInt(200, 240);
+    const s1 = getRandomInt(180, 220);
+    // Wenn h1/h2 = s1/s2, dann s2 = s1 * h2 / h1
+    const s2 = Math.round((s1 * h2) / h1);
+    return {
+      id,
+      type: 'input',
+      question: 'Umkehrung des Strahlensatzes',
+      context: 'Zwei parallele Geraden schneiden zwei Strahlen. Du kennst die Verhältnisse.',
+      given: [
+        `Erste Parallele: Abschnitt auf Strahl 1 = ${h1} cm, Abschnitt auf Strahl 2 = ${h2} cm.`,
+        `Zweite Parallele: Abschnitt auf Strahl 1 = ${s1} cm (bekannt).`,
+        'Die beiden Parallelen sind parallel zueinander.'
+      ],
+      asked: [
+        'Berechne den Abschnitt der zweiten Parallele auf Strahl 2 (in cm, ganze Zahl).'
+      ],
+      instructions: 'Strahlensatz-Umkehrung: Wenn h1/h2 = s1/s2, dann s2 = s1 · h2 / h1',
+      correctAnswer: s2.toString(),
+      explanation: `Verhältnisgleichung: ${h1} / ${h2} = ${s1} / s₂. Umgestellt: s₂ = (${s1} · ${h2}) / ${h1} = ${s2} cm`,
+      placeholder: 'cm'
+    };
+  },
+
+  // --- Zentrische Streckung (u5) ---
+  createZentrischeStreckungTask(index: number, seed: number): Task {
+    const id = `u5-zentrische-streckung-${index}-${seed}`;
+    const k = [2, 0.5, 3][index % 3];
+    const originalLength = getRandomInt(4, 8);
+    const streckzentrum = 'Z';
+    const newLength = originalLength * k;
+    const kText = k === 0.5 ? '0,5' : k.toString();
+    return {
+      id,
+      type: 'input',
+      question: 'Zentrische Streckung',
+      context: `Eine Figur wird zentrisch gestreckt (Streckzentrum ${streckzentrum}).`,
+      given: [
+        `Streckfaktor k = ${kText}.`,
+        `Ursprüngliche Länge einer Seite: ${originalLength} cm.`,
+        `Alle Abstände vom Streckzentrum ${streckzentrum} werden mit k multipliziert.`
+      ],
+      asked: [
+        'Wie lang ist die entsprechende Seite nach der Streckung (in cm)?'
+      ],
+      instructions: 'Neue Länge = ursprüngliche Länge · k',
+      correctAnswer: newLength.toString(),
+      explanation: `Zentrische Streckung: Neue Länge = ${originalLength} cm · ${kText} = ${newLength} cm`,
+      placeholder: 'cm'
+    };
+  },
+
+  // --- Ähnlichkeitssätze für Dreiecke (u5) ---
+  createAehnlichkeitssaetzeTask(index: number, seed: number): Task {
+    const id = `u5-aehnlichkeitssaetze-${index}-${seed}`;
+    const saetze = [
+      {
+        q: 'Zwei Dreiecke haben zwei Seitenpaare im gleichen Verhältnis und den eingeschlossenen Winkel gleich. Welcher Ähnlichkeitssatz trifft zu?',
+        o: ['SSS-Satz', 'SWS-Satz', 'WW-Satz', 'WSW-Satz'],
+        a: 1,
+        e: 'SWS-Satz: Zwei Seiten im gleichen Verhältnis + eingeschlossener Winkel gleich → ähnlich.'
+      },
+      {
+        q: 'Zwei Dreiecke haben alle drei Winkel gleich. Welcher Ähnlichkeitssatz trifft zu?',
+        o: ['SSS-Satz', 'SWS-Satz', 'WW-Satz', 'keiner'],
+        a: 2,
+        e: 'WW-Satz: Wenn alle Winkel gleich sind, sind die Dreiecke ähnlich (und die Seiten im gleichen Verhältnis).'
+      },
+      {
+        q: 'Zwei Dreiecke haben alle drei Seitenpaare im gleichen Verhältnis. Welcher Ähnlichkeitssatz trifft zu?',
+        o: ['SSS-Satz', 'SWS-Satz', 'WW-Satz', 'SSW-Satz'],
+        a: 0,
+        e: 'SSS-Satz: Wenn alle drei Seitenpaare im gleichen Verhältnis stehen, sind die Dreiecke ähnlich.'
+      }
+    ];
+    const satz = saetze[index % saetze.length];
+    return {
+      id,
+      type: 'choice',
+      question: satz.q,
+      context: 'Ähnlichkeitssätze für Dreiecke: Wann sind zwei Dreiecke ähnlich?',
+      given: [
+        'SSS-Satz: Alle drei Seitenpaare im gleichen Verhältnis.',
+        'SWS-Satz: Zwei Seitenpaare im gleichen Verhältnis + eingeschlossener Winkel gleich.',
+        'WW-Satz: Alle drei Winkel gleich (oder zwei Winkel, dann automatisch auch der dritte).'
+      ],
+      asked: [satz.q],
+      instructions: 'Wähle den passenden Ähnlichkeitssatz.',
+      options: satz.o,
+      correctAnswer: satz.a,
+      explanation: satz.e
+    };
+  },
+
+  // --- Höhen- und Kathetensatz (u6) ---
+  createHoehenKathetensatzTask(index: number, seed: number): Task {
+    const id = `u6-hoehen-kathetensatz-${index}-${seed}`;
+    const p = getRandomInt(3, 6); // Hypotenusenabschnitt 1
+    const q = getRandomInt(4, 7); // Hypotenusenabschnitt 2
+    const h = Math.sqrt(p * q); // Höhe
+    const a = Math.sqrt(p * (p + q)); // Kathete a
+    const taskType = index % 2;
+
+    if (taskType === 0) {
+      // Höhensatz: h² = p · q
+      return {
+        id,
+        type: 'input',
+        question: 'Höhensatz im rechtwinkligen Dreieck',
+        context: 'In einem rechtwinkligen Dreieck ist die Höhe auf die Hypotenuse gegeben.',
+        given: [
+          'Hypotenuse ist in zwei Abschnitte geteilt:',
+          `Abschnitt p = ${p} cm,`,
+          `Abschnitt q = ${q} cm.`,
+          'Die Höhe h steht senkrecht auf der Hypotenuse.'
+        ],
+        asked: [
+          'Berechne die Höhe h mit dem Höhensatz (in cm, auf eine Nachkommastelle runden).'
+        ],
+        instructions: 'Höhensatz: h² = p · q, also h = √(p · q)',
+        correctAnswer: h.toFixed(1),
+        explanation: `Höhensatz: h² = p · q = ${p} · ${q} = ${p * q}. Also h = √${p * q} ≈ ${h.toFixed(2)} cm ≈ ${h.toFixed(1)} cm`,
+        placeholder: 'cm',
+        validator: { type: 'numericTolerance', numericAnswer: parseFloat(h.toFixed(1)), tolerance: 0.1 }
+      };
+    } else {
+      // Kathetensatz: a² = p · c (oder b² = q · c)
+      return {
+        id,
+        type: 'input',
+        question: 'Kathetensatz im rechtwinkligen Dreieck',
+        context: 'In einem rechtwinkligen Dreieck ist eine Kathete gesucht.',
+        given: [
+          `Hypotenusenabschnitt p = ${p} cm (unter der Kathete a).`,
+          `Gesamte Hypotenuse c = ${p + q} cm.`,
+          'Die Kathete a liegt am Punkt mit Abschnitt p.'
+        ],
+        asked: [
+          'Berechne die Länge der Kathete a mit dem Kathetensatz (in cm, auf eine Nachkommastelle runden).'
+        ],
+        instructions: 'Kathetensatz: a² = p · c, also a = √(p · c)',
+        correctAnswer: a.toFixed(1),
+        explanation: `Kathetensatz: a² = p · c = ${p} · ${p + q} = ${p * (p + q)}. Also a = √${p * (p + q)} ≈ ${a.toFixed(2)} cm ≈ ${a.toFixed(1)} cm`,
+        placeholder: 'cm',
+        validator: { type: 'numericTolerance', numericAnswer: parseFloat(a.toFixed(1)), tolerance: 0.1 }
+      };
+    }
   },
 
 };

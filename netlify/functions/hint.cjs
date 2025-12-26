@@ -37,7 +37,7 @@ exports.handler = async (event) => {
   try {
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents: `Du bist ein freundlicher Mathelehrer für 9. Klässler. Gib einen kurzen Tipp für folgende Frage zum Thema ${topic}: \"${question}\".\nREGELN:\n1. Verrate NIEMALS die direkte Lösung oder das Endergebnis.\n2. Erkläre das zugrundeliegende mathematische Prinzip.\n3. Hilf dem Schüler, den nächsten Denkschritt selbst zu finden.\n4. Maximal 3 Sätze.`,
       config: {
         temperature: 0.7,

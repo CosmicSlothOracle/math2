@@ -28,6 +28,18 @@
         padding-bottom: env(safe-area-inset-bottom);
         padding-left: env(safe-area-inset-left);
         padding-right: env(safe-area-inset-right);
+        /* Verhindere Textauswahl um Copy & Paste zu erschweren */
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+      }
+      /* Erlaube Textauswahl in Input-Feldern */
+      input, textarea {
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
+        user-select: text;
       }
       .custom-scrollbar::-webkit-scrollbar {
         width: 6px;

@@ -3569,6 +3569,47 @@ export default function App() {
     return () => { mounted = false; };
   }, []);
 
+  // Blockiere Copy & Paste um AI-Antworten zu verhindern
+  useEffect(() => {
+    const preventCopyPaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    };
+
+    const preventKeyboardShortcuts = (e: KeyboardEvent) => {
+      // Blockiere Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+A (Windows/Linux)
+      // Blockiere Cmd+C, Cmd+V, Cmd+X, Cmd+A (Mac)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'v' || e.key === 'x' || e.key === 'a')) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    };
+
+    const preventContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    };
+
+    // Event-Listener hinzufügen
+    document.addEventListener('copy', preventCopyPaste, true);
+    document.addEventListener('paste', preventCopyPaste, true);
+    document.addEventListener('cut', preventCopyPaste, true);
+    document.addEventListener('keydown', preventKeyboardShortcuts, true);
+    document.addEventListener('contextmenu', preventContextMenu, true);
+
+    // Cleanup beim Unmount
+    return () => {
+      document.removeEventListener('copy', preventCopyPaste, true);
+      document.removeEventListener('paste', preventCopyPaste, true);
+      document.removeEventListener('cut', preventCopyPaste, true);
+      document.removeEventListener('keydown', preventKeyboardShortcuts, true);
+      document.removeEventListener('contextmenu', preventContextMenu, true);
+    };
+  }, []);
+
   const [isCoinPulsing, setIsCoinPulsing] = useState(false);
   const [isFlyingCoinActive, setIsFlyingCoinActive] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);

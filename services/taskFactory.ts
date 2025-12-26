@@ -1,6 +1,15 @@
 
 import { SupportVisual, Task } from '../types';
 import { getBountyTasks } from './bountyCatalog';
+import {
+  createTrigonometrieQuest,
+  createPythagorasQuest,
+  createKoerperQuest,
+  createStrahlensatzQuest,
+  createKongruenzQuest,
+  createVieleckQuest,
+  createDreidQuest,
+} from './geometrieMundoQuests';
 
 const getRandomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -410,7 +419,10 @@ export const TaskFactory = {
         this.createAngleMeasurementTask(0, seed), // Animierte Winkel-Messung
         this.createParallelLinesTask(0, seed), // Parallel lines + transversal
         this.createThalesTask(0, seed), // Thales theorem
-        this.createParallelClearTextTask(seed) // Klare Text-Aufgabe ohne Bild
+        this.createParallelClearTextTask(seed), // Klare Text-Aufgabe ohne Bild
+        // MUNDO: Trigonometrie & Kongruenz
+        ...Array.from({ length: 4 }, (_, i) => createTrigonometrieQuest(i * 2, seed)),
+        ...Array.from({ length: 2 }, (_, i) => createKongruenzQuest(i, seed)),
       ];
       case 'u3': return [
         this.createAreaTask(0, seed),
@@ -424,7 +436,9 @@ export const TaskFactory = {
         this.createKreissektorTask(0, seed), // Kreissektor (NEW)
         this.createKreisbogenTask(0, seed), // Kreisbogen (NEW)
         this.createAlgebraGeometryTask(0, seed), // Algebra-geometry terms
-        this.createFliesenLTask(seed) // L-Form Fläche textbasiert
+        this.createFliesenLTask(seed), // L-Form Fläche textbasiert
+        // MUNDO: Vielecke
+        ...Array.from({ length: 2 }, (_, i) => createVieleckQuest(i, seed)),
       ];
       case 'u4': return [
         this.createVolumeTask(0, seed),
@@ -436,7 +450,10 @@ export const TaskFactory = {
         this.createCylinderTask(0, seed), // Cylinder surface/volume
         this.createCompositeBodyTask(0, seed), // Composite bodies
         this.createCompositePrismTask(0, seed), // Zusammengesetzte Prismen (NEW)
-        this.createCylinderLiterTask(seed) // Zylinder in Litern, reine Textdaten
+        this.createCylinderLiterTask(seed), // Zylinder in Litern, reine Textdaten
+        // MUNDO: Körpergeometrie erweitert & 3D-Geometrie
+        ...Array.from({ length: 5 }, (_, i) => createKoerperQuest(i, seed)),
+        ...Array.from({ length: 2 }, (_, i) => createDreidQuest(i, seed)),
       ];
       case 'u5': return [
         this.createVisualSimilarityTask(0, seed),
@@ -451,6 +468,8 @@ export const TaskFactory = {
         this.createStrahlensatzTask(0, seed), // Strahlensatz
         this.createStrahlensatzUmkehrungTask(0, seed), // Umkehrung Strahlensatz (NEW)
         this.createZentrischeStreckungTask(0, seed), // Zentrische Streckung (NEW)
+        // MUNDO: Strahlensätze erweitert
+        ...Array.from({ length: 2 }, (_, i) => createStrahlensatzQuest(i, seed)),
         this.createAehnlichkeitssaetzeTask(0, seed), // Ähnlichkeitssätze Dreiecke (NEW)
         this.createMassstabDualTask(seed) // Maßstab Meter/Kilometer, getrennte Felder
       ];
@@ -461,7 +480,10 @@ export const TaskFactory = {
         this.createContextTask(3, seed),
         this.createContextTask(4, seed),
         this.createParkPythagorasTask(seed), // Pythagoras im Park, rein textlich
-        this.createHoehenKathetensatzTask(0, seed) // Höhen- und Kathetensatz (NEW)
+        this.createHoehenKathetensatzTask(0, seed), // Höhen- und Kathetensatz (NEW)
+        // MUNDO: Trigonometrie & Pythagoras erweitert
+        ...Array.from({ length: 4 }, (_, i) => createTrigonometrieQuest(i * 2 + 1, seed)),
+        ...Array.from({ length: 3 }, (_, i) => createPythagorasQuest(i, seed)),
       ];
       default: return [];
     }

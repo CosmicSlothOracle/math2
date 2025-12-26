@@ -1,4 +1,13 @@
 import { Task } from '../types';
+import {
+  TRIGONOMETRIE_BOUNTIES,
+  PYTHAGORAS_BOUNTIES,
+  KOERPER_BOUNTIES,
+  STRAHLENSATZ_BOUNTIES,
+  KONGRUENZ_BOUNTIES,
+  VIELEcke_BOUNTIES,
+  DREID_BOUNTIES,
+} from './geometrieMundoBounties';
 
 type UnitId = 'u1' | 'u2' | 'u3' | 'u4' | 'u5' | 'u6';
 
@@ -487,6 +496,32 @@ const BASE_BOUNTIES: Record<UnitId, Task[]> = {
   ],
 };
 
+// Neue MUNDO-Bounty-Aufgaben hinzufügen
+const MUNDO_BOUNTIES: Record<UnitId, Task[]> = {
+  u2: [
+    ...TRIGONOMETRIE_BOUNTIES.filter(t => t.id.startsWith('u2-')),
+    ...KONGRUENZ_BOUNTIES,
+  ],
+  u3: [...VIELEcke_BOUNTIES],
+  u4: [...KOERPER_BOUNTIES, ...DREID_BOUNTIES],
+  u5: [...STRAHLENSATZ_BOUNTIES],
+  u6: [
+    ...PYTHAGORAS_BOUNTIES,
+    ...TRIGONOMETRIE_BOUNTIES.filter(t => t.id.startsWith('u6-')),
+  ],
+  u1: [], // Keine neuen Bounties für u1
+};
+
+// Kombiniere bestehende und neue Bounties
+const COMBINED_BOUNTIES: Record<UnitId, Task[]> = {
+  u1: BASE_BOUNTIES.u1,
+  u2: [...BASE_BOUNTIES.u2, ...MUNDO_BOUNTIES.u2],
+  u3: [...BASE_BOUNTIES.u3, ...MUNDO_BOUNTIES.u3],
+  u4: [...BASE_BOUNTIES.u4, ...MUNDO_BOUNTIES.u4],
+  u5: [...BASE_BOUNTIES.u5, ...MUNDO_BOUNTIES.u5],
+  u6: [...BASE_BOUNTIES.u6, ...MUNDO_BOUNTIES.u6],
+};
+
 function cloneTask(task: Task): Task {
   return {
     ...task,
@@ -534,9 +569,10 @@ function cloneTask(task: Task): Task {
 }
 
 export function getBountyTasks(unitId: string): Task[] {
-  if (!BASE_BOUNTIES[unitId as UnitId]) {
+  const bounties = COMBINED_BOUNTIES[unitId as UnitId] || BASE_BOUNTIES[unitId as UnitId];
+  if (!bounties) {
     return [];
   }
-  return BASE_BOUNTIES[unitId as UnitId].map(cloneTask);
+  return bounties.map(cloneTask);
 }
 

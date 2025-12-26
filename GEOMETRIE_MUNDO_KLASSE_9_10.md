@@ -1,6 +1,6 @@
 # Geometrie-Inhalte für Klasse 9/10 von MUNDO
 
-**Quelle:** https://mundo.schule/search?search=Geometrie&filter=subjects.Mathematik
+**Quelle:** <https://mundo.schule/search?search=Geometrie&filter=subjects.Mathematik>
 **Datum:** 26.12.2025
 **Filter:** Geometrie + Mathematik + Klassenstufe 5-10
 
@@ -19,28 +19,35 @@ Insgesamt wurden **335 Treffer** für Geometrie im Bereich Mathematik mit Filter
 **Anbieter:** MINT-Kolleg Baden-Württemberg
 
 ### Grundbegriffe der ebenen Geometrie
+
 - **Geometrie - Aufgaben: Grundbegriffe der ebenen Geometrie**
 - **Geometrie - Einführung: Grundbegriffe der ebenen Geometrie**
 - **Geometrie - Strahlensätze: Grundbegriffe der ebenen Geometrie**
 - **Geometrie - Punkte und Geraden: Grundbegriffe der ebenen Geometrie**
 
 ### Winkelfunktionen
+
 - **Geometrie - Einführung in Winkelfunktion: Sinus und Co.**
 
 ### Vierecke
+
 - **Geometrie - Vierecke**
 
 ### Winkel
+
 - **Geometrie - Winkel**
 - **Geometrie - Winkelmessung**
 
 ### Flächeninhalt
+
 - **Geometrie - Flächeninhalt**
 
 ### Tests und Übungen
+
 - **Geometrie - Online-Test**
 
 ### Dreiecke
+
 - **Geometrie - Dreiecke**
 - **Geometrie - Einführung: Rund um Dreiecke**
 - **Geometrie - Aufgaben: Rund um Dreiecke**
@@ -48,21 +55,25 @@ Insgesamt wurden **335 Treffer** für Geometrie im Bereich Mathematik mit Filter
 - **Geometrie - Satz des Pythagoras**
 
 ### Trigonometrie
+
 - **Geometrie - Trigonometrie am Dreieck**
 - **Geometrie - Trigonometrie am Einheitskreis**
 - **Geometrie - Aufgaben zu Winkelfunktionen: Sinus und Co.**
 
 ### Vielecke
+
 - **Geometrie - Vielecke**
 - **Geometrie - Einführung: Vielecke, Flächeninhalt und Umfang**
 - **Geometrie - Aufgaben zu Vielecken, Flächeninhalte und Umfang**
 
 ### Körpergeometrie
+
 - **Geometrie - Elementargeometrische Körper**
 - **Geometrie - Einführung in elementargeometrische Körper**
 - **Geometrie - Aufgaben zu elementargeometrischen Körpern**
 
 ### Winkel (erweitert)
+
 - **Geometrie - Einführung: Winkel und Winkelmessung**
 
 ---
@@ -74,6 +85,7 @@ Insgesamt wurden **335 Treffer** für Geometrie im Bereich Mathematik mit Filter
 **Anbieter:** mebis Tube
 
 ### Abschlussprüfungen 2022
+
 - AP Mathe II/III - 2022 NT A2.0+2.1 - Abschlussprüfung Realschule Bayern
 - AP Mathe II/III - 2022 NT A2.2 - Abschlussprüfung Realschule Bayern
 - AP Mathe II/III - 2022 NT A2.3 - Abschlussprüfung Realschule Bayern
@@ -84,9 +96,11 @@ Insgesamt wurden **335 Treffer** für Geometrie im Bereich Mathematik mit Filter
 - AP Mathe II/III - 2022 HT A2.5 - Abschlussprüfung Realschule Bayern
 
 ### Abschlussprüfungen 2023
+
 - AP Mathe II/III - 2023 NT B3.2 - Abschlussprüfung Realschule Bayern
 
 ### Abschlussprüfungen 2021
+
 - AP Mathe II/III - 2021 HT A1.2 - Abschlussprüfung Realschule Bayern
 - AP Mathe II/III - 2021 HT B1.0+1.1 - Abschlussprüfung Realschule Bayern
 - AP Mathe II/III - 2021 HT B1.2 - Abschlussprüfung Realschule Bayern
@@ -95,6 +109,7 @@ Insgesamt wurden **335 Treffer** für Geometrie im Bereich Mathematik mit Filter
 - AP Mathe II/III - 2021 HT B1.5 - Abschlussprüfung Realschule Bayern
 
 ### Abschlussprüfungen 2020
+
 - AP Mathe II/III - 2020 HT B2.0+2.1 - Abschlussprüfung Realschule Bayern
 - AP Mathe II/III - 2020 HT B2.2 - Abschlussprüfung Realschule Bayern
 - AP Mathe II/III - 2020 HT B2.3 - Abschlussprüfung Realschule Bayern
@@ -105,10 +120,12 @@ Insgesamt wurden **335 Treffer** für Geometrie im Bereich Mathematik mit Filter
 - AP Mathe II/III - 2020 HT A3.2 - Abschlussprüfung Realschule Bayern
 
 ### Abschlussprüfungen 2017
+
 - AP Mathe II/III - 2017 NT A3.0+3.1 - Abschlussprüfung Realschule Bayern
 - AP Mathe II/III - 2017 NT A3.2 - Abschlussprüfung Realschule Bayern
 
 ### Abschlussprüfungen 2016
+
 - AP Mathe II/III - 2016 NT A2.0+2.1 - Abschlussprüfung Realschule Bayern
 - AP Mathe II/III - 2016 NT A2.2 - Abschlussprüfung Realschule Bayern
 - AP Mathe II/III - 2016 NT A2.3 - Abschlussprüfung Realschule Bayern
@@ -129,32 +146,39 @@ Insgesamt wurden **335 Treffer** für Geometrie im Bereich Mathematik mit Filter
 ## 3. GeoGebra Interaktionen
 
 ### 3D-Geometrie
+
 - **3D-Darstellungen** (Kl. 10-13)
 - **3D-Koordinatensystem** (Kl. 10-12)
 - **3D Koordinatensystem und Punkte einzeichnen** (Kl. 12) - Video von Stefan Müller | Schlau ist WOW!
 - **3D-Darstellung von Kreiswellen** (Kl. 12-13)
 
 ### 2D-Geometrie
+
 - **3D-Haus in 2D-Ansicht** (Kl. 6-9)
 
 ### Konstruktionen und Symmetralen
+
 - **Winkelsymmetrale - Eigenschaften** (Kl. 6-9)
 - **Winkelsymmetrale - Konstruktionsanleitung** (Kl. 6-9)
 - **Streckensymmetrale - Eigenschaften** (Kl. 6-9)
 - **Streckensymmetrale - Konstruktionsanleitung** (Kl. 6-9)
 
 ### Winkel
+
 - **Winkel messen** (Kl. 6-9)
 - **Abmessen von Winkeln** (Kl. 6-9)
 
 ### Dreiecke
+
 - **Besondere Linien im Dreieck** (Kl. 6-9)
 
 ### Anwendungen
+
 - **Größe eines Spiegels** (Kl. 6-9)
 - **Spirale** (Kl. 6-9)
 
 ### Erweiterte Geometrie (Kl. 10-13)
+
 - **Punkte im Raum** (Kl. 10-13)
 - **Optimale Scheibenwischer** (Kl. 10-13)
 - **Zykloide und Tangente** (Kl. 10-13)
@@ -164,15 +188,19 @@ Insgesamt wurden **335 Treffer** für Geometrie im Bereich Mathematik mit Filter
 ## 4. Weitere relevante Inhalte
 
 ### Videos
+
 - **#01 Symmetrie** (Kl. 5-13) - Bayerischer Rundfunk
 
 ### Unterrichtsbausteine
+
 - **1,2,3,4 - finito! (Lesetext)** (Kl. 9-13) - ETH Zürich
 
 ### Unterrichtsplanung
+
 - **Goldener Schnitt – Geometrie der Schönheit** (Kl. 5-10) - Zentralverband des deutschen Handwerks
 
 ### Kurse
+
 - **Mkid-Kurseinheit 29 "Taxi-Geometrie"** (Kl. 6) - Vector Stiftung
 
 ---
@@ -182,6 +210,7 @@ Insgesamt wurden **335 Treffer** für Geometrie im Bereich Mathematik mit Filter
 Basierend auf den gefundenen Inhalten decken die Materialien folgende Themen ab:
 
 ### Ebene Geometrie
+
 - Grundbegriffe (Punkte, Geraden, Strahlen)
 - Winkel (Messung, Arten, Winkelsummen)
 - Vierecke (Eigenschaften, Flächeninhalt)
@@ -192,6 +221,7 @@ Basierend auf den gefundenen Inhalten decken die Materialien folgende Themen ab:
 - Flächeninhalt verschiedener Figuren
 
 ### Trigonometrie
+
 - Winkelfunktionen (Sinus, Cosinus, Tangens)
 - Trigonometrie am rechtwinkligen Dreieck
 - Trigonometrie am Einheitskreis
@@ -199,6 +229,7 @@ Basierend auf den gefundenen Inhalten decken die Materialien folgende Themen ab:
 - Aufgaben zu Winkelfunktionen
 
 ### 3D-Geometrie
+
 - Elementargeometrische Körper (Würfel, Quader, Prisma, Pyramide, Zylinder, Kegel, Kugel)
 - Einführung in Körpergeometrie
 - Aufgaben zu Körpern
@@ -207,6 +238,7 @@ Basierend auf den gefundenen Inhalten decken die Materialien folgende Themen ab:
 - Räumliche Vorstellung
 
 ### Prüfungsvorbereitung
+
 - Abschlussprüfungen Realschule Bayern (verschiedene Jahrgänge)
 - Aufgaben mit Lösungsvideos
 
@@ -226,17 +258,20 @@ Basierend auf den gefundenen Inhalten decken die Materialien folgende Themen ab:
 ## Zusammenfassung
 
 ### Hauptanbieter
+
 - **MINT-Kolleg Baden-Württemberg**: Umfangreiche Unterrichtsbausteine zu allen wichtigen Geometrie-Themen für Klasse 9-13
 - **mebis Tube**: Abschlussprüfungsvideos für Realschule Bayern (Klasse 10)
 - **GeoGebra**: Interaktive Materialien für 3D-Geometrie
 
 ### Abgedeckte Themenbereiche
+
 1. **Ebene Geometrie**: Grundbegriffe, Winkel, Vierecke, Dreiecke, Vielecke, Strahlensätze, Satz des Pythagoras
 2. **Trigonometrie**: Winkelfunktionen, Trigonometrie am Dreieck und Einheitskreis
 3. **Körpergeometrie**: Elementargeometrische Körper, 3D-Darstellungen
 4. **Prüfungsvorbereitung**: Umfangreiche Sammlung von Abschlussprüfungen mit Lösungsvideos
 
 ### Besonderheiten
+
 - Viele Materialien bieten sowohl Einführungs- als auch Aufgaben-Materialien
 - Strukturierte Aufbereitung durch MINT-Kolleg Baden-Württemberg
 - Praktische Prüfungsvorbereitung durch mebis Tube Videos
@@ -250,4 +285,3 @@ Basierend auf den gefundenen Inhalten decken die Materialien folgende Themen ab:
 2. Spezifische Themen gezielt suchen (z.B. "Kreis", "Kreisberechnung", "Volumen")
 3. Materialien nach Lernressourcentyp filtern (Video, Interaktion, Arbeitsblatt, etc.)
 4. Direkte Links zu den Materialien sammeln für einfachen Zugriff
-

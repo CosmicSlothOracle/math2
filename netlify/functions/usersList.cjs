@@ -48,8 +48,7 @@ exports.handler = async function (event) {
     }
 
     // Fetch all users with unique display names
-    // Only query core columns that definitely exist - id, display_name, coins, created_at
-    // Other columns (avatar, active_effects, etc.) may not exist in production
+    // Only query core columns that definitely exist: id, display_name, coins, created_at
     const { data: users, error: usersError } = await supabase
       .from('users')
       .select('id, display_name, coins, created_at')
@@ -93,7 +92,11 @@ exports.handler = async function (event) {
 
         return {
           ...user,
-          avatar: user.avatar || '👤', // Default avatar if not set
+          avatar: '👤', // Default avatar
+          active_effects: [],
+          completed_units: [],
+          mastered_units: [],
+          perfect_bounty_units: [],
           battle_stats: { total, wins, win_rate },
         };
       })

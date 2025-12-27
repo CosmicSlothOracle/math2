@@ -93,8 +93,49 @@ function normalizeUser(serverUser: any): User {
 
 export const AuthService = {
   /**
+   * Register a user with a username.
+   * This is required before participating in battles.
+   */
+  async register(username: string): Promise<User> {
+    try {
+      const headers = getApiHeaders();
+      const resp = await fetch('/.netlify/functions/register', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ username }),
+      });
+
+      persistAnonId(resp);
+
+      if (!resp.ok) {
+        const json = await resp.json();
+        if (json.error === 'USERNAME_TAKEN') {
+          throw new Error('This username is already taken');
+        }
+        throw new Error(json.message || `Registration failed: ${resp.status}`);
+      }
+
+      const json = await resp.json();
+      if (!json.user) {
+        throw new Error('No user in registration response');
+      }
+
+      const user = normalizeUser(json.user);
+      user.username = username; // Ensure username is set
+      db.set('mm_current_user', user);
+
+      console.log('[AuthService.register] Success:', { userId: user.id, username });
+      return user;
+    } catch (err) {
+      console.error('[AuthService.register] Error:', err);
+      throw err;
+    }
+  },
+
+  /**
    * Login now calls /me endpoint to get or create user on server.
    * Username is stored as display_name in the backend.
+   * For battles, users should use register() instead.
    */
   async login(username: string): Promise<User> {
     try {

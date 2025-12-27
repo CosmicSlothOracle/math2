@@ -38,6 +38,9 @@ const BattlePanel: React.FC<Props> = ({
   onLaunchBattle,
   onRefresh,
 }) => {
+  // Check if user is registered (has a proper username)
+  const isRegistered = user.username && user.username.trim().length >= 2 && user.username !== 'User';
+
   const hasSubmitted = (battle: BattleRecord) => {
     if (user.id === battle.challengerId) {
       return Boolean(battle.challengerSummary);
@@ -60,6 +63,21 @@ const BattlePanel: React.FC<Props> = ({
         </Button>
       </div>
 
+      {!isRegistered && (
+        <GlassCard className="!p-6 bg-amber-50 border-amber-200">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-2xl">⚠️</span>
+            <CardTitle className="!text-base text-amber-900">Registrierung erforderlich</CardTitle>
+          </div>
+          <p className="text-sm text-amber-800 mb-4">
+            Um Battles zu erstellen oder anzunehmen, musst du dich zuerst mit einem Benutzernamen registrieren.
+          </p>
+          <p className="text-xs text-amber-700">
+            Aktueller Status: {user.username || 'Nicht registriert'}
+          </p>
+        </GlassCard>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {scenarios.map(scenario => (
           <GlassCard key={scenario.id} className="!p-6 flex flex-col justify-between bg-white/80 border-slate-100 shadow-xl">
@@ -81,8 +99,8 @@ const BattlePanel: React.FC<Props> = ({
               <span>Stake: {scenario.stake} 💰</span>
               <span>Runden: {scenario.rounds}</span>
             </div>
-            <Button onClick={() => onCreateBattle(scenario)} disabled={isLoading}>
-              {isLoading ? 'Wird erstellt...' : 'Battle hosten'}
+            <Button onClick={() => onCreateBattle(scenario)} disabled={isLoading || !isRegistered}>
+              {isLoading ? 'Wird erstellt...' : !isRegistered ? 'Registrierung erforderlich' : 'Battle hosten'}
             </Button>
           </GlassCard>
         ))}
@@ -113,9 +131,9 @@ const BattlePanel: React.FC<Props> = ({
                 <Button
                   size="sm"
                   onClick={() => onAcceptBattle(battle)}
-                  disabled={isLoading || battle.challengerId === user.id}
+                  disabled={isLoading || battle.challengerId === user.id || !isRegistered}
                 >
-                  Annehmen
+                  {!isRegistered ? 'Registrierung erforderlich' : 'Annehmen'}
                 </Button>
               </div>
             ))}

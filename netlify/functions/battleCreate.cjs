@@ -76,6 +76,41 @@ exports.handler = async function (event) {
       };
     }
 
+    // Check if user is registered (has a proper display_name)
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('display_name')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !userData) {
+      return {
+        statusCode: 401,
+        headers: HEADERS,
+        body: JSON.stringify({
+          ok: false,
+          error: 'USER_NOT_REGISTERED',
+          message: 'Please register before creating battles',
+          userId,
+        }),
+      };
+    }
+
+    const displayName = userData.display_name || '';
+    // Reject if display_name is default/unset (User, empty, or just whitespace)
+    if (!displayName || displayName.trim() === '' || displayName === 'User' || displayName.length < 2) {
+      return {
+        statusCode: 401,
+        headers: HEADERS,
+        body: JSON.stringify({
+          ok: false,
+          error: 'USER_NOT_REGISTERED',
+          message: 'Please register with a username before creating battles',
+          userId,
+        }),
+      };
+    }
+
     if (stake > 0) {
       await applyCoinDelta(supabase, {
         userId,

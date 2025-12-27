@@ -43,6 +43,40 @@ exports.handler = async function (event) {
       };
     }
 
+    // Check if user is registered
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('display_name')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !userData) {
+      return {
+        statusCode: 401,
+        headers: HEADERS,
+        body: JSON.stringify({
+          ok: false,
+          error: 'USER_NOT_REGISTERED',
+          message: 'Please register before accepting battles',
+          userId,
+        }),
+      };
+    }
+
+    const displayName = userData.display_name || '';
+    if (!displayName || displayName.trim() === '' || displayName === 'User' || displayName.length < 2) {
+      return {
+        statusCode: 401,
+        headers: HEADERS,
+        body: JSON.stringify({
+          ok: false,
+          error: 'USER_NOT_REGISTERED',
+          message: 'Please register with a username before accepting battles',
+          userId,
+        }),
+      };
+    }
+
     const { data: battleRows, error: fetchError } = await supabase.from('battles').select('*').eq('id', battleId).limit(1);
     if (fetchError) {
       console.error('[battleAccept] Fetch error:', fetchError);

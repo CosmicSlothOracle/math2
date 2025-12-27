@@ -49,6 +49,40 @@ exports.handler = async function (event) {
       };
     }
 
+    // Check if user is registered
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('display_name')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !userData) {
+      return {
+        statusCode: 401,
+        headers: HEADERS,
+        body: JSON.stringify({
+          ok: false,
+          error: 'USER_NOT_REGISTERED',
+          message: 'Please register before submitting battle results',
+          userId,
+        }),
+      };
+    }
+
+    const displayName = userData.display_name || '';
+    if (!displayName || displayName.trim() === '' || displayName === 'User' || displayName.length < 2) {
+      return {
+        statusCode: 401,
+        headers: HEADERS,
+        body: JSON.stringify({
+          ok: false,
+          error: 'USER_NOT_REGISTERED',
+          message: 'Please register with a username before submitting battle results',
+          userId,
+        }),
+      };
+    }
+
     const { data: battleRows, error: battleError } = await supabase.from('battles').select('*').eq('id', battleId).limit(1);
     if (battleError) {
       console.error('[battleSubmit] Battle fetch failed:', battleError);

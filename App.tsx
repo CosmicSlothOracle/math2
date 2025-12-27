@@ -2300,28 +2300,58 @@ const QuantumAfterimage: React.FC = () => {
 const AuthScreen: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async () => {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      setError('Bitte gib einen Namen ein');
+      return;
+    }
+    if (name.trim().length < 2) {
+      setError('Name muss mindestens 2 Zeichen lang sein');
+      return;
+    }
+    if (name.trim().length > 30) {
+      setError('Name darf maximal 30 Zeichen lang sein');
+      return;
+    }
+
     setLoading(true);
-    const user = await AuthService.login(name);
-    onLogin(user);
-    setLoading(false);
+    setError(null);
+    try {
+      // Register user (required for battles)
+      const user = await AuthService.register(name.trim());
+      onLogin(user);
+    } catch (err: any) {
+      setError(err.message || 'Registrierung fehlgeschlagen');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md text-center">
         <h1 className="text-4xl font-black italic uppercase mb-2 text-indigo-600">MathMaster</h1>
-        <p className="text-slate-400 mb-8 font-medium">Dein Name, Legende?</p>
+        <p className="text-slate-400 mb-2 font-medium">Registriere dich für Battles</p>
+        <p className="text-xs text-slate-400 mb-6">Wähle einen Benutzernamen (2-30 Zeichen)</p>
         <input
           value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Name eingeben..."
-          className="w-full p-4 bg-slate-100 rounded-xl mb-4 font-bold text-center outline-none focus:ring-2 focus:ring-indigo-500"
+          onChange={(e) => {
+            setName(e.target.value);
+            setError(null);
+          }}
+          placeholder="Benutzername eingeben..."
+          className="w-full p-4 bg-slate-100 rounded-xl mb-2 font-bold text-center outline-none focus:ring-2 focus:ring-indigo-500"
           onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+          maxLength={30}
         />
-        <Button onClick={handleLogin} isLoading={loading} className="w-full">Starten 🚀</Button>
+        {error && (
+          <p className="text-red-500 text-sm mb-2">{error}</p>
+        )}
+        <Button onClick={handleLogin} isLoading={loading} className="w-full">
+          Registrieren & Starten 🚀
+        </Button>
       </div>
     </div>
   );
@@ -4603,6 +4633,15 @@ export default function App() {
 
   const handleBattleCreate = useCallback(async (scenario: BattleScenario) => {
     if (!user) return;
+
+    // Check if user is registered (has a proper username)
+    const isRegistered = user.username && user.username.trim().length >= 2 && user.username !== 'User';
+    if (!isRegistered) {
+      addToast('Bitte registriere dich zuerst mit einem Benutzernamen', 'error');
+      // Optionally redirect to registration
+      return;
+    }
+
     try {
       setIsBattleSyncLoading(true);
       const tasks = generateBattleTaskBundle(scenario.id, scenario.rounds);
@@ -4632,9 +4671,14 @@ export default function App() {
       }
       addToast('Battle erstellt – warte auf Gegner!', 'success');
       await refreshBattles();
-    } catch (err) {
+    } catch (err: any) {
       console.error('[handleBattleCreate]', err);
-      addToast('Battle konnte nicht erstellt werden', 'error');
+      const errorMsg = err?.message || err?.responseData?.message || err?.responseData?.error || 'Battle konnte nicht erstellt werden';
+      if (errorMsg.includes('USER_NOT_REGISTERED') || errorMsg.includes('register') || errorMsg.includes('registrier')) {
+        addToast('Bitte registriere dich zuerst mit einem Benutzernamen', 'error');
+      } else {
+        addToast(errorMsg.length > 100 ? 'Battle konnte nicht erstellt werden' : errorMsg, 'error');
+      }
     } finally {
       setIsBattleSyncLoading(false);
     }
@@ -4739,9 +4783,14 @@ export default function App() {
       }
       addToast('Battle angenommen – viel Erfolg!', 'success');
       await refreshBattles();
-    } catch (err) {
+    } catch (err: any) {
       console.error('[handleBattleAccept]', err);
-      addToast('Battle konnte nicht angenommen werden', 'error');
+      const errorMsg = err?.message || err?.responseData?.message || err?.responseData?.error || 'Battle konnte nicht angenommen werden';
+      if (errorMsg.includes('USER_NOT_REGISTERED') || errorMsg.includes('register') || errorMsg.includes('registrier')) {
+        addToast('Bitte registriere dich zuerst mit einem Benutzernamen', 'error');
+      } else {
+        addToast(errorMsg.length > 100 ? 'Battle konnte nicht angenommen werden' : errorMsg, 'error');
+      }
     } finally {
       setIsBattleSyncLoading(false);
     }

@@ -91,6 +91,9 @@ create table if not exists battles (
 create index if not exists idx_battles_challenger on battles(challenger_id);
 create index if not exists idx_battles_opponent on battles(opponent_id);
 create index if not exists idx_battles_status on battles(status);
+create index if not exists idx_battles_status_opponent on battles(status, opponent_id) where opponent_id is null;
+create index if not exists idx_battles_unit on battles(unit_id);
+create index if not exists idx_battles_created_at on battles(created_at desc);
 
 -- 6) battle_turns (stores per-player submissions / summaries)
 create table if not exists battle_turns (

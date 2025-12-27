@@ -4551,7 +4551,9 @@ export default function App() {
     refreshBattles();
   }, [user, activeTab, refreshBattles]);
 
-  if (!user) return <AuthScreen onLogin={setUser} />;
+  // Show auth screen if no user OR if user has default name "User" (not properly registered)
+  const needsRegistration = !user || !user.username || user.username === 'User' || user.username.trim().length < 2;
+  if (needsRegistration) return <AuthScreen onLogin={setUser} />;
 
   const triggerCoinAnimation = () => {
     setIsFlyingCoinActive(true);

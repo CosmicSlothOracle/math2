@@ -17,6 +17,7 @@ exports.handler = async function (event) {
     const text = (body.text || '').toString().trim();
     const channelId = body.channelId || 'class:global';
     const username = body.username || null;
+    const avatar = body.avatar || null;
 
     console.log('[chatSend]', { userId, channelId, username, textLength: text.length, hasSupabase: !!supabase });
 
@@ -32,6 +33,7 @@ exports.handler = async function (event) {
         channel_id: channelId,
         sender_id: userId,
         username: username || 'Dev',
+        avatar,
         text,
         created_at: new Date().toISOString()
       };
@@ -48,7 +50,7 @@ exports.handler = async function (event) {
       };
     }
 
-    const payload = { channel_id: channelId, sender_id: userId, username: username, text };
+    const payload = { channel_id: channelId, sender_id: userId, username: username, avatar, text };
     const { data, error } = await supabase.from('messages').insert(payload).select().limit(1);
     if (error) {
       console.error('[chatSend] Insert error:', error);

@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { LEARNING_UNITS, SHOP_ITEMS, PROGRESS_LEVELS, GEOMETRY_DEFINITIONS } from './constants';
 import { LearningUnit, User, Task, ShopItem, ChatMessage, CategoryGroup, BattleRequest, ToastMessage, ToastType, getTileStatus } from './types';
 import { AuthService, DataService, SocialService, bootstrapServerUser } from './services/apiService';
+import { getRealtimeClient } from './services/realtimeClient';
 import { QuestService } from './services/questService';
 import { getQuestCap, getQuestCoinsEarned, getQuestCapRemaining, isQuestCapReached, computeEntryFee } from './services/economyService';
 import { getMatheHint } from './services/geminiService';
@@ -2297,45 +2298,119 @@ const AuthScreen: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) =>
 };
 
 const ChatView: React.FC<{ currentUser: User }> = ({ currentUser }) => {
+  const channelId = 'class:global';
   const [msg, setMsg] = useState('');
   const [chat, setChat] = useState<ChatMessage[]>([]);
+  const [isRealtimeReady, setIsRealtimeReady] = useState(false);
+  const lastTimestampRef = useRef<number | undefined>(undefined);
 
-  const loadChat = async () => {
-    const msgs = await SocialService.getChatMessages();
-    setChat(msgs);
-  };
+  const mergeMessages = useCallback((incoming: ChatMessage[]) => {
+    if (!incoming.length) return;
+    setChat(prev => {
+      const seen = new Set(prev.map(m => m.id));
+      const next = [...prev];
+      incoming.forEach(m => {
+        if (!seen.has(m.id)) {
+          next.push(m);
+          seen.add(m.id);
+        }
+      });
+      return next.slice(-200);
+    });
+    const newest = incoming[incoming.length - 1];
+    if (newest?.timestamp) {
+      lastTimestampRef.current = Math.max(lastTimestampRef.current || 0, newest.timestamp);
+    }
+  }, []);
+
+  const mapRecordToMessage = useCallback(
+    (record: any): ChatMessage => ({
+      id: record.id || `local-${Date.now()}`,
+      userId: record.sender_id || record.userId || 'unknown',
+      username: record.username || 'Anonym',
+      text: record.text,
+      timestamp: record.created_at ? new Date(record.created_at).valueOf() : Date.now(),
+      avatar: record.avatar || '👤',
+    }),
+    []
+  );
+
+  const loadChat = useCallback(async () => {
+    const msgs = await SocialService.getChatMessages(channelId, lastTimestampRef.current);
+    mergeMessages(msgs);
+  }, [channelId, mergeMessages]);
 
   useEffect(() => {
     loadChat();
-    const interval = setInterval(loadChat, 5000);
+    const interval = setInterval(loadChat, 8000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadChat]);
+
+  useEffect(() => {
+    const client = getRealtimeClient();
+    if (!client) return;
+    const channel = client.channel(`messages:${channelId}`);
+    channel
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `channel_id=eq.${channelId}` },
+        payload => {
+          if (payload.new) {
+            mergeMessages([mapRecordToMessage(payload.new)]);
+          }
+        }
+      )
+      .subscribe(status => {
+        setIsRealtimeReady(status === 'SUBSCRIBED');
+      });
+    return () => {
+      client.removeChannel(channel);
+      setIsRealtimeReady(false);
+    };
+  }, [channelId, mapRecordToMessage, mergeMessages]);
 
   const send = async () => {
     if (!msg.trim()) return;
-    await SocialService.sendMessage(currentUser, msg);
+    const text = msg.trim();
     setMsg('');
-    loadChat();
+    await SocialService.sendMessage(currentUser, text, channelId);
+    await loadChat();
   };
 
   return (
     <GlassCard className="h-full flex flex-col !p-0 overflow-hidden col-span-2">
-      <div className="p-4 border-b bg-slate-50/50 backdrop-blur-md">
+      <div className="p-4 border-b bg-slate-50/50 backdrop-blur-md flex items-center justify-between">
         <CardTitle>Klassen-Chat</CardTitle>
+        <span className={`text-[10px] font-black uppercase tracking-widest ${isRealtimeReady ? 'text-emerald-500' : 'text-slate-400'}`}>
+          {isRealtimeReady ? 'Live' : 'Polling'}
+        </span>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar flex flex-col-reverse">
         {[...chat].reverse().map(c => (
           <div key={c.id} className={`flex gap-3 ${c.userId === currentUser.id ? 'flex-row-reverse' : ''}`}>
-             <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-lg shadow-sm border border-white">
-                {c.avatar}
-             </div>
-             <div className={`max-w-[80%] p-3 rounded-2xl text-sm font-medium leading-relaxed shadow-sm ${
-                c.type === 'system' ? 'bg-amber-50 text-amber-800 border border-amber-100 w-full text-center italic' :
-                c.userId === currentUser.id ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'
-             }`}>
-                {c.type !== 'system' && <div className={`text-[10px] font-black uppercase mb-1 opacity-50 ${c.userId === currentUser.id ? 'text-indigo-200' : 'text-slate-400'}`}>{c.username}</div>}
-                {c.text}
-             </div>
+            <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-lg shadow-sm border border-white">
+              {c.avatar}
+            </div>
+            <div
+              className={`max-w-[80%] p-3 rounded-2xl text-sm font-medium leading-relaxed shadow-sm ${
+                c.type === 'system'
+                  ? 'bg-amber-50 text-amber-800 border border-amber-100 w-full text-center italic'
+                  : c.userId === currentUser.id
+                  ? 'bg-indigo-600 text-white rounded-tr-none'
+                  : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'
+              }`}
+            >
+              {c.type !== 'system' && (
+                <div
+                  className={`text-[10px] font-black uppercase mb-1 opacity-50 ${
+                    c.userId === currentUser.id ? 'text-indigo-200' : 'text-slate-400'
+                  }`}
+                >
+                  {c.username}
+                </div>
+              )}
+              {c.text}
+            </div>
           </div>
         ))}
       </div>
@@ -2381,6 +2456,131 @@ const LeaderboardView: React.FC<{ currentUser: User; onChallenge: (u: User) => v
             )}
           </div>
         ))}
+      </div>
+    </GlassCard>
+  );
+};
+
+const BattleLobby: React.FC<{ currentUser: User }> = ({ currentUser }) => {
+  const [selectedUnit, setSelectedUnit] = useState<string>(LEARNING_UNITS[0]?.id || 'u1');
+  const [signals, setSignals] = useState<
+    Array<{ id: string; username: string; unitTitle: string; tasks: string[]; timestamp: number; avatar: string }>
+  >([]);
+  const [broadcasting, setBroadcasting] = useState(false);
+  const [channelReady, setChannelReady] = useState(false);
+  const channelRef = useRef<any>(null);
+
+  useEffect(() => {
+    const client = getRealtimeClient();
+    if (!client) return;
+    const channel = client.channel('mathbattle:lobby', { config: { broadcast: { self: true } } });
+    channelRef.current = channel;
+    channel
+      .on('broadcast', { event: 'BATTLE_SIGNAL' }, payload => {
+        if (payload?.payload) {
+          setSignals(prev => {
+            const next = [payload.payload as any, ...prev];
+            return next.slice(0, 10);
+          });
+        }
+      })
+      .subscribe(status => {
+        setChannelReady(status === 'SUBSCRIBED');
+        if (status !== 'SUBSCRIBED') {
+          channelRef.current = null;
+        }
+      });
+    return () => {
+      client.removeChannel(channel);
+      channelRef.current = null;
+      setChannelReady(false);
+    };
+  }, []);
+
+  const broadcastChallenge = async () => {
+    const client = getRealtimeClient();
+    const channel = channelRef.current;
+    const unit = LEARNING_UNITS.find(u => u.id === selectedUnit);
+    if (!client || !channel || !unit) {
+      setSignals(prev => [
+        {
+          id: `local-${Date.now()}`,
+          username: currentUser.username,
+          unitTitle: unit?.title || 'Unbekannt',
+          tasks: [],
+          timestamp: Date.now(),
+          avatar: currentUser.avatar,
+        },
+        ...prev,
+      ]);
+      return;
+    }
+    setBroadcasting(true);
+    try {
+      const tasks = TaskFactory.getBattleTasksForUnit(selectedUnit, 3).map(t => t.id);
+      const payload = {
+        id: `${Date.now()}`,
+        username: currentUser.username,
+        avatar: currentUser.avatar,
+        unitTitle: unit.title,
+        tasks,
+        timestamp: Date.now(),
+      };
+      await channel.send({ type: 'broadcast', event: 'BATTLE_SIGNAL', payload });
+      setSignals(prev => [payload, ...prev].slice(0, 10));
+    } catch (error) {
+      console.warn('[BattleLobby] broadcast failed', error);
+    } finally {
+      setBroadcasting(false);
+    }
+  };
+
+  return (
+    <GlassCard className="h-full flex flex-col !p-0 overflow-hidden">
+      <div className="p-4 border-b bg-slate-50/50 backdrop-blur-md flex items-center justify-between">
+        <CardTitle>Math Battle Lobby</CardTitle>
+        <span className={`text-[10px] font-black uppercase tracking-widest ${channelReady ? 'text-emerald-500' : 'text-slate-400'}`}>
+          {channelReady ? 'Realtime' : 'Offline'}
+        </span>
+      </div>
+      <div className="p-4 space-y-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <select
+            value={selectedUnit}
+            onChange={e => setSelectedUnit(e.target.value)}
+            className="flex-1 bg-slate-100 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            {LEARNING_UNITS.map(u => (
+              <option key={u.id} value={u.id}>{u.title}</option>
+            ))}
+          </select>
+          <Button onClick={broadcastChallenge} disabled={broadcasting} className="w-full sm:w-auto">
+            {broadcasting ? 'Sendet...' : 'Battle-Signal ⚡️'}
+          </Button>
+        </div>
+        <div className="text-[11px] font-black uppercase text-slate-400">
+          Vorschau: {TaskFactory.getBattleTasksForUnit(selectedUnit, 3).map(t => t.type).join(', ')}
+        </div>
+        <div className="space-y-3 max-h-56 overflow-y-auto custom-scrollbar pr-1">
+          {signals.length === 0 && (
+            <p className="text-xs text-slate-400 font-bold text-center">Noch kein Signal – be first!</p>
+          )}
+          {signals.map(signal => (
+            <div key={signal.id} className="p-3 rounded-2xl border border-slate-100 bg-white flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">{signal.avatar || '👤'}</div>
+              <div className="flex-1 min-w-0">
+                <div className="font-black text-sm text-slate-700 truncate">{signal.username}</div>
+                <div className="text-[10px] uppercase text-slate-400">{signal.unitTitle}</div>
+                <div className="text-[10px] text-slate-500">
+                  Tasks: {signal.tasks.join(', ') || 'wird synchronisiert...'}
+                </div>
+              </div>
+              <div className="text-[10px] text-slate-400 font-bold">
+                {new Date(signal.timestamp).toLocaleTimeString()}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </GlassCard>
   );
@@ -3089,6 +3289,8 @@ const QuestExecutionView: React.FC<{
     const [sliderValue, setSliderValue] = useState<number>(1);
     const [selectedParts, setSelectedParts] = useState<Set<string>>(new Set());
     const [multiFieldValues, setMultiFieldValues] = useState<Record<string, string>>({});
+    const [adaptiveHint, setAdaptiveHint] = useState<string | null>(null);
+    const [isAutoHintLoading, setIsAutoHintLoading] = useState(false);
 
     useEffect(() => {
         if (isBountyMode && !feedback && tasks.length > 0) {
@@ -3110,6 +3312,8 @@ const QuestExecutionView: React.FC<{
     useEffect(() => {
         // Reset hint when task changes
         setCurrentHint(null);
+        setAdaptiveHint(null);
+        setIsAutoHintLoading(false);
     }, [currentIdx]);
 
     const handleVerify = () => {
@@ -3183,15 +3387,18 @@ const QuestExecutionView: React.FC<{
 
                 isCorrect = allFieldsValid;
             } else {
-                // Single input field (original logic)
-                const clean = (s: string) => s.replace(/\s+/g, '').toLowerCase();
-                const userAns = clean(textInput);
-
-                if (userAns === '') {
-                    isCorrect = false;
+                if (task.validator) {
+                    isCorrect = validateAnswer(textInput, task.validator);
                 } else {
-                    const correctAnswers = String(task.correctAnswer).split(',').map(s => clean(s.trim()));
-                    isCorrect = correctAnswers.some(ans => userAns.includes(ans));
+                    const clean = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+                    const userAns = clean(textInput);
+
+                    if (userAns === '') {
+                        isCorrect = false;
+                    } else {
+                        const correctAnswers = String(task.correctAnswer).split(',').map(s => clean(s.trim()));
+                        isCorrect = correctAnswers.some(ans => userAns.includes(ans));
+                    }
                 }
             }
         } else if (task.type === 'visualChoice') {
@@ -3222,6 +3429,7 @@ const QuestExecutionView: React.FC<{
         } else {
             setFeedback('wrong');
             setMistakes(m => m + 1);
+            requestAdaptiveHint(task, getUserAnswerPreview());
         }
     };
 
@@ -3239,6 +3447,8 @@ const QuestExecutionView: React.FC<{
             setSelectedParts(new Set());
             setMultiFieldValues({});
             setCurrentHint(null);
+            setAdaptiveHint(null);
+            setIsAutoHintLoading(false);
             // Don't reset correctAnswers - we want to track total across all tasks
         } else {
             // Calculate percentage of correct answers
@@ -3283,6 +3493,105 @@ const QuestExecutionView: React.FC<{
 
     // DEBUG
     console.log('Current Task:', task);
+
+    const renderSupportVisual = (visual: Task['supportVisual']) => {
+        if (!visual) return null;
+        return (
+            <div className="mt-4 flex flex-col items-center gap-3">
+                <svg viewBox={visual.viewBox || '0 0 220 170'} className="w-full max-w-sm text-current">
+                    {visual.elements.map((element: any, idx: number) => {
+                        if (element.type === 'line') {
+                            return (
+                                <line
+                                    key={`line-${idx}`}
+                                    x1={element.x1}
+                                    y1={element.y1}
+                                    x2={element.x2}
+                                    y2={element.y2}
+                                    stroke={element.stroke || (isBountyMode ? '#fcd34d' : '#0f172a')}
+                                    strokeWidth={element.strokeWidth || 3}
+                                    strokeDasharray={element.dashed ? '6 4' : undefined}
+                                    strokeLinecap="round"
+                                />
+                            );
+                        }
+                        if (element.type === 'path') {
+                            return (
+                                <path
+                                    key={`path-${idx}`}
+                                    d={element.d}
+                                    fill={element.fill || 'none'}
+                                    opacity={element.opacity}
+                                    stroke={element.stroke || (isBountyMode ? '#f59e0b' : '#0f172a')}
+                                    strokeWidth={element.strokeWidth || 3}
+                                    strokeDasharray={element.strokeDasharray}
+                                />
+                            );
+                        }
+                        if (element.type === 'text') {
+                            return (
+                                <text
+                                    key={`text-${idx}`}
+                                    x={element.x}
+                                    y={element.y}
+                                    fill={element.color || (isBountyMode ? '#fde68a' : '#475569')}
+                                    fontSize={element.fontSize || 12}
+                                    textAnchor={element.anchor || 'middle'}
+                                    fontFamily="'Inter', sans-serif"
+                                >
+                                    {element.text}
+                                </text>
+                            );
+                        }
+                        return null;
+                    })}
+                </svg>
+                {visual.caption && (
+                    <p className={`text-xs font-bold text-center ${isBountyMode ? 'text-amber-200' : 'text-slate-500'}`}>{visual.caption}</p>
+                )}
+            </div>
+        );
+    };
+
+    const buildFallbackHint = (targetTask: Task) => {
+        const blob = `${targetTask.question} ${targetTask.instructions || ''} ${targetTask.context || ''}`.toLowerCase();
+        if (blob.includes('pythag')) {
+            return 'Denk an den Satz des Pythagoras: a² + b² = c².';
+        }
+        if (blob.includes('maßstab') || blob.includes('scale') || blob.includes('streck')) {
+            return 'Rechne alle Längen zuerst in dieselbe Einheit um, bevor du multiplizierst oder teilst.';
+        }
+        if (blob.includes('scheitel')) {
+            return 'Der Scheitelpunkt ist der Schnittpunkt der Geraden – gegenüberliegende Winkel sind dort gleich groß.';
+        }
+        if (blob.includes('winkel')) {
+            return 'Nebenwinkel ergänzen sich zu 180°. Prüfe, ob du den passenden Partnerwinkel gewählt hast.';
+        }
+        return 'Überprüfe Einheiten und lies die Fragestellung langsam Schritt für Schritt.';
+    };
+
+    const requestAdaptiveHint = (targetTask: Task, userValue: string) => {
+        if (noCheatSheet || currentHint || adaptiveHint || isAutoHintLoading) return;
+        setIsAutoHintLoading(true);
+        getMatheHint(unit.title, `${targetTask.question}\nFalsche Eingabe: ${userValue || '–'}`)
+            .then((hint) => {
+                setAdaptiveHint(hint || buildFallbackHint(targetTask));
+            })
+            .catch(() => {
+                setAdaptiveHint(buildFallbackHint(targetTask));
+            })
+            .finally(() => setIsAutoHintLoading(false));
+    };
+
+    const getUserAnswerPreview = () => {
+        if (task.type === 'input' || task.type === 'shorttext') return textInput;
+        if (task.type === 'angleMeasure') return angleInput;
+        if (task.type === 'sliderTransform') return sliderValue.toString();
+        if ((task.type === 'choice' || task.type === 'wager' || task.type === 'boolean') && task.options && selectedOption !== null) {
+            return task.options[selectedOption] || '';
+        }
+        return '';
+    };
 
     const isInteractive = task.type.startsWith('interactive_') || task.type === 'multiAngleThrow';
 
@@ -3365,6 +3674,7 @@ const QuestExecutionView: React.FC<{
                                             <p className={`text-sm font-medium italic ${isBountyMode ? 'text-amber-300' : 'text-indigo-700'}`}>{task.instructions}</p>
                                         </div>
                                     )}
+                                    {task.supportVisual && renderSupportVisual(task.supportVisual)}
                                 </div>
                             )}
 
@@ -3645,6 +3955,14 @@ const QuestExecutionView: React.FC<{
                                         {feedback === 'correct' ? 'Richtig! 🎉' : 'Leider falsch... 💀'}
                                     </div>
                                     <p className={`text-sm font-bold leading-relaxed mb-4 ${isBountyMode ? 'text-slate-300' : 'text-slate-600'}`}>{task.explanation}</p>
+                                    {feedback === 'wrong' && isAutoHintLoading && !adaptiveHint && (
+                                        <p className={`text-xs font-medium mb-2 ${isBountyMode ? 'text-amber-200' : 'text-slate-500'}`}>Tipp wird geladen...</p>
+                                    )}
+                                    {feedback === 'wrong' && adaptiveHint && (
+                                        <div className={`mb-4 p-3 rounded-2xl text-sm font-semibold ${isBountyMode ? 'bg-slate-900/40 text-amber-200 border border-amber-500/30' : 'bg-indigo-50 text-indigo-800 border border-indigo-100'}`}>
+                                            💡 {adaptiveHint}
+                                        </div>
+                                    )}
                                     {feedback === 'wrong' && (
                                         <p className={`text-xs font-medium mb-4 ${isBountyMode ? 'text-slate-400' : 'text-slate-500'}`}>
                                             💡 Tipp: Lies die Frage nochmal genau durch. Überlege, welche Formel oder welches Konzept hier angewendet werden muss.
@@ -4041,7 +4359,15 @@ export default function App() {
                 })}
               </div>
             )}
-             {activeTab === 'community' && <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto lg:h-[70vh]"><ChatView currentUser={user} /><LeaderboardView currentUser={user} onChallenge={() => {}} /></div>}
+          {activeTab === 'community' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto lg:h-[70vh]">
+                <ChatView currentUser={user} />
+                <LeaderboardView currentUser={user} onChallenge={() => {}} />
+              </div>
+              <BattleLobby currentUser={user} />
+            </div>
+          )}
             {activeTab === 'shop' && <ShopView user={user} onBuy={handleBuy} onPreview={async (item: ShopItem, cost: number) => {
               // Toggle off
               if (previewEffect === item.value) {
@@ -4103,6 +4429,8 @@ const UnitView: React.FC<{
 }> = ({ unit, user, bountyCompleted, onClose, onStartQuest }) => {
     const [activeTab, setActiveTab] = useState<'info' | 'pre' | 'standard' | 'bounty'>('info');
     const [isStartingBounty, setIsStartingBounty] = useState(false);
+    const [bountyTimeLimit, setBountyTimeLimit] = useState<number>(60);
+    const [lockCheatSheet, setLockCheatSheet] = useState(true);
     const definition = GEOMETRY_DEFINITIONS.find(d => d.id === unit.definitionId);
     const entryFee = computeEntryFee(unit.bounty);
     const userCoins = Number.isFinite(user.coins) ? user.coins : 0;
@@ -4118,7 +4446,7 @@ const UnitView: React.FC<{
         try {
             // Small delay to ensure state updates
             await new Promise(resolve => setTimeout(resolve, 100));
-            await onStartQuest(unit, 'bounty');
+            await onStartQuest(unit, 'bounty', { timeLimit: bountyTimeLimit, noCheatSheet: lockCheatSheet });
             // Reset after transition
             setTimeout(() => setIsStartingBounty(false), 500);
         } catch (error) {
@@ -4218,6 +4546,29 @@ const UnitView: React.FC<{
                             Bounty bereits abgeschlossen – keine weitere Auszahlung. Snooze runs kosten weiterhin Entry Fee.
                           </p>
                         )}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left text-[11px] font-black uppercase text-slate-300">
+                          <div>
+                            <span className="block mb-1">Zeitlimit</span>
+                            <select
+                              className="w-full bg-slate-800 rounded-xl px-3 py-2 border border-amber-500/30 text-amber-200 font-bold"
+                              value={bountyTimeLimit}
+                              onChange={e => setBountyTimeLimit(Number(e.target.value))}
+                            >
+                              {[45, 60, 75, 90].map(limit => (
+                                <option key={limit} value={limit}>{limit} Sekunden</option>
+                              ))}
+                            </select>
+                          </div>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4"
+                              checked={lockCheatSheet}
+                              onChange={e => setLockCheatSheet(e.target.checked)}
+                            />
+                            <span>Tipps sperren (no cheats)</span>
+                          </label>
+                        </div>
                         <Button
                           variant="danger"
                           onClick={handleBountyStart}

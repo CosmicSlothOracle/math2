@@ -52,26 +52,39 @@ function persistAnonId(resp: Response): void {
   }
 }
 
+const ensureArray = (value: any, fallback: string[] = []): string[] => (Array.isArray(value) ? value : fallback);
+
 // Helper to normalize user object from server
 function normalizeUser(serverUser: any): User {
+  const unlockedRaw = ensureArray(
+    serverUser.unlockedItems,
+    ensureArray(serverUser.unlocked_items, ['av_1', 'calc_default'])
+  );
+
   return {
     ...serverUser,
     coins: Number.isFinite(serverUser.coins) ? serverUser.coins : 250,
     totalEarned: Number.isFinite(serverUser.totalEarned) ? serverUser.totalEarned : 250,
     xp: Number.isFinite(serverUser.xp) ? serverUser.xp : 0,
-    completedUnits: Array.isArray(serverUser.completedUnits) ? serverUser.completedUnits : [],
-    masteredUnits: Array.isArray(serverUser.masteredUnits) ? serverUser.masteredUnits : [],
-    preClearedUnits: Array.isArray(serverUser.preClearedUnits) ? serverUser.preClearedUnits : [],
-    perfectStandardQuizUnits: Array.isArray(serverUser.perfectStandardQuizUnits) ? serverUser.perfectStandardQuizUnits : [],
-    perfectBountyUnits: Array.isArray(serverUser.perfectBountyUnits) ? serverUser.perfectBountyUnits : [],
-    unlockedItems: Array.isArray(serverUser.unlockedItems) ? serverUser.unlockedItems : ['av_1', 'calc_default'],
-    activeEffects: Array.isArray(serverUser.activeEffects) ? serverUser.activeEffects : [],
+    completedUnits: ensureArray(serverUser.completedUnits, ensureArray(serverUser.completed_units, [])),
+    masteredUnits: ensureArray(serverUser.masteredUnits, ensureArray(serverUser.mastered_units, [])),
+    preClearedUnits: ensureArray(serverUser.preClearedUnits, ensureArray(serverUser.pre_cleared_units, [])),
+    perfectStandardQuizUnits: ensureArray(
+      serverUser.perfectStandardQuizUnits,
+      ensureArray(serverUser.perfect_standard_quiz_units, [])
+    ),
+    perfectBountyUnits: ensureArray(
+      serverUser.perfectBountyUnits,
+      ensureArray(serverUser.perfect_bounty_units, [])
+    ),
+    unlockedItems: [...new Set(unlockedRaw)],
+    activeEffects: ensureArray(serverUser.activeEffects, ensureArray(serverUser.active_effects, [])),
     solvedQuestionIds: Array.isArray(serverUser.solvedQuestionIds) ? serverUser.solvedQuestionIds : [],
     questCoinsEarnedByUnit: serverUser.questCoinsEarnedByUnit || {},
     bountyPayoutClaimed: serverUser.bountyPayoutClaimed || {},
     username: serverUser.username || serverUser.display_name || 'User',
     avatar: serverUser.avatar || '👤',
-    calculatorSkin: serverUser.calculatorSkin || 'default',
+    calculatorSkin: serverUser.calculatorSkin || serverUser.calculator_skin || 'default',
   };
 }
 
@@ -193,9 +206,45 @@ export const DataService = {
    * This is kept for backward compatibility but should not be used for coins/progress.
    */
   async updateUser(user: User): Promise<void> {
-    console.warn('[DataService.updateUser] DEPRECATED - use specific API endpoints');
-    // Only update local cache
     db.set('mm_current_user', user);
+    try {
+      const resp = await fetch('/.netlify/functions/updateUser', {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify({
+          avatar: user.avatar,
+          calculatorSkin: user.calculatorSkin,
+          activeEffects: user.activeEffects,
+          unlockedItems: user.unlockedItems,
+          completedUnits: user.completedUnits,
+          masteredUnits: user.masteredUnits,
+          preClearedUnits: user.preClearedUnits,
+          perfectStandardQuizUnits: user.perfectStandardQuizUnits,
+          perfectBountyUnits: user.perfectBountyUnits,
+        }),
+      });
+
+      persistAnonId(resp);
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        console.warn('[DataService.updateUser] Server error:', resp.status, text);
+        return;
+      }
+
+      const json = await resp.json();
+      if (json.note && json.note.includes('dev-fallback')) {
+        console.warn('[DataService.updateUser] Dev fallback - user not persisted');
+        return;
+      }
+
+      if (json.user) {
+        const normalized = normalizeUser(json.user);
+        db.set('mm_current_user', normalized);
+      }
+    } catch (err) {
+      console.warn('[DataService.updateUser] Exception:', err);
+    }
   },
 };
 
@@ -222,19 +271,18 @@ export const SocialService = {
       if (json && Array.isArray(json.messages)) {
         return json.messages.map((m: any) => ({
           id: m.id,
-          userId: m.sender_id || m.userId,
-          username: m.username || m.username,
+          userId: m.sender_id || m.userId || 'unknown',
+          username: m.username || 'Anonym',
           text: m.text,
-          timestamp: new Date(m.created_at).valueOf
-            ? new Date(m.created_at).valueOf()
-            : m.created_at || Date.now(),
+          timestamp: m.created_at ? new Date(m.created_at).valueOf() : Date.now(),
           avatar: m.avatar || '👤',
         })) as ChatMessage[];
       }
     } catch (err) {
       console.warn('[getChatMessages] Error:', err);
       // Fallback to localStorage chat
-      return db.get('mm_chat') || [];
+      const fallback = db.get('mm_chat') || [];
+      return fallback;
     }
     return [];
   },
@@ -245,7 +293,7 @@ export const SocialService = {
       const resp = await fetch('/.netlify/functions/chatSend', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ text, channelId, username: user.username }),
+        body: JSON.stringify({ text, channelId, username: user.username, avatar: user.avatar }),
       });
 
       persistAnonId(resp);
@@ -258,12 +306,10 @@ export const SocialService = {
       const contentType = resp.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
         const json = await resp.json();
-        // Check for dev-fallback
         if (json.note && json.note.includes('dev-fallback')) {
           console.warn('chatSend: Dev fallback detected - message not persisted');
           throw new Error('Message not persisted - backend offline');
         }
-        // Check for ok: false
         if (json.ok === false) {
           console.error('chatSend: Function returned ok: false', json.error);
           throw new Error(json.error || 'Message send failed');
@@ -271,7 +317,6 @@ export const SocialService = {
       }
     } catch (err) {
       console.warn('[sendMessage] Error:', err);
-      // Fallback to local storage
       let chat = db.get('mm_chat') || [];
       chat.push({
         id: Date.now().toString(),

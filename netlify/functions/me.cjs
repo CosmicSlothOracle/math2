@@ -242,25 +242,38 @@ exports.handler = async function (event, context) {
     // IMPORTANT: Convert snake_case from Supabase to camelCase for frontend
     const mergedUser = {
       ...returnedUser,
-      // Convert unlocked_items (snake_case) to unlockedItems (camelCase) for frontend
       unlockedItems: Array.isArray(returnedUser.unlocked_items)
         ? returnedUser.unlocked_items
         : (Array.isArray(returnedUser.unlockedItems) ? returnedUser.unlockedItems : []),
+      activeEffects: Array.isArray(returnedUser.active_effects)
+        ? returnedUser.active_effects
+        : (Array.isArray(returnedUser.activeEffects) ? returnedUser.activeEffects : []),
+      calculatorSkin: returnedUser.calculator_skin || returnedUser.calculatorSkin || 'default',
+      avatar: returnedUser.avatar || returnedUser.display_name?.[0] || '👤',
+      preClearedUnits: Array.isArray(returnedUser.pre_cleared_units)
+        ? returnedUser.pre_cleared_units
+        : (Array.isArray(returnedUser.preClearedUnits) ? returnedUser.preClearedUnits : []),
       perfectStandardQuizUnits: [
-        ...new Set([...(returnedUser.perfectStandardQuizUnits || []), ...perfectStandardQuizUnits])
+        ...new Set([
+          ...(returnedUser.perfectStandardQuizUnits || returnedUser.perfect_standard_quiz_units || []),
+          ...perfectStandardQuizUnits
+        ])
       ],
       perfectBountyUnits: [
-        ...new Set([...(returnedUser.perfectBountyUnits || []), ...perfectBountyUnits])
+        ...new Set([
+          ...(returnedUser.perfectBountyUnits || returnedUser.perfect_bounty_units || []),
+          ...perfectBountyUnits
+        ])
       ],
       completedUnits: [
         ...new Set([
-          ...(returnedUser.completedUnits || []),
+          ...(returnedUser.completedUnits || returnedUser.completed_units || []),
           ...progressRows.filter((p) => p.quest_completed_count > 0).map((p) => p.unit_id)
         ])
       ],
       masteredUnits: [
         ...new Set([
-          ...(returnedUser.masteredUnits || []),
+          ...(returnedUser.masteredUnits || returnedUser.mastered_units || []),
           ...progressRows.filter((p) => p.bounty_completed === true).map((p) => p.unit_id)
         ])
       ],

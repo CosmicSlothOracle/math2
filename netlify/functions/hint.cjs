@@ -62,13 +62,55 @@ exports.handler = async (event) => {
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: `Du bist ein freundlicher Mathelehrer für 9. Klässler. Gib einen kurzen Tipp für folgende Frage zum Thema ${topic}: \"${question}\".\nREGELN:\n1. Verrate NIEMALS die direkte Lösung oder das Endergebnis.\n2. Erkläre das zugrundeliegende mathematische Prinzip.\n3. Hilf dem Schüler, den nächsten Denkschritt selbst zu finden.\n4. Maximal 3 Sätze.`,
-      config: {
-        temperature: 0.7,
-      },
-    });
+    const prompt = `Du bist ein freundlicher Mathelehrer für 9. Klässler. Gib einen kurzen Tipp für folgende Frage zum Thema ${topic}: "${question}".
+REGELN:
+1. Verrate NIEMALS die direkte Lösung oder das Endergebnis.
+2. Erkläre das zugrundeliegende mathematische Prinzip.
+3. Hilf dem Schüler, den nächsten Denkschritt selbst zu finden.
+4. Maximal 3 Sätze.`;
+
+    const preferredModelsEnv =
+      process.env.GEMINI_MODELS ||
+      'models/gemini-1.5-flash-latest,models/gemini-1.5-flash-001,models/gemini-pro';
+    const modelCandidates = preferredModelsEnv
+      .split(',')
+      .map((m) => m.trim())
+      .filter(Boolean);
+
+    let response;
+    let selectedModel = null;
+    let lastError = null;
+
+    for (const modelName of modelCandidates) {
+      try {
+        console.log(`[hint] Trying Gemini model "${modelName}"`);
+        response = await ai.models.generateContent({
+          model: modelName,
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: prompt }],
+            },
+          ],
+          config: { temperature: 0.7 },
+        });
+        selectedModel = modelName;
+        break;
+      } catch (err) {
+        lastError = err;
+        const errMsg = (err && err.message) || '';
+        const errStatus = err && (err.status || err.code);
+        console.warn(`[hint] Model ${modelName} failed`, errMsg || errStatus || err);
+        if (errStatus === 404 || errMsg.includes('NOT_FOUND')) {
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    if (!response) {
+      throw lastError || new Error('No Gemini model responded successfully');
+    }
 
     // Die GoogleGenAI API gibt die Antwort zurück - verschiedene mögliche Strukturen prüfen
     let hintText;
@@ -76,6 +118,7 @@ exports.handler = async (event) => {
     // Logging für Debugging
     console.log("Response type:", typeof response);
     console.log("Response keys:", response ? Object.keys(response) : 'null');
+    console.log("Selected model:", selectedModel);
 
     // Versuche verschiedene Response-Strukturen
     if (response && typeof response.text === 'function') {

@@ -301,6 +301,10 @@ const createSupportVisualFromScene = (scene: AngleScene, caption?: string): Supp
   };
 };
 
+const rectPath = (x: number, y: number, width: number, height: number) => {
+  return `M ${x} ${y} H ${x + width} V ${y + height} H ${x} Z`;
+};
+
 const createRightTriangleSupportVisual = (alpha: number): SupportVisual => {
   const baseStart = { x: 40, y: 160 };
   const baseEnd = { x: 200, y: 160 };
@@ -1064,7 +1068,7 @@ export const TaskFactory = {
           'Scheitelwinkel liegen sich gegenüber am Schnittpunkt der Geraden.'
         ],
         asked: ['Wie groß ist der Scheitelwinkel zu α = 45°?'],
-        instructions: 'Scheitelwinkel liegen sich gegenüber und sind immer exakt gleich groß wie der gegebene Winkel.',
+        instructions: 'Scheitelwinkel liegen sich gegenüber und teilen sich denselben Scheitelpunkt (den Schnittpunkt der Geraden) – sie sind immer exakt gleich groß.',
         supportVisual,
         options: ["45°", "90°", "135°", "180°"],
         correctAnswer: 0,
@@ -1584,7 +1588,17 @@ export const TaskFactory = {
       question: `Ein zusammengesetzter Körper besteht aus einem Würfel (Kantenlänge ${a}cm) und einem Quader (Grundfläche ${b}×${b}cm, Höhe ${h}cm). Berechne das Gesamtvolumen.`,
       correctAnswer: volume.toString(),
       explanation: `Volumen = Würfel + Quader = ${a}³ + ${b}×${b}×${h} = ${a*a*a} + ${b*b*h} = ${volume}cm³`,
-      placeholder: 'cm³'
+      placeholder: 'cm³',
+      supportVisual: {
+        viewBox: '0 0 220 160',
+        caption: 'Würfel (blau) + Quader (orange).',
+        elements: [
+          { type: 'path', d: rectPath(40, 70, 70, 70), fill: 'rgba(59,130,246,0.2)', stroke: '#3b82f6', strokeWidth: 3 },
+          { type: 'path', d: rectPath(110, 90, 70, 50), fill: 'rgba(249,115,22,0.2)', stroke: '#f97316', strokeWidth: 3 },
+          { type: 'text', text: `${a} cm`, x: 75, y: 65, color: '#1e3a8a', fontSize: 12 },
+          { type: 'text', text: `${b} cm`, x: 145, y: 85, color: '#9a3412', fontSize: 12 }
+        ]
+      }
     };
   },
 
@@ -1697,6 +1711,18 @@ export const TaskFactory = {
       instructions: 'Antwortformat: eine Zahl, ohne Einheit, auf zwei Nachkommastellen gerundet.',
       correctAnswer: total.toString(),
       explanation: `A = 2,4 · 1,6 = ${areaA.toFixed(2)} m². B = 1,0 · 1,6 = ${areaB.toFixed(2)} m². Summe = ${total.toFixed(2)} m².`
+      ,
+      supportVisual: {
+        viewBox: '0 0 220 160',
+        caption: 'Zwei Rechtecke bilden die L-Form.',
+        elements: [
+          { type: 'path', d: rectPath(40, 40, 120, 60), fill: 'rgba(99,102,241,0.2)', stroke: '#6366f1', strokeWidth: 3 },
+          { type: 'path', d: rectPath(160, 80, 40, 60), fill: 'rgba(249,115,22,0.25)', stroke: '#f97316', strokeWidth: 3 },
+          { type: 'text', text: '2,4 m', x: 100, y: 35, color: '#0f172a', fontSize: 12 },
+          { type: 'text', text: '1,6 m', x: 30, y: 80, color: '#0f172a', fontSize: 12, anchor: 'end' },
+          { type: 'text', text: '1,0 m', x: 190, y: 75, color: '#0f172a', fontSize: 12, anchor: 'middle' }
+        ]
+      }
     };
   },
 
@@ -1743,7 +1769,7 @@ export const TaskFactory = {
         'a) Reale Strecke in Metern',
         'b) Reale Strecke in Kilometern'
       ],
-      instructions: 'Antwortformat: zwei Felder, nur Zahl (erst Meter, dann Kilometer).',
+      instructions: 'Antwortformat: zwei Felder, nur Zahl (erst Meter, dann Kilometer). Tipp: Immer zuerst cm → m umrechnen und anschließend von m auf km wechseln.',
       multiInputFields: [
         { id: 'meters', label: 'a) Meter', validator: { type: 'numeric', numericAnswer: meters } },
         { id: 'kilometers', label: 'b) Kilometer', validator: { type: 'numericTolerance', numericAnswer: km, tolerance: 0.01 } }
@@ -1827,7 +1853,19 @@ export const TaskFactory = {
       correctAnswer: bogenLength.toFixed(1),
       explanation: `b = (2π · r · α) / 360° = (2 · 3,14 · ${r} · ${alpha}) / 360 ≈ ${bogenLength.toFixed(2)} m ≈ ${bogenLength.toFixed(1)} m`,
       placeholder: 'm',
-      validator: { type: 'numericTolerance', numericAnswer: parseFloat(bogenLength.toFixed(1)), tolerance: 0.1 }
+      validator: { type: 'numericTolerance', numericAnswer: parseFloat(bogenLength.toFixed(1)), tolerance: 0.1 },
+      supportVisual: {
+        viewBox: '0 0 220 160',
+        caption: 'Markierter Bogen zeigt α und Radius r.',
+        elements: [
+          { type: 'path', d: 'M 50 120 A 70 70 0 0 1 170 120', stroke: '#94a3b8', strokeWidth: 6, fill: 'none' },
+          { type: 'path', d: 'M 50 120 L 110 60', stroke: '#6366f1', strokeWidth: 4 },
+          { type: 'path', d: 'M 50 120 L 170 120', stroke: '#6366f1', strokeWidth: 4 },
+          { type: 'path', d: 'M 110 60 A 70 70 0 0 1 170 120', stroke: '#f97316', strokeWidth: 6, fill: 'none' },
+          { type: 'text', text: `r = ${r} m`, x: 70, y: 140, color: '#475569', fontSize: 12, anchor: 'start' },
+          { type: 'text', text: `α = ${alpha}°`, x: 150, y: 80, color: '#f97316', fontSize: 14, anchor: 'end' }
+        ]
+      }
     };
   },
 
@@ -1858,7 +1896,17 @@ export const TaskFactory = {
       instructions: 'Volumen = Quader-Volumen + Dreiecksprisma-Volumen',
       correctAnswer: totalVolume.toString(),
       explanation: `V_gesamt = V_Quader + V_Dreieck = ${a} · ${a} · ${h1} + (${a} · ${b} · ${h2}) / 2 = ${volumeQuader} + ${volumeDreieck} = ${totalVolume} cm³`,
-      placeholder: 'cm³'
+      placeholder: 'cm³',
+      supportVisual: {
+        viewBox: '0 0 220 160',
+        caption: 'Unterbau (blau) + Dach (orange).',
+        elements: [
+          { type: 'path', d: rectPath(40, 80, 100, 60), fill: 'rgba(59,130,246,0.2)', stroke: '#3b82f6', strokeWidth: 3 },
+          { type: 'path', d: `M 40 80 L 90 40 L 140 80 Z`, fill: 'rgba(249,115,22,0.2)', stroke: '#f97316', strokeWidth: 3 },
+          { type: 'text', text: `${a} cm`, x: 90, y: 140, color: '#1e3a8a', fontSize: 12 },
+          { type: 'text', text: `${h2} cm`, x: 150, y: 60, color: '#9a3412', fontSize: 12 }
+        ]
+      }
     };
   },
 
@@ -2014,5 +2062,13 @@ export const TaskFactory = {
       };
     }
   },
+
+  getBattleTasksForUnit(unitId: string, rounds: number = 3): Task[] {
+    const pool = this.getTaskPool(unitId).filter(task =>
+      ['input', 'choice', 'shorttext', 'visualChoice', 'boolean', 'wager', 'angleMeasure', 'sliderTransform'].includes(task.type)
+    );
+    const source = pool.length > 0 ? pool : this.getTaskPool(unitId);
+    return shuffleArray<Task>(source).slice(0, rounds);
+  }
 
 };

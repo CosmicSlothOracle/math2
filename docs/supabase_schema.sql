@@ -10,6 +10,14 @@ create table if not exists users (
   display_name text,
   coins int default 250,
   unlocked_items text[] default array[]::text[],  -- Für Shop-Käufe
+  avatar text,
+  calculator_skin text,
+  active_effects text[] default array[]::text[],
+  completed_units text[] default array[]::text[],
+  mastered_units text[] default array[]::text[],
+  pre_cleared_units text[] default array[]::text[],
+  perfect_standard_quiz_units text[] default array[]::text[],
+  perfect_bounty_units text[] default array[]::text[],
   created_at timestamp with time zone default now()
 );
 
@@ -35,6 +43,7 @@ create table if not exists messages (
   channel_id text not null,
   sender_id text not null,
   username text,
+  avatar text,
   text text,
   created_at timestamp with time zone default now()
 );

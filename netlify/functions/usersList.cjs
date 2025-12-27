@@ -48,11 +48,11 @@ exports.handler = async function (event) {
     }
 
     // Fetch all users with unique display names
+    // Filter out null and empty display names
     const { data: users, error: usersError } = await supabase
       .from('users')
-      .select('id, display_name, coins, avatar, active_effects, created_at')
+      .select('id, display_name, coins, avatar, active_effects, created_at, completed_units, mastered_units, perfect_bounty_units')
       .not('display_name', 'is', null)
-      .neq('display_name', '')
       .order('coins', { ascending: false });
 
     if (usersError) {
@@ -64,9 +64,13 @@ exports.handler = async function (event) {
       };
     }
 
+    // Filter out empty display names in JavaScript (more reliable than .neq('', ''))
+    // This avoids the Supabase query error with empty string comparisons
+    const filteredUsers = (users || []).filter(u => u.display_name && u.display_name.trim().length > 0);
+
     // Fetch battle stats for each user
     const usersWithStats = await Promise.all(
-      (users || []).map(async (user) => {
+      filteredUsers.map(async (user) => {
         // Get battles where user is challenger or opponent
         const { data: battles, error: battlesError } = await supabase
           .from('battles')

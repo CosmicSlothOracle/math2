@@ -4642,6 +4642,19 @@ export default function App() {
 
   const handleChallengeUser = useCallback(async (opponent: User) => {
     if (!user) return;
+
+    // Validate opponent
+    if (!opponent || !opponent.id) {
+      addToast('Ungültiger Gegner ausgewählt', 'error');
+      return;
+    }
+
+    // Prevent challenging yourself
+    if (opponent.id === user.id) {
+      addToast('Du kannst nicht gegen dich selbst kämpfen', 'error');
+      return;
+    }
+
     try {
       // Use the first available battle scenario as default
       const defaultScenario = BATTLE_SCENARIOS[0];
@@ -4654,6 +4667,7 @@ export default function App() {
       const tasks = generateBattleTaskBundle(defaultScenario.id, defaultScenario.rounds);
       if (!tasks || tasks.length === 0) {
         addToast('Keine Aufgaben für dieses Battle gefunden', 'error');
+        setIsBattleSyncLoading(false);
         return;
       }
 
@@ -4683,9 +4697,31 @@ export default function App() {
       }
       addToast(`Battle gegen ${opponent.username} erstellt!`, 'success');
       await refreshBattles();
-    } catch (err) {
+    } catch (err: any) {
       console.error('[handleChallengeUser]', err);
-      addToast('Battle konnte nicht erstellt werden', 'error');
+
+      // Extract specific error message from response
+      let errorMessage = 'Battle konnte nicht erstellt werden';
+      if (err?.responseData?.error) {
+        const errorCode = err.responseData.error;
+        if (errorCode === 'INVALID_UNIT_ID') {
+          errorMessage = 'Ungültige Lerneinheit';
+        } else if (errorCode === 'INVALID_ROUND_COUNT') {
+          errorMessage = 'Ungültige Anzahl Runden';
+        } else if (errorCode === 'TASK_BUNDLE_REQUIRED') {
+          errorMessage = 'Aufgabenpaket fehlt';
+        } else if (errorCode === 'INSUFFICIENT_COINS') {
+          errorMessage = 'Nicht genug Coins für diesen Einsatz';
+        } else if (errorCode === 'BATTLE_CREATE_FAILED') {
+          errorMessage = `Fehler beim Erstellen: ${err.responseData.details || 'Unbekannter Fehler'}`;
+        } else {
+          errorMessage = err.responseData.message || errorCode;
+        }
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+
+      addToast(errorMessage, 'error');
     } finally {
       setIsBattleSyncLoading(false);
     }

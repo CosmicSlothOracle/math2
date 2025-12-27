@@ -31,7 +31,20 @@ Alle Functions laufen im `dev-fallback` → Daten werden nicht gespeichert.
    - Value: `<service_role key aus Schritt 1>`
    - Scopes: ✅ Production
 
+   **Variable 3 (für Frontend Realtime):**
+   - Key: `VITE_SUPABASE_URL`
+   - Value: `<Project URL aus Schritt 1>` (gleiche URL)
+   - Scopes: ✅ Production
+
+   **Variable 4 (für Frontend Realtime):**
+   - Key: `VITE_SUPABASE_ANON_KEY`
+   - Value: `<anon/public key aus Supabase API Settings>`
+   - Scopes: ✅ Production
+
 5. **Wichtig:** Klicke "Save"
+
+> ⚠️ Die `VITE_` prefixed Variablen sind für das Frontend (Battle-Sync, Realtime).
+> Die normalen Variablen sind für Netlify Functions (Backend).
 
 ### Schritt 3: Schema erstellen
 
@@ -91,12 +104,16 @@ https://realer-math.netlify.app/.netlify/functions/debugSupabase
 ## 📋 Checkliste
 
 - [ ] Supabase Projekt erstellt/geöffnet
-- [ ] Keys kopiert (URL + service_role key)
-- [ ] Netlify Env Vars gesetzt (Production Scope!)
+- [ ] Keys kopiert (URL + service_role key + anon key)
+- [ ] Netlify Env Vars gesetzt:
+  - [ ] `SUPABASE_URL` (Backend)
+  - [ ] `SUPABASE_SERVICE_ROLE_KEY` (Backend)
+  - [ ] `VITE_SUPABASE_URL` (Frontend)
+  - [ ] `VITE_SUPABASE_ANON_KEY` (Frontend)
 - [ ] Schema ausgeführt (`docs/supabase_schema.sql`)
-- [ ] Redeploy durchgeführt
+- [ ] Redeploy durchgeführt ("Clear cache and deploy site")
 - [ ] Debug Function zeigt: `Client created: Yes`
-- [ ] Self-Check Script: Alle Tests passieren
+- [ ] Battle-Sync funktioniert (keine Fehlermeldungen mehr)
 
 ---
 

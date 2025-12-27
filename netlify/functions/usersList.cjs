@@ -48,10 +48,11 @@ exports.handler = async function (event) {
     }
 
     // Fetch all users with unique display names
-    // Filter out null and empty display names
+    // Only query columns that are guaranteed to exist in the schema
+    // avatar column may not exist in older schemas
     const { data: users, error: usersError } = await supabase
       .from('users')
-      .select('id, display_name, coins, avatar, active_effects, created_at, completed_units, mastered_units, perfect_bounty_units')
+      .select('id, display_name, coins, active_effects, created_at, completed_units, mastered_units, perfect_bounty_units')
       .not('display_name', 'is', null)
       .order('coins', { ascending: false });
 
@@ -92,6 +93,7 @@ exports.handler = async function (event) {
 
         return {
           ...user,
+          avatar: user.avatar || '👤', // Default avatar if not set
           battle_stats: { total, wins, win_rate },
         };
       })

@@ -4413,6 +4413,7 @@ export default function App() {
   const [openBattles, setOpenBattles] = useState<BattleRecord[]>([]);
   const [myBattles, setMyBattles] = useState<BattleRecord[]>([]);
   const [isBattleSyncLoading, setIsBattleSyncLoading] = useState(false);
+  const battleSyncErrorShown = useRef(false); // Throttle battle sync error toasts
   const [battleSession, setBattleSession] = useState<BattleSession | null>(null);
 
   const [currentQuest, setCurrentQuest] = useState<{unit: LearningUnit, type: 'pre' | 'standard' | 'bounty', options?: { timeLimit?: number; noCheatSheet?: boolean }} | null>(null);
@@ -4532,9 +4533,14 @@ export default function App() {
       ]);
       setMyBattles(mine);
       setOpenBattles(open);
+      battleSyncErrorShown.current = false; // Reset on success
     } catch (err) {
       console.error('[refreshBattles]', err);
-      addToast('Battle-Sync fehlgeschlagen', 'error');
+      // Throttle error toast - only show once per session until success
+      if (!battleSyncErrorShown.current) {
+        battleSyncErrorShown.current = true;
+        addToast('Battle-Sync fehlgeschlagen - Server nicht erreichbar', 'error');
+      }
     } finally {
       setIsBattleSyncLoading(false);
     }

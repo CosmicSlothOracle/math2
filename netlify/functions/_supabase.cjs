@@ -9,6 +9,7 @@ function createSupabaseClient() {
 
   if (!url || !key) {
     console.log('[Supabase] Missing env vars - URL:', !!url, 'KEY_TYPE:', keyType);
+    console.log('[Supabase] Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Netlify Environment Variables');
     return null;
   }
 
@@ -27,7 +28,19 @@ function createSupabaseClient() {
       return null;
     }
 
-    const client = supabaseLib.createClient(url, key);
+    // Create client with timeout settings to prevent hanging
+    const client = supabaseLib.createClient(url, key, {
+      auth: { persistSession: false },
+      global: {
+        fetch: (url, options = {}) => {
+          // Add AbortController for timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+          return fetch(url, { ...options, signal: controller.signal })
+            .finally(() => clearTimeout(timeoutId));
+        }
+      }
+    });
     console.log('[Supabase] Client initialized successfully with key type:', keyType);
     return client;
   } catch (err) {

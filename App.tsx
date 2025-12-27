@@ -4551,9 +4551,6 @@ export default function App() {
     refreshBattles();
   }, [user, activeTab, refreshBattles]);
 
-  // Show auth screen if no user OR if user has default name "User" (not properly registered)
-  const needsRegistration = !user || !user.username || user.username === 'User' || user.username.trim().length < 2;
-  if (needsRegistration) return <AuthScreen onLogin={setUser} />;
 
   const triggerCoinAnimation = () => {
     setIsFlyingCoinActive(true);
@@ -4844,6 +4841,11 @@ export default function App() {
       throw err;
     }
   }, [user?.id, addToast, refreshBattles]);
+
+  // Show auth screen if no user OR if user has default name "User" (not properly registered)
+  // IMPORTANT: This must be AFTER all hooks to avoid React Error #300
+  const needsRegistration = !user || !user.username || user.username === 'User' || (user.username && user.username.trim().length < 2);
+  if (needsRegistration) return <AuthScreen onLogin={setUser} />;
 
   const startQuest = (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty', options?: { timeLimit?: number; noCheatSheet?: boolean }) => {
     setCurrentQuest({unit, type, options: options || {}});

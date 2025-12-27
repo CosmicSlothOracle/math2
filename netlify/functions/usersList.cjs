@@ -48,11 +48,11 @@ exports.handler = async function (event) {
     }
 
     // Fetch all users with unique display names
-    // Only query columns that are guaranteed to exist in the schema
-    // avatar column may not exist in older schemas
+    // Only query core columns that definitely exist - id, display_name, coins, created_at
+    // Other columns (avatar, active_effects, etc.) may not exist in production
     const { data: users, error: usersError } = await supabase
       .from('users')
-      .select('id, display_name, coins, active_effects, created_at, completed_units, mastered_units, perfect_bounty_units')
+      .select('id, display_name, coins, created_at')
       .not('display_name', 'is', null)
       .order('coins', { ascending: false });
 

@@ -1,21 +1,45 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { LEARNING_UNITS, SHOP_ITEMS, PROGRESS_LEVELS, GEOMETRY_DEFINITIONS } from './constants';
-import { LearningUnit, User, Task, ShopItem, ChatMessage, CategoryGroup, BattleRequest, ToastMessage, ToastType, getTileStatus } from './types';
+import {
+  LearningUnit,
+  User,
+  Task,
+  ShopItem,
+  ChatMessage,
+  CategoryGroup,
+  BattleRequest,
+  ToastMessage,
+  ToastType,
+  getTileStatus,
+  BattleScenario,
+  BattleRecord,
+  BattleSummaryPayload,
+} from './types';
 import { AuthService, DataService, SocialService, bootstrapServerUser } from './services/apiService';
+import { sanitizeMathInput } from './utils/inputSanitizer';
 import { getRealtimeClient } from './services/realtimeClient';
 import { QuestService } from './services/questService';
+import { BattleService } from './services/battleService';
+import { BATTLE_SCENARIOS, generateBattleTaskBundle, getBattleScenarioById } from './services/mathBattles';
 import { getQuestCap, getQuestCoinsEarned, getQuestCapRemaining, isQuestCapReached, computeEntryFee } from './services/economyService';
 import { getMatheHint } from './services/geminiService';
 import { TaskFactory } from './services/taskFactory';
 import {
   Button, GlassCard, SectionHeading, CardTitle, Badge, DifficultyStars,
   ToastContainer, Skeleton, ModalOverlay, PullToRefresh, ProgressBar, CoinFlightAnimation,
-  CalculatorWidget
+  CalculatorWidget, FormelsammlungWidget
 } from './ui-components';
 import { subscribeVirtualPointer } from './src/utils/virtualPointer';
+import BattlePanel from './components/BattlePanel';
 import { MultiFieldInput } from './components/MultiFieldInput';
+import { DragDropTask } from './components/DragDropTask';
 import { validateAnswer } from './utils/answerValidators';
+import { FormelsammlungView } from './components/FormelsammlungView';
+import { FormelRechner } from './components/FormelRechner';
+import { SchrittLoeser } from './components/SchrittLoeser';
+import { SpickerTrainer } from './components/SpickerTrainer';
+import { ScheitelCoach } from './components/ScheitelCoach';
 
 // --- Theme Helpers ---
 const GROUP_THEME: Record<CategoryGroup, { color: string; bg: string; text: string; border: string; darkBg: string }> = {
@@ -23,6 +47,12 @@ const GROUP_THEME: Record<CategoryGroup, { color: string; bg: string; text: stri
   'B': { color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', darkBg: 'bg-emerald-600' },
   'C': { color: 'amber', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100', darkBg: 'bg-amber-600' }
 };
+
+// --- Avatar Rarity Helper ---
+function getAvatarRarity(avatarValue: string): 'common' | 'rare' | 'epic' | 'legendary' {
+  const item = SHOP_ITEMS.find(item => item.type === 'avatar' && item.value === avatarValue);
+  return item?.rarity || 'common';
+}
 
 const GROUP_LABELS: Record<CategoryGroup, string> = {
   'A': 'Raum & Form',
@@ -2378,84 +2408,303 @@ const ChatView: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   };
 
   return (
-    <GlassCard className="h-full flex flex-col !p-0 overflow-hidden col-span-2">
-      <div className="p-4 border-b bg-slate-50/50 backdrop-blur-md flex items-center justify-between">
-        <CardTitle>Klassen-Chat</CardTitle>
-        <span className={`text-[10px] font-black uppercase tracking-widest ${isRealtimeReady ? 'text-emerald-500' : 'text-slate-400'}`}>
-          {isRealtimeReady ? 'Live' : 'Polling'}
+    <GlassCard className="h-full flex flex-col !p-0 overflow-hidden col-span-2" style={{
+      background: 'linear-gradient(135deg, #1a3a1a 0%, #0d1f0d 100%)',
+      border: '4px solid #2d4a2d',
+      borderRadius: '20px',
+      boxShadow: 'inset 0 0 20px rgba(0, 0, 0, 0.5), 0 0 10px rgba(0, 100, 0, 0.3)',
+    }}>
+      <div className="p-3 border-b-2 border-green-800 bg-green-900/50 flex items-center justify-between" style={{
+        borderStyle: 'solid',
+        borderWidth: '2px 0',
+      }}>
+        <CardTitle className="text-green-300" style={{
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          letterSpacing: '2px',
+          textShadow: '0 0 5px rgba(0, 255, 0, 0.5)',
+        }}>BLOOD DOME CHAT</CardTitle>
+        <span className={`text-[8px] font-black uppercase tracking-widest ${isRealtimeReady ? 'text-green-400' : 'text-green-700'}`} style={{
+          fontFamily: 'monospace',
+          textShadow: isRealtimeReady ? '0 0 3px rgba(0, 255, 0, 0.8)' : 'none',
+        }}>
+          {isRealtimeReady ? '● LIVE' : '○ OFFLINE'}
         </span>
       </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar flex flex-col-reverse">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar flex flex-col-reverse" style={{
+        background: '#0a1a0a',
+        fontFamily: 'monospace',
+      }}>
         {[...chat].reverse().map(c => (
-          <div key={c.id} className={`flex gap-3 ${c.userId === currentUser.id ? 'flex-row-reverse' : ''}`}>
-            <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-lg shadow-sm border border-white">
+          <div key={c.id} className={`flex gap-2 ${c.userId === currentUser.id ? 'flex-row-reverse' : ''}`}>
+            <div className="w-6 h-6 rounded-sm bg-green-900 flex items-center justify-center text-xs border border-green-700" style={{
+              fontFamily: 'monospace',
+              boxShadow: 'inset 0 0 5px rgba(0, 0, 0, 0.5)',
+            }}>
               {c.avatar}
             </div>
             <div
-              className={`max-w-[80%] p-3 rounded-2xl text-sm font-medium leading-relaxed shadow-sm ${
+              className={`max-w-[80%] p-2 rounded-sm text-xs leading-tight ${
                 c.type === 'system'
-                  ? 'bg-amber-50 text-amber-800 border border-amber-100 w-full text-center italic'
+                  ? 'bg-yellow-900 text-yellow-300 border border-yellow-700 w-full text-center'
                   : c.userId === currentUser.id
-                  ? 'bg-indigo-600 text-white rounded-tr-none'
-                  : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'
+                  ? 'bg-green-800 text-green-100 border border-green-600'
+                  : 'bg-green-900 text-green-200 border border-green-700'
               }`}
+              style={{
+                fontFamily: 'monospace',
+                boxShadow: 'inset 0 0 5px rgba(0, 0, 0, 0.5)',
+                textShadow: '0 0 2px rgba(0, 0, 0, 0.8)',
+              }}
             >
               {c.type !== 'system' && (
                 <div
-                  className={`text-[10px] font-black uppercase mb-1 opacity-50 ${
-                    c.userId === currentUser.id ? 'text-indigo-200' : 'text-slate-400'
+                  className={`text-[8px] font-black uppercase mb-1 ${
+                    c.userId === currentUser.id ? 'text-green-300' : 'text-green-400'
                   }`}
+                  style={{ fontFamily: 'monospace' }}
                 >
                   {c.username}
                 </div>
               )}
-              {c.text}
+              <div style={{ fontFamily: 'monospace', lineHeight: '1.4' }}>{c.text}</div>
             </div>
           </div>
         ))}
       </div>
-      <div className="p-4 bg-white border-t flex gap-2">
+      <div className="p-3 bg-green-900 border-t-2 border-green-800 flex gap-2" style={{
+        borderStyle: 'solid',
+      }}>
         <input
-          className="flex-1 bg-slate-100 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500"
-          placeholder="Nachricht..."
+          className="flex-1 bg-green-950 border-2 border-green-700 rounded-sm px-3 py-2 text-xs font-bold outline-none text-green-200 placeholder-green-600"
+          placeholder="Type message..."
           value={msg}
           onChange={e => setMsg(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && send()}
+          style={{
+            fontFamily: 'monospace',
+            boxShadow: 'inset 0 0 5px rgba(0, 0, 0, 0.5)',
+          }}
         />
-        <Button size="sm" onClick={send}>→</Button>
+        <button
+          onClick={send}
+          className="px-4 py-2 bg-green-800 hover:bg-green-700 text-green-100 border-2 border-green-600 rounded-sm font-black uppercase text-xs"
+          style={{
+            fontFamily: 'monospace',
+            boxShadow: 'inset 0 0 5px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.5)',
+          }}
+        >
+          SEND
+        </button>
       </div>
     </GlassCard>
   );
 };
 
-const LeaderboardView: React.FC<{ currentUser: User; onChallenge: (u: User) => void }> = ({ currentUser, onChallenge }) => {
-  const [users, setUsers] = useState<User[]>([]);
+// Blood Dome User Modal - Lamborghini-styled user card
+const BloodDomeUserModal: React.FC<{
+  user: User & { battleStats?: { total: number; wins: number; win_rate: number } };
+  currentUserId: string;
+  onChallenge: (u: User) => void;
+  isDarkMode?: boolean;
+}> = ({ user, currentUserId, onChallenge, isDarkMode = false }) => {
+  const rarity = getAvatarRarity(user.avatar);
+  const battleStats = user.battleStats || { total: 0, wins: 0, win_rate: 0 };
+  const perfectQuests = (user as any).perfectBountyUnits?.length || 0;
+  const isCurrentUser = user.id === currentUserId;
+
+  // Rarity-based glow classes
+  const rarityClasses = {
+    common: 'border-slate-400 shadow-slate-400/20',
+    rare: 'border-blue-500 shadow-blue-500/30',
+    epic: 'border-purple-500 shadow-purple-500/40',
+    legendary: 'border-amber-500 shadow-amber-500/50',
+  };
+
+  const rarityGlow = rarityClasses[rarity];
+
+  return (
+    <div
+      className={`
+        relative p-6 rounded-lg backdrop-blur-md transition-all hover:scale-105
+        ${isDarkMode ? 'bg-slate-900/50' : 'bg-white/80'}
+        border-2 ${rarityGlow}
+        shadow-lg hover:shadow-xl
+        ${isCurrentUser ? 'ring-2 ring-indigo-500' : ''}
+      `}
+      style={{
+        clipPath: 'polygon(10% 0%, 90% 0%, 100% 15%, 100% 85%, 90% 100%, 10% 100%, 0% 85%, 0% 15%)',
+      }}
+    >
+      {/* Avatar */}
+      <div className="flex justify-center mb-4">
+        <div className={`text-6xl bg-slate-100 rounded-full w-20 h-20 flex items-center justify-center border-4 ${isDarkMode ? 'border-slate-700' : 'border-white'} shadow-lg`}>
+          {user.avatar}
+        </div>
+      </div>
+
+      {/* Username (where "Lamborghini" text would be) */}
+      <div className="text-center mb-4">
+        <h3 className="font-black italic uppercase text-lg tracking-wider text-slate-900 dark:text-white">
+          {user.username}
+        </h3>
+      </div>
+
+      {/* Coins */}
+      <div className="text-center mb-4">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 dark:bg-amber-900/30 rounded-full">
+          <span className="text-xl">🪙</span>
+          <span className="font-black text-amber-900 dark:text-amber-200">{user.coins}</span>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="space-y-2 mb-4 text-xs">
+        <div className="flex justify-between items-center">
+          <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Battles</span>
+          <span className="font-black text-slate-900 dark:text-white">{battleStats.total}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Win Rate</span>
+          <span className="font-black text-slate-900 dark:text-white">{battleStats.win_rate}%</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Perfect Quests</span>
+          <span className="font-black text-slate-900 dark:text-white">{perfectQuests}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">XP</span>
+          <span className="font-black text-slate-900 dark:text-white">{user.xp || 0}</span>
+        </div>
+      </div>
+
+      {/* VS Button */}
+      {!isCurrentUser && (
+        <div className="mt-4">
+          <Button
+            onClick={() => onChallenge(user)}
+            className="w-full font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 text-white"
+            size="sm"
+          >
+            ⚔️ VS
+          </Button>
+        </div>
+      )}
+
+      {/* Rarity glow effect */}
+      <div
+        className={`absolute inset-0 rounded-lg pointer-events-none opacity-20 blur-xl ${
+          rarity === 'common' ? 'bg-slate-400' :
+          rarity === 'rare' ? 'bg-blue-500' :
+          rarity === 'epic' ? 'bg-purple-500' :
+          'bg-amber-500'
+        }`}
+        style={{
+          clipPath: 'polygon(10% 0%, 90% 0%, 100% 15%, 100% 85%, 90% 100%, 10% 100%, 0% 85%, 0% 15%)',
+        }}
+      />
+    </div>
+  );
+};
+
+const BloodDomeLeaderboard: React.FC<{ currentUser: User; onChallenge: (u: User) => void; isDarkMode?: boolean }> = ({ currentUser, onChallenge, isDarkMode = false }) => {
+  const [users, setUsers] = useState<(User & { battleStats?: { total: number; wins: number; win_rate: number } })[]>([]);
+  const [sortBy, setSortBy] = useState<'coins' | 'xp' | 'battles' | 'winrate'>('coins');
+  const [sortAsc, setSortAsc] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    SocialService.getLeaderboard().then(setUsers);
+    const loadUsers = async () => {
+      setLoading(true);
+      try {
+        const allUsers = await SocialService.getAllUsers();
+        setUsers(allUsers);
+      } catch (err) {
+        console.error('[BloodDomeLeaderboard] Failed to load users:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadUsers();
   }, []);
+
+  const sortedUsers = useMemo(() => {
+    const sorted = [...users];
+    sorted.sort((a, b) => {
+      let aVal: number, bVal: number;
+
+      switch (sortBy) {
+        case 'coins':
+          aVal = a.coins || 0;
+          bVal = b.coins || 0;
+          break;
+        case 'xp':
+          aVal = a.xp || 0;
+          bVal = b.xp || 0;
+          break;
+        case 'battles':
+          aVal = a.battleStats?.total || 0;
+          bVal = b.battleStats?.total || 0;
+          break;
+        case 'winrate':
+          aVal = a.battleStats?.win_rate || 0;
+          bVal = b.battleStats?.win_rate || 0;
+          break;
+        default:
+          return 0;
+      }
+
+      const diff = bVal - aVal;
+      return sortAsc ? -diff : diff;
+    });
+    return sorted;
+  }, [users, sortBy, sortAsc]);
 
   return (
     <GlassCard className="h-full flex flex-col !p-0 overflow-hidden">
-      <div className="p-4 border-b bg-slate-50/50 backdrop-blur-md">
-        <CardTitle>Top Schüler</CardTitle>
+      <div className="p-4 border-b bg-slate-50/50 dark:bg-slate-800/50 backdrop-blur-md">
+        <CardTitle>Blood Dome</CardTitle>
+
+        {/* Sorting Controls */}
+        <div className="mt-3 flex flex-wrap gap-2 items-center">
+          <span className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Sort:</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="text-xs font-bold px-2 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded"
+          >
+            <option value="coins">Coins</option>
+            <option value="xp">XP</option>
+            <option value="battles">Battles</option>
+            <option value="winrate">Win Rate</option>
+          </select>
+          <button
+            onClick={() => setSortAsc(!sortAsc)}
+            className="text-xs font-black px-2 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
+          >
+            {sortAsc ? '↑' : '↓'}
+          </button>
+        </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-        {users.map((u, i) => (
-          <div key={u.id} className={`flex items-center gap-3 p-3 rounded-xl border ${u.id === currentUser.id ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-100'}`}>
-            <div className={`w-6 h-6 rounded-md flex items-center justify-center font-black text-xs ${i === 0 ? 'bg-amber-400 text-amber-900' : i === 1 ? 'bg-slate-300 text-slate-700' : i === 2 ? 'bg-orange-300 text-orange-800' : 'bg-slate-100 text-slate-400'}`}>
-              {i + 1}
-            </div>
-            <div className="text-xl">{u.avatar}</div>
-            <div className="flex-1 min-w-0">
-               <div className="font-bold text-sm truncate">{u.username}</div>
-               <div className="text-[10px] text-slate-400 font-bold uppercase">{u.xp} XP</div>
-            </div>
-            {u.id !== currentUser.id && (
-               <Button size="sm" variant="secondary" className="!px-2 !py-1" onClick={() => onChallenge(u)}>⚔️</Button>
-            )}
+
+      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+        {loading ? (
+          <div className="text-center py-8 text-slate-400">Loading...</div>
+        ) : sortedUsers.length === 0 ? (
+          <div className="text-center py-8 text-slate-400">No users found</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sortedUsers.map((u) => (
+              <BloodDomeUserModal
+                key={u.id}
+                user={u}
+                currentUserId={currentUser.id}
+                onChallenge={onChallenge}
+                isDarkMode={isDarkMode}
+              />
+            ))}
           </div>
-        ))}
+        )}
       </div>
     </GlassCard>
   );
@@ -2593,6 +2842,9 @@ const SHOP_CATEGORIES = {
   avatar: { label: 'Avatare', icon: '👤' },
   effect: { label: 'Effekte', icon: '✨' },
   calculator: { label: 'Skins', icon: '🧮' },
+  tool: { label: 'Tools', icon: '🧰' },
+  calc_gadget: { label: 'Gadgets', icon: '⚙️' },
+  formelsammlung: { label: 'Formelsammlungen', icon: '📚' },
   voucher: { label: 'Gutscheine', icon: '🎁' }
 } as const;
 
@@ -2888,10 +3140,18 @@ const ShopView: React.FC<{
   );
 };
 
-const InventoryModal: React.FC<{ user: User; onClose: () => void; onToggleEffect: (id: string) => void; onAvatarChange: (val: string) => void; onSkinChange: (val: string) => void }> = ({ user, onClose, onToggleEffect, onAvatarChange, onSkinChange }) => {
+const InventoryModal: React.FC<{
+  user: User;
+  onClose: () => void;
+  onToggleEffect: (id: string) => void;
+  onAvatarChange: (val: string) => void;
+  onSkinChange: (val: string) => void;
+  onFormelsammlungSkinChange: (val: string) => void;
+}> = ({ user, onClose, onToggleEffect, onAvatarChange, onSkinChange, onFormelsammlungSkinChange }) => {
   const ownedAvatars = SHOP_ITEMS.filter(i => i.type === 'avatar' && (i.cost === 0 || user.unlockedItems?.includes(i.id)));
   const ownedEffects = SHOP_ITEMS.filter(i => i.type === 'effect' && user.unlockedItems?.includes(i.id));
   const ownedSkins = SHOP_ITEMS.filter(i => i.type === 'calculator' && (i.cost === 0 || user.unlockedItems?.includes(i.id)));
+  const ownedFormulaSkins = SHOP_ITEMS.filter(i => i.type === 'formelsammlung' && (i.cost === 0 || user.unlockedItems?.includes(i.id)));
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -2926,6 +3186,20 @@ const InventoryModal: React.FC<{ user: User; onClose: () => void; onToggleEffect
                    <span className="text-[10px] font-bold uppercase">{sk.name}</span>
                 </button>
              ))}
+          </div>
+
+          <h3 className="font-bold text-slate-400 uppercase tracking-widest mb-4">Formelsammlung Skins</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+            {ownedFormulaSkins.map(fs => (
+              <button
+                key={fs.id}
+                onClick={() => onFormelsammlungSkinChange(fs.value)}
+                className={`p-3 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${user.formelsammlungSkin === fs.value ? 'bg-emerald-50 border-emerald-500 shadow-md' : 'bg-white border-slate-100 hover:border-emerald-200'}`}
+              >
+                <span className="text-2xl">{fs.icon}</span>
+                <span className="text-[10px] font-bold uppercase text-center">{fs.name}</span>
+              </button>
+            ))}
           </div>
 
           <h3 className="font-bold text-slate-400 uppercase tracking-widest mb-4">Effekte</h3>
@@ -3068,8 +3342,10 @@ const AlienScannerTask: React.FC<{ task: Task; onComplete: (success: boolean) =>
 // --- Multi-Angle Throw Training Component ---
 const MultiAngleThrowTraining: React.FC<{
   task: Task;
+  user?: User;
+  onCoinsChange?: (delta: number) => Promise<void>;
   onComplete: (success: boolean, hitsCount: number) => void;
-}> = ({ task, onComplete }) => {
+}> = ({ task, user, onCoinsChange, onComplete }) => {
   const data = task.multiAngleThrowData;
   if (!data) return null;
 
@@ -3092,8 +3368,27 @@ const MultiAngleThrowTraining: React.FC<{
     setAngles(angles.filter((_, i) => i !== idx));
   };
 
-  const startThrows = () => {
-    if (angles.length === 0) return;
+  const startThrows = async () => {
+    if (angles.length === 0 || coinsDeducted) return;
+
+    // Check if user has enough coins
+    const userCoins = user && Number.isFinite(user.coins) ? user.coins : 0;
+    if (userCoins < data.startCost) {
+      // Could show toast here if we had access to it
+      console.warn('Insufficient coins for multiAngleThrow');
+      return;
+    }
+
+    // Deduct coins
+    if (onCoinsChange && data.startCost > 0) {
+      try {
+        await onCoinsChange(-data.startCost);
+      } catch (err) {
+        console.error('Failed to deduct coins:', err);
+        return;
+      }
+    }
+
     setIsRunning(true);
     setCoinsDeducted(true);
     setCurrentThrowIdx(0);
@@ -3122,21 +3417,36 @@ const MultiAngleThrowTraining: React.FC<{
         const angle = angles[currentThrowIdx];
         const tolerance = data.tolerance || 5;
         const isHit = Math.abs(angle - data.targetAngle) <= tolerance;
-        setResults([...results, { angle, hit: isHit }]);
 
-        if (currentThrowIdx < angles.length - 1) {
-          setCurrentThrowIdx(currentThrowIdx + 1);
-          frameCount = 0;
-        } else {
-          // All throws done
-          setIsRunning(false);
-          const hits = [...results, { angle: angles[currentThrowIdx], hit: Math.abs(angles[currentThrowIdx] - data.targetAngle) <= tolerance }].filter(r => r.hit).length;
-          setTimeout(() => onComplete(true, hits), 1500);
-        }
+        setResults(prevResults => {
+          const newResults = [...prevResults, { angle, hit: isHit }];
+
+          if (currentThrowIdx >= angles.length - 1) {
+            // All throws done
+            setIsRunning(false);
+            const hits = newResults.filter(r => r.hit).length;
+
+            // Award coins for hits
+            if (onCoinsChange && hits > 0 && data.hitReward > 0) {
+              const totalReward = hits * data.hitReward;
+              onCoinsChange(totalReward).catch(err => {
+                console.error('Failed to award coins:', err);
+              });
+            }
+
+            setTimeout(() => onComplete(true, hits), 1500);
+          } else {
+            setCurrentThrowIdx(currentThrowIdx + 1);
+          }
+
+          return newResults;
+        });
+
+        frameCount = 0;
       }
     }, 50);
     return () => clearInterval(interval);
-  }, [isRunning, currentThrowIdx, angles, results, data, onComplete]);
+  }, [isRunning, currentThrowIdx, angles, data, onComplete, onCoinsChange]);
 
   const currentAngle = currentThrowIdx >= 0 && currentThrowIdx < angles.length ? angles[currentThrowIdx] : null;
   const animProgress = Math.min(1, (Date.now() % 3000) / 3000);
@@ -3197,9 +3507,9 @@ const MultiAngleThrowTraining: React.FC<{
 
           <Button
             onClick={startThrows}
-            disabled={angles.length === 0}
+            disabled={angles.length === 0 || coinsDeducted || (user && Number.isFinite(user.coins) && user.coins < data.startCost)}
             size="lg"
-            className="w-full bg-emerald-600 hover:bg-emerald-500 border-b-4 border-emerald-800"
+            className="w-full bg-emerald-600 hover:bg-emerald-500 border-b-4 border-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             🚀 Starte Würfe
           </Button>
@@ -3263,16 +3573,32 @@ const MultiAngleThrowTraining: React.FC<{
   );
 };
 
+type QuestRunSummary = {
+  correctCount: number;
+  totalTasks: number;
+  mistakes: number;
+  hintsUsed: number;
+  elapsedMs: number;
+};
+
+type BattleSession = {
+  battle: BattleRecord;
+  tasks: Task[];
+  scenario?: BattleScenario;
+  unit: LearningUnit | null;
+};
+
 const QuestExecutionView: React.FC<{
   unit: LearningUnit;
   tasks: Task[];
   isBountyMode: boolean;
   timeLimit?: number;
   noCheatSheet?: boolean;
+  user?: User;
   onTaskCorrect: (task: Task, wager: number) => void;
-  onComplete: (isPerfect: boolean, percentage?: number) => void;
+  onComplete: (isPerfect: boolean, percentage?: number, summary?: QuestRunSummary) => void;
   onCancel: () => void;
-}> = ({ unit, tasks, isBountyMode, timeLimit, noCheatSheet = false, onTaskCorrect, onComplete, onCancel }) => {
+}> = ({ unit, tasks, isBountyMode, timeLimit, noCheatSheet = false, user, onTaskCorrect, onComplete, onCancel }) => {
     const [currentIdx, setCurrentIdx] = useState(0);
     const [mistakes, setMistakes] = useState(0);
     const [correctAnswers, setCorrectAnswers] = useState(0);
@@ -3291,6 +3617,14 @@ const QuestExecutionView: React.FC<{
     const [multiFieldValues, setMultiFieldValues] = useState<Record<string, string>>({});
     const [adaptiveHint, setAdaptiveHint] = useState<string | null>(null);
     const [isAutoHintLoading, setIsAutoHintLoading] = useState(false);
+    const [hoverAngle, setHoverAngle] = useState<number | null>(null);
+    const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
+
+    const runStartRef = useRef(Date.now());
+
+    useEffect(() => {
+        runStartRef.current = Date.now();
+    }, [tasks]);
 
     useEffect(() => {
         if (isBountyMode && !feedback && tasks.length > 0) {
@@ -3387,11 +3721,13 @@ const QuestExecutionView: React.FC<{
 
                 isCorrect = allFieldsValid;
             } else {
+                // Sanitize input before validation
+                const sanitizedInput = sanitizeMathInput(textInput);
                 if (task.validator) {
-                    isCorrect = validateAnswer(textInput, task.validator);
+                    isCorrect = validateAnswer(sanitizedInput, task.validator);
                 } else {
                     const clean = (s: string) => s.replace(/\s+/g, '').toLowerCase();
-                    const userAns = clean(textInput);
+                    const userAns = clean(sanitizedInput);
 
                     if (userAns === '') {
                         isCorrect = false;
@@ -3420,6 +3756,10 @@ const QuestExecutionView: React.FC<{
                 const userAnswer = parseInt(textInput) || 0;
                 isCorrect = Math.abs(userAnswer - totalArea) <= 1; // Allow ±1 tolerance
             }
+        } else if (task.type === 'multiAngleThrow') {
+            // MultiAngleThrow is validated via onComplete callback, mark as correct if callback succeeded
+            // This case is mostly for consistency; actual validation happens in the component
+            isCorrect = false; // Will be set via onComplete callback
         }
 
         if (isCorrect) {
@@ -3457,7 +3797,14 @@ const QuestExecutionView: React.FC<{
             const percentage = totalTasks > 0 ? Math.round((correctCount / totalTasks) * 100) : 0;
             // Perfect run means no mistakes AND no hints used
             const isPerfect = mistakes === 0 && hintsUsed === 0;
-            onComplete(isPerfect, percentage);
+            const summary: QuestRunSummary = {
+              correctCount,
+              totalTasks,
+              mistakes,
+              hintsUsed,
+              elapsedMs: Date.now() - runStartRef.current,
+            };
+            onComplete(isPerfect, percentage, summary);
         }
     };
 
@@ -3487,9 +3834,20 @@ const QuestExecutionView: React.FC<{
         }
     };
 
-    if (!tasks || tasks.length === 0) return <div className="p-10 text-center">Lade Mission...</div>;
+    if (!tasks || tasks.length === 0) {
+      console.warn('[QuestExecutionView] No tasks provided. Unit:', unit.id, 'Tasks:', tasks);
+      return (
+        <div className="p-10 text-center">
+          <div className="text-slate-500">Lade Mission...</div>
+          <div className="text-xs text-slate-400 mt-2">Keine Aufgaben gefunden für {unit.title}</div>
+        </div>
+      );
+    }
     const task = tasks[currentIdx];
-    if (!task) return <div className="p-10 text-center">Fehler...</div>;
+    if (!task) {
+      console.error('[QuestExecutionView] Task not found at index', currentIdx, 'Tasks:', tasks);
+      return <div className="p-10 text-center text-red-500">Fehler: Aufgabe nicht gefunden</div>;
+    }
 
     // DEBUG
     console.log('Current Task:', task);
@@ -3598,9 +3956,23 @@ const QuestExecutionView: React.FC<{
     const handleMultiAngleThrowComplete = (success: boolean, hitsCount: number) => {
         if(success) {
             onTaskCorrect(tasks[currentIdx], 0);
-            // Coins will be handled by the component itself
+            // Coins are handled by MultiAngleThrowTraining component
         }
         handleNext();
+    };
+
+    const handleCoinsChange = async (delta: number) => {
+        if (!user) return;
+        try {
+            const { adjustCoins } = await import('./services/serverSync');
+            const newCoins = await adjustCoins(delta, 'multi_angle_throw', 'task', tasks[currentIdx]?.id);
+            if (newCoins !== null && user) {
+                // User state will be refreshed by adjustCoins via refreshUserFromServer
+            }
+        } catch (err) {
+            console.error('Failed to adjust coins:', err);
+            throw err;
+        }
     };
 
     return (
@@ -3630,7 +4002,7 @@ const QuestExecutionView: React.FC<{
                 {isInteractive ? (
                     <div className="flex-1 flex py-4">
                       {task.type === 'interactive_alien_scanner' && <AlienScannerTask task={task} onComplete={handleInteractiveComplete} />}
-                      {task.type === 'multiAngleThrow' && <MultiAngleThrowTraining task={task} onComplete={handleMultiAngleThrowComplete} />}
+                      {task.type === 'multiAngleThrow' && <MultiAngleThrowTraining task={task} user={user} onCoinsChange={handleCoinsChange} onComplete={handleMultiAngleThrowComplete} />}
                     </div>
                 ) : (
                     <>
@@ -3758,33 +4130,39 @@ const QuestExecutionView: React.FC<{
                                 </>
                             )}
                             {task.type === 'dragDrop' && task.dragDropData && (
-                                <div className="grid grid-cols-1 gap-4">
-                                    <p className="text-sm font-bold text-slate-600 mb-2">Ordne jede Figur der passenden Kategorie zu:</p>
-                                    <div className="space-y-6">
-                                        {task.dragDropData.shapes?.map((shape: any) => (
-                                            <div key={shape.id} className="p-4 bg-slate-50 rounded-2xl border-2 border-slate-200 flex items-center gap-4">
-                                                <svg viewBox="0 0 200 150" className="w-24 h-16 shrink-0">
-                                                    <path d={shape.path} fill="none" stroke="currentColor" strokeWidth="3" />
-                                                </svg>
-                                                <select
-                                                    value={classification[shape.id] || ''}
-                                                    onChange={(e) => setClassification({ ...classification, [shape.id]: e.target.value })}
-                                                    className="flex-1 p-3 rounded-xl border-2 bg-white text-sm font-black"
-                                                >
-                                                    <option value="" disabled>– Kategorie wählen –</option>
-                                                    {task.dragDropData.categories.map((cat: any) => (
-                                                        <option key={cat.id} value={cat.id}>{cat.label}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
+                                <DragDropTask
+                                    task={task}
+                                    classification={classification}
+                                    onClassificationChange={setClassification}
+                                    disabled={!!feedback}
+                                />
                             )}
                             {task.type === 'angleMeasure' && task.angleData && (
                                 <div className="flex flex-col items-center gap-4">
-                                    <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center">
-                                        <svg viewBox="0 0 300 300" className="w-full h-full" style={{ color: '#475569' }}>
+                                    <div className="w-full max-w-xs aspect-square bg-slate-50 rounded-2xl border-4 border-slate-200 flex items-center justify-center relative">
+                                        <svg
+                                            viewBox="0 0 300 300"
+                                            className="w-full h-full"
+                                            style={{ color: '#475569' }}
+                                            onMouseMove={(e) => {
+                                                if (feedback) return;
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                const svgX = ((e.clientX - rect.left) / rect.width) * 300;
+                                                const svgY = ((e.clientY - rect.top) / rect.height) * 300;
+                                                setHoverPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                                                // Show correct angle when hovering (simplified - could calculate actual angle from geometry)
+                                                setHoverAngle(task.angleData.correctAngle);
+                                            }}
+                                            onMouseLeave={() => {
+                                                setHoverAngle(null);
+                                                setHoverPosition(null);
+                                            }}
+                                            onClick={(e) => {
+                                                if (feedback) return;
+                                                // Set the angle input to the correct angle when clicking
+                                                setAngleInput(task.angleData.correctAngle.toString());
+                                            }}
+                                        >
                                             {task.angleData.baseLine && (
                                                 <line
                                                     x1={task.angleData.baseLine.x1}
@@ -3835,6 +4213,18 @@ const QuestExecutionView: React.FC<{
                                                 <path d={task.angleData.path} fill="none" stroke="currentColor" strokeWidth="3" />
                                             )}
                                         </svg>
+                                        {hoverAngle !== null && hoverPosition && !feedback && (
+                                            <div
+                                                className="absolute pointer-events-none bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm font-black shadow-lg z-10"
+                                                style={{
+                                                    left: `${hoverPosition.x + 10}px`,
+                                                    top: `${hoverPosition.y - 10}px`,
+                                                    transform: 'translateY(-100%)'
+                                                }}
+                                            >
+                                                {hoverAngle}°
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="w-full max-w-xs">
                                         <p className="text-sm font-bold text-slate-600 mb-2">Messe den Winkel:</p>
@@ -3929,8 +4319,12 @@ const QuestExecutionView: React.FC<{
                                     ) : (
                                         <input
                                             type="text"
+                                            inputMode="numeric"
                                             value={textInput}
-                                            onChange={(e) => setTextInput(e.target.value)}
+                                            onChange={(e) => {
+                                                const sanitized = sanitizeMathInput(e.target.value);
+                                                setTextInput(sanitized);
+                                            }}
                                             placeholder={task.placeholder || "Deine Antwort hier..."}
                                             disabled={!!feedback}
                                             readOnly={!!feedback}
@@ -3986,6 +4380,10 @@ export default function App() {
   const [user, setUser] = useState<User | null>(AuthService.getCurrentUser());
   const [activeTab, setActiveTab] = useState<'learn' | 'community' | 'shop'>('learn');
   const [selectedUnit, setSelectedUnit] = useState<LearningUnit | null>(null);
+  const [openBattles, setOpenBattles] = useState<BattleRecord[]>([]);
+  const [myBattles, setMyBattles] = useState<BattleRecord[]>([]);
+  const [isBattleSyncLoading, setIsBattleSyncLoading] = useState(false);
+  const [battleSession, setBattleSession] = useState<BattleSession | null>(null);
 
   const [currentQuest, setCurrentQuest] = useState<{unit: LearningUnit, type: 'pre' | 'standard' | 'bounty', options?: { timeLimit?: number; noCheatSheet?: boolean }} | null>(null);
   const [isQuestActive, setIsQuestActive] = useState(false);
@@ -4054,11 +4452,33 @@ export default function App() {
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [previewEffect, setPreviewEffect] = useState<string | null>(null);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [isFormelsammlungOpen, setIsFormelsammlungOpen] = useState(false);
+  const [isFormelRechnerOpen, setIsFormelRechnerOpen] = useState(false);
+  const [isSchrittLoeserOpen, setIsSchrittLoeserOpen] = useState(false);
+  const [isSpickerTrainerOpen, setIsSpickerTrainerOpen] = useState(false);
+  const [isScheitelCoachOpen, setIsScheitelCoachOpen] = useState(false);
+  const overlayOpeners = {
+    formelsammlung: () => setIsFormelsammlungOpen(true),
+    formel_rechner: () => setIsFormelRechnerOpen(true),
+    schritt_loeser: () => setIsSchrittLoeserOpen(true),
+    spicker_trainer: () => setIsSpickerTrainerOpen(true),
+    scheitel_coach: () => setIsScheitelCoachOpen(true),
+  };
 
   // Moved memo hook before any potential early return
   const tasksForCurrentQuest = useMemo(() => {
     if (!currentQuest) return [];
-    return TaskFactory.getTasksForUnit(currentQuest.unit.id, currentQuest.type);
+    try {
+      const tasks = TaskFactory.getTasksForUnit(currentQuest.unit.id, currentQuest.type);
+      console.log(`[Quest] Generated ${tasks.length} tasks for unit ${currentQuest.unit.id}, type: ${currentQuest.type}`, tasks);
+      if (tasks.length === 0 && currentQuest.type === 'pre') {
+        console.warn(`[Quest] No PreTasks found for unit ${currentQuest.unit.id}. Check if preTasks are registered in taskFactory.ts`);
+      }
+      return tasks;
+    } catch (error) {
+      console.error('[Quest] Error generating tasks:', error);
+      return [];
+    }
   }, [currentQuest]);
 
   const activeEffect = (name: string) => user?.activeEffects?.includes(name) || previewEffect === name;
@@ -4072,6 +4492,29 @@ export default function App() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   };
 
+  const refreshBattles = useCallback(async () => {
+    if (!user) return;
+    setIsBattleSyncLoading(true);
+    try {
+      const [mine, open] = await Promise.all([
+        BattleService.list('mine'),
+        BattleService.list('open'),
+      ]);
+      setMyBattles(mine);
+      setOpenBattles(open);
+    } catch (err) {
+      console.error('[refreshBattles]', err);
+      addToast('Battle-Sync fehlgeschlagen', 'error');
+    } finally {
+      setIsBattleSyncLoading(false);
+    }
+  }, [user, addToast]);
+
+  useEffect(() => {
+    if (!user || activeTab !== 'community') return;
+    refreshBattles();
+  }, [user, activeTab, refreshBattles]);
+
   if (!user) return <AuthScreen onLogin={setUser} />;
 
   const triggerCoinAnimation = () => {
@@ -4083,14 +4526,15 @@ export default function App() {
   };
 
   const handleTaskCorrect = async (task: Task, wager: number) => {
-    if(!user) return;
+    if(!user || !currentQuest) return;
     const baseCoins = task.type === 'wager' ? 10 + wager : 10;
-    const { updatedUser, coinsAwarded } = await QuestService.awardCoinsForQuestion(user, task.id, baseCoins);
+    const questType: 'pre' | 'standard' | 'bounty' = currentQuest.type;
+    const { updatedUser, coinsAwarded } = await QuestService.awardCoinsForQuestion(user, currentQuest.unit.id, task.id, baseCoins, questType);
     setUser(updatedUser);
     if(coinsAwarded > 0) triggerCoinAnimation();
   };
 
-  const handleQuestComplete = async (isPerfectRun: boolean, percentage: number = 100) => {
+  const handleQuestComplete = async (isPerfectRun: boolean, percentage: number = 100, summary?: QuestRunSummary) => {
     if (!currentQuest || !user) return;
 
     let u = user;
@@ -4136,8 +4580,18 @@ export default function App() {
             addToast("Bounty bereits kassiert!", "info");
         }
     } else if (currentQuest.type === 'pre') {
-      u = await QuestService.completePreQuest(user, currentQuest.unit.id);
-      addToast("Übung abgeschlossen!", "success");
+      const { updatedUser, coinsAwarded } = await QuestService.completePreQuest(
+        user,
+        currentQuest.unit.id,
+        currentQuest.unit.coinsReward || 0
+      );
+      u = updatedUser;
+      if (coinsAwarded > 0) {
+        addToast(`Übung abgeschlossen! +${coinsAwarded} Coins`, 'success');
+        triggerCoinAnimation();
+      } else {
+        addToast("Übung abgeschlossen!", "success");
+      }
     }
     setUser(u);
     setIsQuestActive(false);
@@ -4146,6 +4600,157 @@ export default function App() {
     // Refresh user from server to ensure we have latest state
     await bootstrapServerUser();
   };
+
+  const handleBattleCreate = useCallback(async (scenario: BattleScenario) => {
+    if (!user) return;
+    try {
+      setIsBattleSyncLoading(true);
+      const tasks = generateBattleTaskBundle(scenario.id, scenario.rounds);
+      if (!tasks || tasks.length === 0) {
+        addToast('Keine Aufgaben für dieses Battle gefunden', 'error');
+        return;
+      }
+      const result = await BattleService.create({
+        scenarioId: scenario.id,
+        unitId: scenario.unitId,
+        unitTitle: scenario.unitTitle,
+        stake: scenario.stake,
+        rounds: scenario.rounds,
+        taskIds: tasks.map(t => t.id),
+        taskBundle: tasks,
+        metadata: {
+          scenarioTitle: scenario.title,
+          scenarioTagline: scenario.tagline,
+          challengerName: user.username,
+          challengerAvatar: user.avatar,
+        },
+      });
+      if (typeof result.coins === 'number') {
+        const updatedUser = { ...user, coins: result.coins };
+        setUser(updatedUser);
+        await DataService.updateUser(updatedUser);
+      }
+      addToast('Battle erstellt – warte auf Gegner!', 'success');
+      await refreshBattles();
+    } catch (err) {
+      console.error('[handleBattleCreate]', err);
+      addToast('Battle konnte nicht erstellt werden', 'error');
+    } finally {
+      setIsBattleSyncLoading(false);
+    }
+  }, [user, addToast, refreshBattles]);
+
+  const handleChallengeUser = useCallback(async (opponent: User) => {
+    if (!user) return;
+    try {
+      // Use the first available battle scenario as default
+      const defaultScenario = BATTLE_SCENARIOS[0];
+      if (!defaultScenario) {
+        addToast('Kein Battle-Szenario verfügbar', 'error');
+        return;
+      }
+
+      setIsBattleSyncLoading(true);
+      const tasks = generateBattleTaskBundle(defaultScenario.id, defaultScenario.rounds);
+      if (!tasks || tasks.length === 0) {
+        addToast('Keine Aufgaben für dieses Battle gefunden', 'error');
+        return;
+      }
+
+      const result = await BattleService.create({
+        scenarioId: defaultScenario.id,
+        unitId: defaultScenario.unitId,
+        unitTitle: defaultScenario.unitTitle,
+        stake: defaultScenario.stake,
+        rounds: defaultScenario.rounds,
+        taskIds: tasks.map(t => t.id),
+        taskBundle: tasks,
+        opponentId: opponent.id,
+        metadata: {
+          scenarioTitle: defaultScenario.title,
+          scenarioTagline: defaultScenario.tagline,
+          challengerName: user.username,
+          challengerAvatar: user.avatar,
+          opponentName: opponent.username,
+          opponentAvatar: opponent.avatar,
+        },
+      });
+
+      if (typeof result.coins === 'number') {
+        const updatedUser = { ...user, coins: result.coins };
+        setUser(updatedUser);
+        await DataService.updateUser(updatedUser);
+      }
+      addToast(`Battle gegen ${opponent.username} erstellt!`, 'success');
+      await refreshBattles();
+    } catch (err) {
+      console.error('[handleChallengeUser]', err);
+      addToast('Battle konnte nicht erstellt werden', 'error');
+    } finally {
+      setIsBattleSyncLoading(false);
+    }
+  }, [user, addToast, refreshBattles]);
+
+  const handleBattleAccept = useCallback(async (battle: BattleRecord) => {
+    if (!user) return;
+    try {
+      setIsBattleSyncLoading(true);
+      const result = await BattleService.accept(battle.id);
+      if (typeof result.coins === 'number') {
+        const updatedUser = { ...user, coins: result.coins };
+        setUser(updatedUser);
+        await DataService.updateUser(updatedUser);
+      }
+      addToast('Battle angenommen – viel Erfolg!', 'success');
+      await refreshBattles();
+    } catch (err) {
+      console.error('[handleBattleAccept]', err);
+      addToast('Battle konnte nicht angenommen werden', 'error');
+    } finally {
+      setIsBattleSyncLoading(false);
+    }
+  }, [user, addToast, refreshBattles]);
+
+  const handleBattleLaunch = useCallback((battle: BattleRecord) => {
+    const tasks = battle.taskBundle;
+    if (!tasks || tasks.length === 0) {
+      addToast('Battle-Aufgaben noch nicht synchronisiert', 'error');
+      return;
+    }
+    const unit = LEARNING_UNITS.find(u => u.id === battle.unitId) || null;
+    const scenario = battle.scenarioId ? getBattleScenarioById(battle.scenarioId) : undefined;
+    setBattleSession({
+      battle,
+      tasks,
+      scenario,
+      unit,
+    });
+  }, [addToast]);
+
+  const handleBattleRunSubmit = useCallback(async (session: BattleSession, payload: BattleSummaryPayload) => {
+    try {
+      const result = await BattleService.submit(session.battle.id, payload);
+      if (result?.completed) {
+        if (result.winnerId) {
+          if (result.winnerId === user?.id) {
+            addToast('Battle gewonnen! Coins wurden gutgeschrieben.', 'success');
+          } else {
+            addToast('Battle abgeschlossen – Ergebnis gespeichert.', 'info');
+          }
+        } else {
+          addToast('Battle abgeschlossen – Unentschieden!', 'info');
+        }
+      } else {
+        addToast('Battle-Lauf gespeichert. Warte auf deinen Gegner.', 'success');
+      }
+      setBattleSession(null);
+      await refreshBattles();
+    } catch (err) {
+      console.error('[handleBattleRunSubmit]', err);
+      addToast('Battle-Ergebnis konnte nicht gespeichert werden', 'error');
+      throw err;
+    }
+  }, [user?.id, addToast, refreshBattles]);
 
   const startQuest = (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty', options?: { timeLimit?: number; noCheatSheet?: boolean }) => {
     setCurrentQuest({unit, type, options: options || {}});
@@ -4206,6 +4811,13 @@ export default function App() {
           unlockedItems: [...new Set([...user.unlockedItems, item.id])]
         };
         if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
+        if (item.type === 'formelsammlung') updatedUser.formelsammlungSkin = item.value;
+        if (item.type === 'tool') {
+          updatedUser.unlockedTools = [...new Set([...(user.unlockedTools || []), item.value])];
+        }
+        if (item.type === 'calc_gadget') {
+          updatedUser.calculatorGadgets = [...new Set([...(user.calculatorGadgets || []), item.value])];
+        }
         setUser(updatedUser);
         await DataService.updateUser(updatedUser);
         addToast(`"${item.name}" gekauft! (Dev Mode)`, 'success');
@@ -4231,6 +4843,13 @@ export default function App() {
         unlockedItems: json.unlockedItems || [...new Set([...user.unlockedItems, item.id])]
       };
       if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
+      if (item.type === 'formelsammlung') updatedUser.formelsammlungSkin = item.value;
+      if (item.type === 'tool') {
+        updatedUser.unlockedTools = [...new Set([...(user.unlockedTools || []), item.value])];
+      }
+      if (item.type === 'calc_gadget') {
+        updatedUser.calculatorGadgets = [...new Set([...(user.calculatorGadgets || []), item.value])];
+      }
       setUser(updatedUser);
       await DataService.updateUser(updatedUser);
 
@@ -4259,7 +4878,28 @@ export default function App() {
     <div className={`min-h-screen transition-all ${isDarkMode ? 'bg-slate-950 text-white' : 'bg-[#f8fafc] text-slate-900'}`}>
       <ToastContainer toasts={toasts} />
       <CoinFlightAnimation isActive={isFlyingCoinActive} onComplete={() => setIsFlyingCoinActive(false)} />
-      {isCalculatorOpen && <CalculatorWidget skin={user.calculatorSkin} onClose={() => setIsCalculatorOpen(false)} />}
+      {isCalculatorOpen && <CalculatorWidget skin={user.calculatorSkin} gadgets={user.calculatorGadgets || []} onClose={() => setIsCalculatorOpen(false)} />}
+      {isFormelsammlungOpen && <FormelsammlungWidget skin={user.formelsammlungSkin || 'base'} onClose={() => setIsFormelsammlungOpen(false)} />}
+      {isFormelRechnerOpen && user.unlockedTools?.includes('formel_rechner') && (
+        <ModalOverlay onClose={() => setIsFormelRechnerOpen(false)}>
+          <FormelRechner onClose={() => setIsFormelRechnerOpen(false)} />
+        </ModalOverlay>
+      )}
+      {isSchrittLoeserOpen && user.unlockedTools?.includes('schritt_loeser') && (
+        <ModalOverlay onClose={() => setIsSchrittLoeserOpen(false)}>
+          <SchrittLoeser onClose={() => setIsSchrittLoeserOpen(false)} />
+        </ModalOverlay>
+      )}
+      {isSpickerTrainerOpen && user.unlockedTools?.includes('spicker_trainer') && (
+        <ModalOverlay onClose={() => setIsSpickerTrainerOpen(false)}>
+          <SpickerTrainer onClose={() => setIsSpickerTrainerOpen(false)} />
+        </ModalOverlay>
+      )}
+      {isScheitelCoachOpen && user.unlockedTools?.includes('scheitel_coach') && (
+        <ModalOverlay onClose={() => setIsScheitelCoachOpen(false)}>
+          <ScheitelCoach onClose={() => setIsScheitelCoachOpen(false)} />
+        </ModalOverlay>
+      )}
 
        {/* Visual Effects */}
       {activeEffect('rain') && <MatrixRain />}
@@ -4289,7 +4929,7 @@ export default function App() {
                 }}
                 className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-full font-black text-[10px] sm:text-xs uppercase tracking-widest transition-all min-h-[44px] touch-manipulation ${activeTab === tab ? 'bg-slate-900 text-white scale-105 shadow-lg' : 'text-slate-500 hover:text-slate-900'}`}
               >
-                {tab === 'learn' ? '📖 Quests' : tab === 'community' ? '🤝 Klasse' : '🛒 Shop'}
+                {tab === 'learn' ? '📖 Quests' : tab === 'community' ? '⚔️ Blood Dome' : '🛒 Shop'}
               </button>
             ))}
           </nav>
@@ -4299,7 +4939,7 @@ export default function App() {
                 <div className="text-2xl sm:text-3xl bg-slate-100 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center border-2 border-white shadow-sm transition-transform group-hover:scale-110">{user.avatar}</div>
                 <div>
                     <span className="font-black italic uppercase block leading-none">{user.username}</span>
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Level {Math.floor(user.xp / 100) + 1}</span>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Level {Number.isFinite(user.xp) ? Math.floor(user.xp / 100) + 1 : 1}</span>
                 </div>
             </div>
             <div className="flex gap-2 sm:gap-3 items-center">
@@ -4363,9 +5003,20 @@ export default function App() {
             <div className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto lg:h-[70vh]">
                 <ChatView currentUser={user} />
-                <LeaderboardView currentUser={user} onChallenge={() => {}} />
+                <BloodDomeLeaderboard currentUser={user} onChallenge={handleChallengeUser} isDarkMode={isDarkMode} />
               </div>
               <BattleLobby currentUser={user} />
+            <BattlePanel
+              user={user}
+              scenarios={BATTLE_SCENARIOS}
+              openBattles={openBattles}
+              myBattles={myBattles}
+              isLoading={isBattleSyncLoading}
+              onCreateBattle={handleBattleCreate}
+              onAcceptBattle={handleBattleAccept}
+              onLaunchBattle={handleBattleLaunch}
+              onRefresh={refreshBattles}
+            />
             </div>
           )}
             {activeTab === 'shop' && <ShopView user={user} onBuy={handleBuy} onPreview={async (item: ShopItem, cost: number) => {
@@ -4398,10 +5049,29 @@ export default function App() {
           bountyCompleted={Boolean(user.bountyPayoutClaimed?.[selectedUnit.id])}
           onClose={() => setSelectedUnit(null)}
           onStartQuest={startQuest}
+          overlayOpeners={overlayOpeners}
         />
       )}
 
-      {isInventoryOpen && <InventoryModal user={user} onClose={() => setIsInventoryOpen(false)} onToggleEffect={handleToggleEffect} onAvatarChange={async (v) => { const u = {...user, avatar: v}; setUser(u); await DataService.updateUser(u); }} onSkinChange={async (v) => { const u = {...user, calculatorSkin: v}; setUser(u); await DataService.updateUser(u); }} />}
+      {isInventoryOpen && (
+        <InventoryModal
+          user={user}
+          onClose={() => setIsInventoryOpen(false)}
+          onToggleEffect={handleToggleEffect}
+          onAvatarChange={async (v) => { const u = {...user, avatar: v}; setUser(u); await DataService.updateUser(u); }}
+          onSkinChange={async (v) => { const u = {...user, calculatorSkin: v}; setUser(u); await DataService.updateUser(u); }}
+          onFormelsammlungSkinChange={async (v) => { const u = {...user, formelsammlungSkin: v}; setUser(u); await DataService.updateUser(u); }}
+        />
+      )}
+
+      {battleSession && (
+        <BattleRunModal
+          session={battleSession}
+          user={user}
+          onClose={() => setBattleSession(null)}
+          onSubmit={handleBattleRunSubmit}
+        />
+      )}
 
       {isQuestActive && currentQuest && (
           <QuestExecutionView
@@ -4410,6 +5080,7 @@ export default function App() {
               isBountyMode={currentQuest.type === 'bounty' || !!currentQuest.options?.timeLimit}
               timeLimit={currentQuest.options?.timeLimit}
               noCheatSheet={currentQuest.options?.noCheatSheet}
+              user={user}
               onTaskCorrect={handleTaskCorrect}
               onComplete={handleQuestComplete}
               onCancel={() => setIsQuestActive(false)}
@@ -4419,6 +5090,98 @@ export default function App() {
   );
 }
 
+const BattleRunModal: React.FC<{
+  session: BattleSession;
+  user: User;
+  onClose: () => void;
+  onSubmit: (session: BattleSession, payload: BattleSummaryPayload) => Promise<void> | void;
+}> = ({ session, user, onClose, onSubmit }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+
+  const handleBattleComplete = async (isPerfect: boolean, percentage: number = 0, summary?: QuestRunSummary) => {
+    if (isSubmitting) return;
+    const payload: BattleSummaryPayload = {
+      correctCount: summary?.correctCount ?? Math.round((percentage / 100) * session.tasks.length),
+      totalTasks: summary?.totalTasks ?? session.tasks.length,
+      percentage,
+      solveTimeMs: summary?.elapsedMs ?? 0,
+      isPerfectRun: isPerfect,
+      detail: summary,
+    };
+    try {
+      setIsSubmitting(true);
+      setSubmissionError(null);
+      await onSubmit(session, payload);
+    } catch (err: any) {
+      setSubmissionError(err?.message || 'Unbekannter Fehler');
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!session.unit) {
+    return (
+      <ModalOverlay onClose={onClose}>
+        <div className="bg-white rounded-[2rem] p-8 max-w-2xl mx-auto text-center">
+          <CardTitle>Battle nicht verfügbar</CardTitle>
+          <p className="text-sm text-slate-500">Die verknüpfte Lerneinheit wurde nicht gefunden.</p>
+          <div className="mt-6">
+            <Button onClick={onClose}>Schließen</Button>
+          </div>
+        </div>
+      </ModalOverlay>
+    );
+  }
+
+  const lockHints = session.scenario?.modifiers?.some(mod => mod.toLowerCase().includes('hint')) || false;
+  const timerModifier = session.scenario?.modifiers?.find(mod => /\d+\s?s/i.test(mod));
+  const timeLimit = timerModifier ? parseInt(timerModifier.match(/(\d+)/)?.[1] || '', 10) || undefined : undefined;
+
+  return (
+    <ModalOverlay onClose={() => { if (!isSubmitting) onClose(); }}>
+      <div className="bg-white rounded-[3rem] p-10 max-w-4xl w-full mx-auto relative shadow-2xl border-8 border-slate-50 animate-in zoom-in-95 duration-300">
+        <button
+          onClick={() => !isSubmitting && onClose()}
+          className={`absolute top-8 right-8 w-12 h-12 rounded-full flex items-center justify-center font-black transition-all shadow-sm ${isSubmitting ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-slate-100 text-slate-400 hover:bg-rose-500 hover:text-white'}`}
+          disabled={isSubmitting}
+        >
+          ✕
+        </button>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <Badge color="indigo">Battle</Badge>
+            <CardTitle className="mt-2 mb-1">{session.scenario?.title || session.unit.title}</CardTitle>
+            <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+              {session.scenario?.tagline || session.unit.description}
+            </p>
+          </div>
+          <div className="text-right text-xs font-black uppercase text-slate-400">
+            <div>Einsatz: {session.battle.stake} Coins</div>
+            <div>Runden: {session.battle.roundCount}</div>
+          </div>
+        </div>
+        <QuestExecutionView
+          unit={session.unit}
+          tasks={session.tasks}
+          isBountyMode={false}
+          timeLimit={timeLimit}
+          noCheatSheet={lockHints}
+          user={user}
+          onTaskCorrect={() => {}}
+          onComplete={handleBattleComplete}
+          onCancel={() => !isSubmitting && onClose()}
+        />
+        {isSubmitting && (
+          <p className="text-center text-xs font-black text-emerald-600 mt-4">Ergebnis wird gespeichert...</p>
+        )}
+        {submissionError && (
+          <p className="text-center text-xs font-black text-rose-500 mt-4">{submissionError}</p>
+        )}
+      </div>
+    </ModalOverlay>
+  );
+};
+
 // Kompaktes Quest-Modal im RealMath-Stil
 const UnitView: React.FC<{
   unit: LearningUnit;
@@ -4426,7 +5189,8 @@ const UnitView: React.FC<{
   bountyCompleted: boolean;
   onClose: () => void;
   onStartQuest: (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty', options?: { timeLimit?: number; noCheatSheet?: boolean }) => Promise<void> | void;
-}> = ({ unit, user, bountyCompleted, onClose, onStartQuest }) => {
+  overlayOpeners: Partial<Record<'formelsammlung' | 'formel_rechner' | 'schritt_loeser' | 'spicker_trainer' | 'scheitel_coach', () => void>>;
+}> = ({ unit, user, bountyCompleted, onClose, onStartQuest, overlayOpeners }) => {
     const [activeTab, setActiveTab] = useState<'info' | 'pre' | 'standard' | 'bounty'>('info');
     const [isStartingBounty, setIsStartingBounty] = useState(false);
     const [bountyTimeLimit, setBountyTimeLimit] = useState<number>(60);
@@ -4475,6 +5239,46 @@ const UnitView: React.FC<{
                 <div className="min-h-[400px] overflow-y-auto custom-scrollbar pr-4">
                     {activeTab === 'info' && (
                        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            <button
+                              onClick={() => overlayOpeners.formelsammlung?.()}
+                              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold flex items-center gap-2"
+                            >
+                              📚 Formelsammlung
+                            </button>
+                            {user.unlockedTools?.includes('formel_rechner') && (
+                              <button
+                                onClick={() => overlayOpeners.formel_rechner?.()}
+                                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-semibold flex items-center gap-2"
+                              >
+                                🧮 Formel-Rechner
+                              </button>
+                            )}
+                            {user.unlockedTools?.includes('schritt_loeser') && (
+                              <button
+                                onClick={() => overlayOpeners.schritt_loeser?.()}
+                                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold flex items-center gap-2"
+                              >
+                                📝 Schritt-Loeser
+                              </button>
+                            )}
+                            {user.unlockedTools?.includes('spicker_trainer') && (unit.definitionId === 'potenzen' || unit.definitionId === 'quadratisch') && (
+                              <button
+                                onClick={() => overlayOpeners.spicker_trainer?.()}
+                                className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-semibold flex items-center gap-2"
+                              >
+                                🧠 Spicker-Coach
+                              </button>
+                            )}
+                            {user.unlockedTools?.includes('scheitel_coach') && unit.definitionId === 'quadratisch' && (
+                              <button
+                                onClick={() => overlayOpeners.scheitel_coach?.()}
+                                className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-400 font-semibold flex items-center gap-2"
+                              >
+                                📈 Scheitel-Coach
+                              </button>
+                            )}
+                          </div>
                           <p className="text-sm text-slate-500 font-bold italic leading-relaxed bg-slate-50 p-6 rounded-3xl">{unit.detailedInfo}</p>
                           {definition && (
                              <div className="space-y-6">

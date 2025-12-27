@@ -61,9 +61,15 @@ const DraggableShape: React.FC<{
         isDragging ? 'opacity-50' : ''
       } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
-      <svg viewBox="0 0 200 150" className={`w-20 h-14 sm:w-24 sm:h-16 shrink-0 ${shapeColor}`}>
-        <path d={path} fill="none" stroke="currentColor" strokeWidth="3" />
-      </svg>
+      {path ? (
+        <svg viewBox="0 0 200 150" className={`w-20 h-14 sm:w-24 sm:h-16 shrink-0 ${shapeColor}`}>
+          <path d={path} fill="none" stroke="currentColor" strokeWidth="3" />
+        </svg>
+      ) : (
+        <div className="w-20 h-14 sm:w-24 sm:h-16 shrink-0 flex items-center justify-center bg-white rounded-lg border border-slate-200">
+          <span className={`text-lg sm:text-xl font-black ${shapeColor}`}>{label}</span>
+        </div>
+      )}
       <span className={`text-xs sm:text-sm font-bold ${shapeColor}`}>
         {feedback === 'correct' && '✓ '}
         {feedback === 'incorrect' && '✗ '}
@@ -301,9 +307,15 @@ export const DragDropTask: React.FC<DragDropTaskProps> = ({
         return (
           <div key={shape.id} className={`p-4 rounded-2xl border-2 ${borderClass} shadow-sm space-y-3`}>
             <div className="flex items-center gap-3">
-              <svg viewBox="0 0 200 150" className={`w-20 h-14 shrink-0 ${shapeColor}`}>
-                <path d={shape.path} fill="none" stroke="currentColor" strokeWidth="3" />
-              </svg>
+              {shape.path ? (
+                <svg viewBox="0 0 200 150" className={`w-20 h-14 shrink-0 ${shapeColor}`}>
+                  <path d={shape.path} fill="none" stroke="currentColor" strokeWidth="3" />
+                </svg>
+              ) : (
+                <div className="w-20 h-14 shrink-0 flex items-center justify-center bg-white rounded-lg border border-slate-200">
+                  <span className={`text-lg font-black ${shapeColor}`}>{shape.label}</span>
+                </div>
+              )}
               <div>
                 <p className={`text-sm font-black ${shapeColor} flex items-center gap-2`}>
                   {feedback?.[shape.id] === 'correct' && '✓ '}
@@ -353,8 +365,7 @@ export const DragDropTask: React.FC<DragDropTaskProps> = ({
   return (
     <div className="w-full space-y-6">
       <p className="text-sm font-bold text-slate-600">
-        Ordne die Figuren dem 'Haus der Vierecke' zu. Nutze den Dropdown-Modus für absolute Zuverlässigkeit
-        oder wechsle zu Drag & Drop, wenn du die Bonus-UX testen möchtest.
+        {task.instructions || 'Ordne die Elemente den passenden Kategorien zu. Nutze Dropdown oder Drag & Drop – beides zählt!'}
       </p>
       <div className="flex items-center gap-3">
         <button

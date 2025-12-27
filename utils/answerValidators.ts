@@ -1,5 +1,5 @@
 import { InputValidatorConfig } from '../types';
-import { sanitizeMathInput } from './inputSanitizer';
+import { sanitizeMathInput, parseMathInput } from './inputSanitizer';
 
 const NEGATION_WORDS = ['nicht', 'kein', 'keine', 'keiner', 'keines', 'ohne'];
 const MULTI_VALUE_SEPARATORS = /(?:\r?\n|;|,|\/|\||\s+-\s+|\s+–\s+)/;
@@ -58,9 +58,27 @@ export function normalizeTextAnswer(value: string): string {
 }
 
 export function sanitizeNumberInput(raw: string): number | null {
+  if (!raw || typeof raw !== 'string') return null;
+
+  // Try parsing as fraction first (e.g., "1/216")
+  const fractionPattern = /^(-?\d+)\s*\/\s*(\d+)$/;
+  const fractionMatch = raw.trim().match(fractionPattern);
+
+  if (fractionMatch) {
+    const numerator = parseFloat(fractionMatch[1]);
+    const denominator = parseFloat(fractionMatch[2]);
+
+    if (denominator === 0) return null; // Division by zero
+    if (!Number.isFinite(numerator) || !Number.isFinite(denominator)) return null;
+
+    const result = numerator / denominator;
+    return Number.isFinite(result) ? result : null;
+  }
+
+  // Otherwise use the existing sanitization
   const sanitized = sanitizeMathInput(raw);
   if (!sanitized) return null;
-  const num = parseFloat(sanitized);
+  const num = parseMathInput(sanitized);
   return Number.isFinite(num) ? num : null;
 }
 

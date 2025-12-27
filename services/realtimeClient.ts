@@ -3,11 +3,10 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 let realtimeClient: SupabaseClient | null = null;
 
 const getEnv = (key: string): string | undefined => {
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key as keyof typeof import.meta.env]) {
-    return import.meta.env[key as keyof typeof import.meta.env] as string;
-  }
-  if (typeof window !== 'undefined' && (window as any)[key]) {
-    return (window as any)[key];
+  // Cast import.meta.env to a generic record to avoid inline TS assertions in the bracket access
+  const env = import.meta.env as Record<string, string | undefined>;
+  if (typeof import.meta !== 'undefined' && env && env[key]) {
+    return env[key];
   }
   return undefined;
 };

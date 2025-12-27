@@ -234,7 +234,7 @@ export interface GeometryDefinition {
 export interface ShopItem {
   id: string;
   name: string;
-  type: 'avatar' | 'effect' | 'feature' | 'voucher' | 'calculator' | 'prize';
+  type: 'avatar' | 'effect' | 'feature' | 'voucher' | 'calculator' | 'prize' | 'tool' | 'formelsammlung' | 'calc_gadget';
   cost: number;
   value: string;
   icon?: string; // New: Display symbol separate from logic value
@@ -335,6 +335,12 @@ export interface User {
   activeEffects: string[];
   calculatorSkin: string; // The active calculator design
   xp: number;
+  // Neue Tools & Features
+  unlockedTools?: string[]; // ['formel_rechner', 'schritt_loeser']
+  calculatorGadgets?: string[]; // ['potenz', 'parabel', 'wurzel']
+  formelsammlungSkin?: string; // 'base', 'neon', 'klassik', 'minimal', 'interaktiv'
+  preClearedUnits?: string[]; // Units mit abgeschlossenen PreTasks
+  solvedQuestionIds?: string[]; // IDs gelöster Fragen (Anti-Farming)
 }
 
 export interface ChatMessage {
@@ -362,6 +368,58 @@ export interface BattleRequest {
     challengerScore: number;
     opponentScore: number;
   };
+}
+
+export interface BattleScenario {
+  id: string;
+  title: string;
+  tagline: string;
+  description: string;
+  unitId: string;
+  unitTitle: string;
+  stake: number;
+  rounds: number;
+  icon: string;
+  difficulty: 'Einfach' | 'Mittel' | 'Schwer';
+  modifiers: string[];
+  tags: string[];
+}
+
+export type BattleStatus = 'pending' | 'running' | 'finished';
+
+export interface BattleRecord {
+  id: string;
+  scenarioId?: string | null;
+  challengerId: string;
+  opponentId?: string | null;
+  unitId: string;
+  unitTitle?: string | null;
+  stake: number;
+  roundCount: number;
+  taskIds?: string[];
+  taskBundle?: Task[];
+  status: BattleStatus;
+  metadata?: Record<string, any> | null;
+  createdAt?: string;
+  acceptedAt?: string | null;
+  finishedAt?: string | null;
+  winnerId?: string | null;
+  resultReason?: string | null;
+  challengerScore?: number;
+  opponentScore?: number;
+  challengerTimeMs?: number;
+  opponentTimeMs?: number;
+  challengerSummary?: any;
+  opponentSummary?: any;
+}
+
+export interface BattleSummaryPayload {
+  correctCount: number;
+  totalTasks: number;
+  percentage: number;
+  solveTimeMs: number;
+  isPerfectRun?: boolean;
+  detail?: any;
 }
 
 export interface LogEntry {

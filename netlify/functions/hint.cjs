@@ -50,13 +50,17 @@ exports.handler = async (event) => {
   const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
   if (!apiKey) {
     console.error("Missing API key. Available env vars:", Object.keys(process.env).filter(k => k.includes('API') || k.includes('GEMINI')));
+    // Return graceful error message instead of 500 error
     return {
-      statusCode: 500,
+      statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
       },
-      body: JSON.stringify({ error: "Missing Gemini API key" }),
+      body: JSON.stringify({
+        hint: "Der Tipp-Service ist momentan nicht verfügbar. Bitte versuche es später noch einmal oder frage deinen Lehrer um Hilfe.",
+        error: "Missing Gemini API key"
+      }),
     };
   }
 

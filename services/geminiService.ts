@@ -10,16 +10,19 @@ export async function getMatheHint(topic: string, question: string): Promise<str
       body: JSON.stringify({ topic, question }),
     });
 
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-      console.error("Hint fetch failed:", res.status, errorData);
-      throw new Error(`Backend returned ${res.status}: ${errorData.error || errorData.details || 'Unknown error'}`);
+    const data = await res.json();
+
+    // Backend returns 200 with error field when API key is missing (graceful error)
+    if (data.error) {
+      console.warn("Hint API error:", data.error, data.details || '');
+      // Return the hint message if provided, otherwise use fallback
+      return data.hint || "Der Tipp-Service ist momentan nicht verfügbar. Bitte versuche es später noch einmal oder frage deinen Lehrer um Hilfe.";
     }
 
-    const data = await res.json();
-    if (data.error) {
-      console.error("Hint API error:", data.error, data.details);
-      throw new Error(data.error || "API returned an error");
+    if (!res.ok) {
+      const errorData = data || { error: `HTTP ${res.status}` };
+      console.error("Hint fetch failed:", res.status, errorData);
+      return `Der Tipp-Service ist momentan nicht verfügbar. Bitte versuche es später noch einmal.`;
     }
 
     return data.hint || "Kein Tipp verfügbar.";

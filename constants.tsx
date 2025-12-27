@@ -1,5 +1,7 @@
 
 import { LearningUnit, ShopItem, GeometryDefinition } from './types';
+import { POTENZEN_LEARNING_UNITS } from './services/potenzenLearningUnits';
+import { QUADRATISCH_LEARNING_UNITS } from './services/quadratischLearningUnits';
 
 export const PROGRESS_LEVELS = [
   { title: "Messy Bun", icon: "🎀" },
@@ -105,7 +107,25 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'vc_100', name: '100€ Amazon Gutschein', type: 'voucher', cost: 20000, value: '100', icon: '👑', description: 'Die ultimative Belohnung. Du bist eine Legende!', rarity: 'legendary' },
 
   // --- PREISE ---
-  { id: 'prize_smartphone', name: 'Xiaomi POCO M7 4G 128GB', type: 'prize', cost: 50000, value: 'smartphone', icon: '📱', description: 'Das ultimative Smartphone für echte Mathe-Meister. 4G, 128GB Speicher - perfekt für unterwegs!', rarity: 'legendary' }
+  { id: 'prize_smartphone', name: 'Xiaomi POCO M7 4G 128GB', type: 'prize', cost: 50000, value: 'smartphone', icon: '📱', description: 'Das ultimative Smartphone für echte Mathe-Meister. 4G, 128GB Speicher - perfekt für unterwegs!', rarity: 'legendary' },
+
+  // --- TOOLS ---
+  { id: 'tool_formel_rechner', name: 'Formel-Rechner', type: 'tool', cost: 400, value: 'formel_rechner', icon: '🧮', description: 'Berechne Potenzen, Wurzeln, quadratische Funktionen automatisch. Zeigt Zwischenschritte.', rarity: 'rare' },
+  { id: 'tool_schritt_loeser', name: 'Schritt-für-Schritt-Loeser', type: 'tool', cost: 600, value: 'schritt_loeser', icon: '📝', description: 'Zeigt dir jeden Rechenschritt bei Potenzgesetzen, Wurzelgleichungen und quadratischen Funktionen.', rarity: 'epic' },
+  { id: 'tool_spicker_trainer', name: 'Spicker-Coach', type: 'tool', cost: 320, value: 'spicker_trainer', icon: '🧠', description: 'Interaktive Spickzettel mit Checks zu Potenzgesetzen, Wurzelgleichungen und Zehnerpotenzen (basierend auf Lernkanon 09/2025).', rarity: 'rare' },
+  { id: 'tool_scheitel_coach', name: 'Scheitel-Coach', type: 'tool', cost: 550, value: 'scheitel_coach', icon: '📈', description: 'Mini-Taschenrechner für Quadratische Ergänzungen, Nullstellen & Diskriminante – ideal für die Einheiten vom 20.11. bis 11.12.', rarity: 'epic' },
+
+  // --- CALCULATOR GADGETS ---
+  { id: 'calc_gadget_potenz', name: 'Potenz-Modus', type: 'calc_gadget', cost: 350, value: 'potenz', icon: '⚡', description: 'Spezielle Tasten: x², x³, xⁿ, √, ³√, ⁿ√. Potenzgesetze-Shortcuts und wissenschaftliche Schreibweise.', rarity: 'rare' },
+  { id: 'calc_gadget_parabel', name: 'Parabel-Analyzer', type: 'calc_gadget', cost: 450, value: 'parabel', icon: '📊', description: 'Scheitelpunkt aus SPF/AF berechnen, Nullstellen mit pq-Formel, Diskriminante berechnen.', rarity: 'rare' },
+  { id: 'calc_gadget_wurzel', name: 'Wurzel-Profi', type: 'calc_gadget', cost: 400, value: 'wurzel', icon: '√', description: 'Heron-Verfahren Schritt-für-Schritt, n-te Wurzeln berechnen, Wurzel-Potenz-Umrechnung.', rarity: 'rare' },
+
+  // --- FORMELSAMMLUNG ---
+  { id: 'formelsammlung_base', name: 'Formelsammlung (Basis)', type: 'formelsammlung', cost: 0, value: 'base', icon: '📚', description: 'Alle wichtigen Formeln für Potenzen, Wurzeln und quadratische Funktionen.', rarity: 'common' },
+  { id: 'formelsammlung_neon', name: 'Neon-Formelsammlung', type: 'formelsammlung', cost: 300, value: 'neon', icon: '💚', description: 'Glowing-Text, Matrix-Style. Für echte Hacker-Enthusiasten.', rarity: 'rare' },
+  { id: 'formelsammlung_klassik', name: 'Klassik-Formelsammlung', type: 'formelsammlung', cost: 250, value: 'klassik', icon: '📖', description: 'Elegantes LaTeX-Rendering, Buch-Look. Für traditionelle Mathe-Fans.', rarity: 'rare' },
+  { id: 'formelsammlung_minimal', name: 'Minimal-Formelsammlung', type: 'formelsammlung', cost: 200, value: 'minimal', icon: '🎯', description: 'Clean, fokussiert, Dark Mode optimiert. Minimalismus pur.', rarity: 'common' },
+  { id: 'formelsammlung_interaktiv', name: 'Interaktiv-Formelsammlung', type: 'formelsammlung', cost: 500, value: 'interaktiv', icon: '✨', description: 'Klickbare Beispiele, Animationen. Für visuelle Lerner.', rarity: 'epic' }
 ];
 
 export const GEOMETRY_DEFINITIONS: GeometryDefinition[] = [
@@ -199,10 +219,44 @@ export const GEOMETRY_DEFINITIONS: GeometryDefinition[] = [
       { term: 'Zusammengesetzte Körper', definition: 'Ein Haus ist oft ein Quader mit einem Prisma-Dach.', visual: 'M 40,50 H 100 V 90 H 40 Z M 40,50 L 70,20 L 100,50' }
     ],
     visual: 'pythagoras'
+  },
+  {
+    id: 'potenzen',
+    groupId: 'A',
+    title: 'Potenzen & Reelle Zahlen',
+    description: 'Potenzgesetze, Wurzeln, Zahlbereiche und wissenschaftliche Schreibweise.',
+    formula: 'a^n · a^m = a^(n+m) | a^n : a^m = a^(n-m) | (a^n)^m = a^(n·m)',
+    terms: [
+      { term: 'Potenzgesetz 1: Multiplikation', definition: 'Gleiche Basis: Exponenten addieren. a^n · a^m = a^(n+m)', visual: 'M 20,50 H 60 M 80,50 H 120 M 20,50 L 40,30 M 80,50 L 100,30' },
+      { term: 'Potenzgesetz 2: Division', definition: 'Gleiche Basis: Exponenten subtrahieren. a^n : a^m = a^(n-m)', visual: 'M 20,50 H 60 M 80,50 H 120 M 20,50 L 40,70 M 80,50 L 100,70' },
+      { term: 'Potenzgesetz 3: Potenzieren', definition: 'Potenz potenzieren: Exponenten multiplizieren. (a^n)^m = a^(n·m)', visual: 'M 30,30 L 30,70 M 70,30 L 70,70 M 30,50 L 70,50' },
+      { term: 'Negative Exponenten', definition: 'a^(-n) = 1/(a^n). Negativer Exponent bedeutet Kehrwert.', visual: 'M 50,20 L 50,80 M 20,50 L 80,50' },
+      { term: 'Wurzel als Potenz', definition: 'ⁿ√a = a^(1/n). Jede Wurzel ist auch eine Potenz mit rationalem Exponenten.', visual: 'M 20,50 H 80 M 50,30 L 50,70' },
+      { term: 'Zahlbereiche', definition: 'N ⊂ Z ⊂ Q ⊂ R. Irrationale Zahlen I sind in R, aber nicht in Q.', visual: 'M 30,30 A 20,20 0 0,1 30,70 A 20,20 0 0,1 30,30 M 50,20 A 30,30 0 0,1 50,80' },
+      { term: 'Wissenschaftliche Schreibweise', definition: 'Zahl zwischen 1 und 10 mal Zehnerpotenz. z.B. 2,35 · 10⁴ = 23500', visual: 'M 20,50 H 180 M 100,40 L 100,60' }
+    ],
+    visual: 'angles'
+  },
+  {
+    id: 'quadratisch',
+    groupId: 'B',
+    title: 'Quadratische Funktionen',
+    description: 'Parabeln, Scheitelpunktform, allgemeine Form, Nullstellen und quadratische Ergänzung.',
+    formula: 'f(x) = a(x-d)² + e (SPF) | f(x) = ax² + bx + c (AF) | x₁,₂ = -p/2 ± √((p/2)² - q)',
+    terms: [
+      { term: 'Scheitelpunktform', definition: 'f(x) = a(x-d)² + e. Scheitelpunkt direkt ablesbar: S(d|e).', visual: 'M 50,20 L 50,80 M 20,50 L 80,50 M 50,50 L 70,30' },
+      { term: 'Allgemeine Form', definition: 'f(x) = ax² + bx + c. a = Streckfaktor, b und c = Verschiebung.', visual: 'M 20,80 Q 50,20 80,80' },
+      { term: 'Normalparabel', definition: 'f(x) = x². Scheitelpunkt S(0|0), nach oben geöffnet, symmetrisch zur y-Achse.', visual: 'M 20,80 Q 50,20 80,80' },
+      { term: 'Streckung & Stauchung', definition: '|a| > 1 = gestreckt (schmaler), |a| < 1 = gestaucht (breiter). a < 0 = nach unten.', visual: 'M 20,80 Q 50,20 80,80 M 100,80 Q 130,40 160,80' },
+      { term: 'pq-Formel', definition: 'x₁,₂ = -p/2 ± √((p/2)² - q). Für f(x) = x² + px + q = 0.', visual: 'M 50,20 L 50,80 M 20,50 L 80,50' },
+      { term: 'Diskriminante', definition: 'D = (p/2)² - q. D > 0: 2 Lösungen, D = 0: 1 Lösung, D < 0: keine Lösung.', visual: 'M 30,30 A 20,20 0 0,1 30,70 A 20,20 0 0,1 30,30' },
+      { term: 'Quadratische Ergänzung', definition: 'x² + px = (x + p/2)² - (p/2)². Umwandlung AF → SPF.', visual: 'M 20,50 H 80 M 50,20 L 50,80' }
+    ],
+    visual: 'angles'
   }
 ];
 
-export const LEARNING_UNITS: LearningUnit[] = [
+const BASE_LEARNING_UNITS: LearningUnit[] = [
   {
     id: 'u1', group: 'A', category: 'Basics', title: 'Figuren verstehen',
     description: 'Erkennen, beschreiben, ordnen.',
@@ -263,4 +317,10 @@ export const LEARNING_UNITS: LearningUnit[] = [
     definitionId: 'context',
     tasks: []
   }
+];
+
+export const LEARNING_UNITS: LearningUnit[] = [
+  ...BASE_LEARNING_UNITS,
+  ...POTENZEN_LEARNING_UNITS,
+  ...QUADRATISCH_LEARNING_UNITS,
 ];

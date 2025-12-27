@@ -1,5 +1,6 @@
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { FORMELSAMMLUNG_CONTENT } from './services/formelsammlungContent';
 
 // --- Typography & Layout ---
 
@@ -96,11 +97,11 @@ export const CalculatorWidget: React.FC<{ onClose: () => void; skin?: string }> 
 
   // Mobile-first sizing with responsive detection
   const getInitialState = () => {
-    if (typeof window === 'undefined') return { isMobile: false, x: 20, y: 80, w: 320, h: 480 };
+    if (typeof window === 'undefined') return { isMobile: false, x: 360, y: 80, w: 320, h: 480 };
     const mobile = window.innerWidth < 640;
     return {
       isMobile: mobile,
-      x: mobile ? 10 : 20,
+      x: mobile ? 10 : 360, // Rechts neben Formelsammlung (20 + 320 + 20 Abstand)
       y: mobile ? 60 : 80,
       w: mobile ? Math.min(320, window.innerWidth - 20) : 320,
       h: mobile ? 420 : 480
@@ -468,6 +469,282 @@ export const ModalOverlay: React.FC<{ onClose: () => void; children: React.React
         onClick={(e) => e.stopPropagation()}
       >
         {children}
+      </div>
+    </div>
+  );
+};
+
+// --- Formelsammlung Widget ---
+
+export const FormelsammlungWidget: React.FC<{ onClose: () => void; skin?: string }> = ({ onClose, skin = 'base' }) => {
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+
+  // Mobile-first sizing with responsive detection
+  // Position links neben dem Taschenrechner (Taschenrechner ist bei x: 360, y: 80)
+  const getInitialState = () => {
+    if (typeof window === 'undefined') return { isMobile: false, x: 20, y: 80, w: 320, h: 500 };
+    const mobile = window.innerWidth < 640;
+    return {
+      isMobile: mobile,
+      x: mobile ? 10 : 20, // Links
+      y: mobile ? 60 : 80, // Gleiche y-Position wie Taschenrechner
+      w: mobile ? Math.min(300, window.innerWidth - 20) : 320, // Etwas schmaler als Taschenrechner
+      h: mobile ? 450 : 500
+    };
+  };
+
+  const initialState = getInitialState();
+  const [isMobile, setIsMobile] = useState(initialState.isMobile);
+  const [position, setPosition] = useState({ x: initialState.x, y: initialState.y });
+  const [size, setSize] = useState({ w: initialState.w, h: initialState.h });
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 640;
+      setIsMobile(mobile);
+      if (mobile && size.w > window.innerWidth - 20) {
+        setSize({ w: Math.min(340, window.innerWidth - 20), h: 450 });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [size.w]);
+
+  const [interaction, setInteraction] = useState<'idle' | 'dragging' | 'resizing'>('idle');
+  const interactionStartRef = useRef({ x: 0, y: 0, w: 0, h: 0, posX: 0, posY: 0 });
+
+  const MIN_WIDTH = 250;
+  const MIN_HEIGHT = 350;
+  const MAX_WIDTH = typeof window !== 'undefined' ? Math.min(500, window.innerWidth - 20) : 500;
+  const MAX_HEIGHT = 700;
+
+  const startInteraction = (
+    e: React.MouseEvent | React.TouchEvent,
+    type: 'dragging' | 'resizing'
+  ) => {
+    e.stopPropagation();
+    const point = 'touches' in e ? e.touches[0] : e;
+    if ((type === 'dragging' && (e.target as HTMLElement).closest('button'))) return;
+
+    setInteraction(type);
+    interactionStartRef.current = {
+      x: point.clientX,
+      y: point.clientY,
+      w: size.w,
+      h: size.h,
+      posX: position.x,
+      posY: position.y,
+    };
+  };
+
+  useEffect(() => {
+    if (interaction === 'idle') return;
+
+    const handleMove = (e: MouseEvent | TouchEvent) => {
+      const point = 'touches' in e ? e.touches[0] : e;
+      if (!point) return;
+      const start = interactionStartRef.current;
+      const deltaX = point.clientX - start.x;
+      const deltaY = point.clientY - start.y;
+
+      if (interaction === 'dragging') {
+        const newX = start.posX + deltaX;
+        const newY = start.posY + deltaY;
+        const maxX = window.innerWidth - size.w;
+        const maxY = window.innerHeight - size.h;
+        setPosition({
+          x: Math.max(0, Math.min(maxX, newX)),
+          y: Math.max(0, Math.min(maxY, newY))
+        });
+      } else if (interaction === 'resizing') {
+        const newW = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, start.w + deltaX));
+        const newH = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, start.h + deltaY));
+        setSize({ w: newW, h: newH });
+      }
+    };
+
+    const handleEnd = () => {
+      setInteraction('idle');
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('mouseup', handleEnd);
+    window.addEventListener('touchend', handleEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('mouseup', handleEnd);
+      window.removeEventListener('touchend', handleEnd);
+    };
+  }, [interaction, size.w, size.h]);
+
+  const selectedContent = selectedTopic
+    ? FORMELSAMMLUNG_CONTENT.find(c => c.id === selectedTopic)
+    : null;
+
+  const getSkinStyles = () => {
+    switch (skin) {
+      case 'neon':
+        return {
+          container: 'bg-black/90 backdrop-blur-xl border-green-400/60 shadow-[0_0_50px_rgba(34,197,94,0.4)]',
+          header: 'bg-black/60 border-green-700/50 text-green-400 font-mono',
+          section: 'bg-gray-900/80 border-green-500/40 backdrop-blur-sm',
+          formula: 'text-green-300 font-mono',
+          title: 'text-green-400 font-bold',
+          example: 'text-green-200 italic',
+          scrollbar: 'scrollbar-thumb-green-500/50 scrollbar-track-black/30',
+        };
+      case 'klassik':
+        return {
+          container: 'bg-amber-50/95 backdrop-blur-xl border-amber-300/60 shadow-[0_20px_50px_rgba(245,158,11,0.2)]',
+          header: 'bg-gradient-to-r from-amber-200/80 to-orange-200/80 border-amber-300/60 text-amber-900 font-serif',
+          section: 'bg-white/90 border-amber-300/60 shadow-md backdrop-blur-sm',
+          formula: 'text-gray-700 font-serif',
+          title: 'text-amber-800 font-bold',
+          example: 'text-gray-600 italic',
+          scrollbar: 'scrollbar-thumb-amber-400/50 scrollbar-track-amber-100/30',
+        };
+      case 'minimal':
+        return {
+          container: 'bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border-gray-300/60 dark:border-gray-700/60 shadow-[0_20px_50px_rgba(0,0,0,0.1)]',
+          header: 'bg-gray-100/80 dark:bg-gray-800/80 border-gray-300/60 dark:border-gray-700/60 text-gray-900 dark:text-gray-100',
+          section: 'bg-gray-50/90 dark:bg-gray-800/90 border-gray-200/60 dark:border-gray-700/60 backdrop-blur-sm',
+          formula: 'text-gray-800 dark:text-gray-200 font-mono',
+          title: 'text-gray-900 dark:text-gray-100 font-semibold',
+          example: 'text-gray-600 dark:text-gray-400 italic',
+          scrollbar: 'scrollbar-thumb-gray-400/50 scrollbar-track-gray-200/30',
+        };
+      case 'interaktiv':
+        return {
+          container: 'bg-gradient-to-br from-blue-50/95 via-purple-50/95 to-pink-50/95 backdrop-blur-xl border-blue-300/60 shadow-[0_20px_50px_rgba(59,130,246,0.3)]',
+          header: 'bg-gradient-to-r from-blue-200/80 to-purple-200/80 border-blue-400/60 text-purple-900 font-bold',
+          section: 'bg-white/90 border-blue-400/60 shadow-lg hover:shadow-xl transition-shadow backdrop-blur-sm',
+          formula: 'text-blue-700 font-mono',
+          title: 'text-purple-700 font-bold',
+          example: 'text-blue-600 italic',
+          scrollbar: 'scrollbar-thumb-blue-400/50 scrollbar-track-blue-100/30',
+        };
+      default: // base
+        return {
+          container: 'bg-white/90 backdrop-blur-xl border-gray-300/60 shadow-[0_20px_50px_rgba(0,0,0,0.15)]',
+          header: 'bg-gradient-to-r from-slate-100/80 to-slate-200/80 border-slate-300/60 text-slate-700',
+          section: 'bg-gray-50/90 border-gray-300/60 backdrop-blur-sm',
+          formula: 'text-gray-700 font-mono',
+          title: 'text-gray-900 font-bold',
+          example: 'text-gray-600 italic',
+          scrollbar: 'scrollbar-thumb-slate-400/50 scrollbar-track-slate-200/30',
+        };
+    }
+  };
+
+  const styles = getSkinStyles();
+  const scaleFactor = useMemo(() => size.w / MAX_WIDTH, [size.w]);
+
+  const dynamicStyles = useMemo(() => ({
+    headerIconSize: `${Math.max(1.1, 1.5 * scaleFactor)}rem`,
+    headerTitleSize: `${Math.max(0.6, 0.75 * scaleFactor)}rem`,
+    contentFontSize: `${Math.max(0.7, 0.875 * scaleFactor)}rem`,
+    padding: `${Math.max(8, 16 * scaleFactor)}px`,
+  }), [scaleFactor]);
+
+  const formatFormula = (formula: string) => {
+    return formula
+      .replace(/\^(\d+)/g, '<sup>$1</sup>')
+      .replace(/_(\d+)/g, '<sub>$1</sub>')
+      .replace(/\^\(([^)]+)\)/g, '<sup>$1</sup>')
+      .replace(/_\(([^)]+)\)/g, '<sub>$1</sub>');
+  };
+
+  const renderFormula = (formula: { name: string; formula: string; example?: string; explanation?: string }) => {
+    return (
+      <div key={formula.name} className={`p-3 mb-2 rounded-lg border ${styles.section}`}>
+        <div className={`${styles.title} mb-1 text-sm`}>{formula.name}</div>
+        <div className={`${styles.formula} text-base mb-1`} dangerouslySetInnerHTML={{ __html: formatFormula(formula.formula) }} />
+        {formula.example && (
+          <div className={`${styles.example} text-xs mb-1`}>
+            <strong>Beispiel:</strong> {formula.example}
+          </div>
+        )}
+        {formula.explanation && (
+          <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+            {formula.explanation}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div
+      style={{ left: position.x, top: position.y, width: size.w, height: size.h }}
+      className={`fixed z-[160] rounded-[2rem] overflow-hidden border animate-in zoom-in-95 duration-200 flex flex-col ${styles.container}`}
+    >
+      <div
+        onMouseDown={e => startInteraction(e, 'dragging')}
+        onTouchStart={e => startInteraction(e, 'dragging')}
+        style={{ padding: dynamicStyles.padding }}
+        className={`flex justify-between items-center cursor-move select-none border-b shrink-0 ${styles.header}`}
+      >
+        <div className="flex items-center gap-2 pointer-events-none">
+          <span style={{ fontSize: dynamicStyles.headerIconSize }}>
+            {skin === 'neon' ? '💚' : skin === 'klassik' ? '📖' : skin === 'minimal' ? '📚' : skin === 'interaktiv' ? '✨' : '📚'}
+          </span>
+          <span className="font-black uppercase tracking-widest" style={{ fontSize: dynamicStyles.headerTitleSize }}>
+            {skin === 'neon' ? 'NEON FORMELSAMMLUNG' : skin === 'klassik' ? 'KLASSIK FORMELSAMMLUNG' : skin === 'minimal' ? 'MINIMAL FORMELSAMMLUNG' : skin === 'interaktiv' ? 'INTERAKTIV FORMELSAMMLUNG' : 'FORMELSAMMLUNG'}
+          </span>
+        </div>
+        <button onClick={onClose} className="w-6 h-6 flex items-center justify-center bg-black/10 rounded-full hover:bg-rose-500 hover:text-white transition-colors pointer-events-auto">✕</button>
+      </div>
+
+      <div
+        style={{ padding: dynamicStyles.padding, fontSize: dynamicStyles.contentFontSize }}
+        className={`flex-1 overflow-y-auto custom-scrollbar ${styles.scrollbar}`}
+      >
+        {selectedContent ? (
+          <div className="space-y-4">
+            <button
+              onClick={() => setSelectedTopic(null)}
+              className="mb-2 px-3 py-1 text-xs bg-gray-200/80 dark:bg-gray-700/80 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+            >
+              ← Zurück
+            </button>
+            <h2 className={`${styles.title} text-lg mb-4`}>{selectedContent.title}</h2>
+            {selectedContent.sections.map((section, idx) => (
+              <div key={idx} className="mb-4">
+                <h3 className={`${styles.title} text-base mb-2`}>{section.title}</h3>
+                {section.formulas.map(renderFormula)}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <h2 className={`${styles.title} text-lg mb-4`}>Formelsammlung</h2>
+            {FORMELSAMMLUNG_CONTENT.map((content) => (
+              <button
+                key={content.id}
+                onClick={() => setSelectedTopic(content.id)}
+                className={`w-full p-4 rounded-lg border-2 ${styles.section} text-left hover:scale-[1.02] transition-transform cursor-pointer`}
+              >
+                <h3 className={`${styles.title} text-base mb-1`}>{content.title}</h3>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  {content.sections.length} Sektionen, {content.sections.reduce((sum, s) => sum + s.formulas.length, 0)} Formeln
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div
+        onMouseDown={(e) => startInteraction(e, 'resizing')}
+        onTouchStart={(e) => startInteraction(e, 'resizing')}
+        className="absolute bottom-0 right-0 w-8 h-8 cursor-nwse-resize z-50 flex items-end justify-end p-1 opacity-50 hover:opacity-100 touch-none"
+      >
+        <svg viewBox="0 0 10 10" className="w-4 h-4 text-current pointer-events-none">
+          <path d="M 10,10 L 10,0 L 0,10 Z" fill="currentColor" />
+        </svg>
       </div>
     </div>
   );

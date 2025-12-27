@@ -3704,8 +3704,18 @@ export default function App() {
                 addToast("Bounty bereits kassiert!", "info");
             }
         } else if (currentQuest.type === 'pre') {
-          u = await QuestService.completePreQuest(user, currentQuest.unit.id);
-          addToast("Übung abgeschlossen!", "success");
+          const { updatedUser, coinsAwarded } = await QuestService.completePreQuest(
+            user,
+            currentQuest.unit.id,
+            currentQuest.unit.coinsReward || 0
+          );
+          u = updatedUser;
+          if (coinsAwarded > 0) {
+            addToast(`Übung abgeschlossen! +${coinsAwarded} Coins`, "success");
+            triggerCoinAnimation();
+          } else {
+            addToast("Übung abgeschlossen!", "success");
+          }
         }
     }
     setUser(u);
@@ -3867,7 +3877,7 @@ export default function App() {
                 <div className="text-2xl sm:text-3xl bg-slate-100 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center border-2 border-white shadow-sm transition-transform group-hover:scale-110">{user.avatar}</div>
                 <div>
                     <span className="font-black italic uppercase block leading-none">{user.username}</span>
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Level {Math.floor(user.xp / 100) + 1}</span>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Level {Number.isFinite(user.xp) ? Math.floor(user.xp / 100) + 1 : 1}</span>
                 </div>
             </div>
             <div className="flex gap-2 sm:gap-3 items-center">

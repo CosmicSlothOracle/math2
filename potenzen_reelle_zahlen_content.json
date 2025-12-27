@@ -1,0 +1,505 @@
+{
+  "metadata": {
+    "title": "Potenzen und reelle Zahlen",
+    "class": "9",
+    "source": "Diagnosebogen HSG 9 KA 1",
+    "version": "2025-26"
+  },
+  "spickzettel": [
+    {
+      "id": "spick-01",
+      "type": "video",
+      "title": "Video-Lounge",
+      "description": "Lernvideos zum Heron-Verfahren und Potenzgesetzen",
+      "icon": "🎬",
+      "resources": [
+        {
+          "title": "Heron-Verfahren erklärt",
+          "url": "https://youtu.be/hV70xF1b99Q",
+          "source": "Schlau ist wow",
+          "topic": "Näherungsverfahren für irrationale Wurzeln"
+        },
+        {
+          "title": "Potenzen mit ganzzahligen Exponenten",
+          "url": "https://youtu.be/dLBa9hKfD5o",
+          "source": "Cornelsen-Verlag",
+          "topic": "Basis-Potenzgesetze"
+        },
+        {
+          "title": "Potenzen vertiefen",
+          "url": "https://youtu.be/mXcbTUIQCBE",
+          "source": "Cornelsen-Verlag",
+          "topic": "Erweiterte Potenzrechnung"
+        }
+      ]
+    },
+    {
+      "id": "spick-02",
+      "type": "reference",
+      "title": "Regelwerk & Gesetze",
+      "description": "Wichtige Definitionen und Rechenregeln im Überblick",
+      "icon": "📚",
+      "content": {
+        "zahlbereiche": {
+          "title": "Zahlbereiche",
+          "definitions": [
+            {
+              "symbol": "ℕ",
+              "name": "Natürliche Zahlen",
+              "definition": "Alle positiven ganzen Zahlen: 1, 2, 3, 4, ..."
+            },
+            {
+              "symbol": "ℤ",
+              "name": "Ganze Zahlen",
+              "definition": "Alle ganzen Zahlen: ..., -2, -1, 0, 1, 2, ..."
+            },
+            {
+              "symbol": "ℚ",
+              "name": "Rationale Zahlen",
+              "definition": "Alle Zahlen, die als Bruch darstellbar sind: z.B. 3/4, -9/4, 0"
+            },
+            {
+              "symbol": "𝕀",
+              "name": "Irrationale Zahlen",
+              "definition": "Alle reellen Zahlen, die NICHT rational sind: z.B. √2, √3, √5, π"
+            },
+            {
+              "symbol": "ℝ",
+              "name": "Reelle Zahlen",
+              "definition": "Vereinigung von rationalen und irrationalen Zahlen: ℚ ∪ 𝕀"
+            }
+          ]
+        },
+        "potenzgesetze": {
+          "title": "Potenzgesetze",
+          "rules": [
+            {
+              "formula": "a^m · a^n = a^(m+n)",
+              "description": "Gleiche Basis: Exponenten addieren"
+            },
+            {
+              "formula": "a^m : a^n = a^(m-n)",
+              "description": "Gleiche Basis: Exponenten subtrahieren"
+            },
+            {
+              "formula": "(a^m)^n = a^(m·n)",
+              "description": "Potenz potenzieren: Exponenten multiplizieren"
+            },
+            {
+              "formula": "a^(-n) = 1/(a^n)",
+              "description": "Negativer Exponent: Kehrwert"
+            },
+            {
+              "formula": "(a·b)^n = a^n · b^n",
+              "description": "Produkt potenzieren: Faktoren einzeln potenzieren"
+            },
+            {
+              "formula": "(a/b)^n = a^n / b^n",
+              "description": "Quotient potenzieren: Zähler und Nenner einzeln potenzieren"
+            }
+          ]
+        },
+        "wurzelpotenz": {
+          "title": "Wurzeln und Potenzen mit rationalen Exponenten",
+          "rules": [
+            {
+              "formula": "a^(1/n) = ⁿ√a",
+              "description": "n-te Wurzel als Potenz"
+            },
+            {
+              "formula": "a^(m/n) = (ⁿ√a)^m = ⁿ√(a^m)",
+              "description": "Rationaler Exponent"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "quests": [
+    {
+      "id": "quest-01",
+      "title": "Self-Check",
+      "description": "Überprüfe dein Vorwissen: Kannst du alle Grundlagen?",
+      "icon": "✅",
+      "type": "diagnostic",
+      "difficulty": "Einfach",
+      "sourceTasks": [
+        "Selbsteinschätzung: Quadratzahlen bis 20",
+        "Selbsteinschätzung: Kubikzahlen bis 5",
+        "Selbsteinschätzung: Zahlbereiche N, Z, Q, I, R",
+        "Selbsteinschätzung: Irrationalität beweisen",
+        "Selbsteinschätzung: Heron-Verfahren",
+        "Selbsteinschätzung: Potenzen mit ganzzahligen Exponenten",
+        "Selbsteinschätzung: Wurzeln und Potenzen umformen",
+        "Selbsteinschätzung: Wurzelgleichungen lösen",
+        "Selbsteinschätzung: Textaufgaben Potenzen",
+        "Selbsteinschätzung: Wissenschaftliche Schreibweise"
+      ],
+      "coinsReward": 30,
+      "category": "Basics",
+      "keywords": ["selbsteinschätzung", "diagnose", "vorwissen", "checkliste"]
+    },
+    {
+      "id": "quest-02",
+      "title": "Zahlen-Sortierer",
+      "description": "Ordne Zahlen den richtigen Zahlbereichen zu",
+      "icon": "🗂️",
+      "type": "classification",
+      "difficulty": "Mittel",
+      "sourceTask": "Aufgabe 1",
+      "coinsReward": 50,
+      "bounty": 120,
+      "category": "Basics",
+      "keywords": ["zahlbereiche", "n", "z", "q", "i", "r", "zuordnung", "klassifikation"],
+      "taskDescription": "Setze das Zeichen ∈ (Element von) oder ∉ (nicht Element von) ein. Zahlen: 9, -26, √9, 168, √5, 3/4, -9/4, -1/7, 0, -√2, 1,01001... Mengen: N, Z, Q, I, R"
+    }
+  ],
+  "gym": [
+    {
+      "id": "gym-01",
+      "title": "Power-Workout",
+      "description": "Trainiere die Basis-Potenzgesetze bis zur Perfektion",
+      "icon": "⚡",
+      "type": "training",
+      "difficulty": "Mittel",
+      "sourceTasks": ["Aufgabe 5", "Aufgabe 6", "Aufgabe 7", "Aufgabe 8"],
+      "coinsReward": 80,
+      "bounty": 200,
+      "category": "Berechnung",
+      "keywords": ["potenzen", "exponenten", "potenzgesetze", "multiplizieren", "dividieren", "potenzieren"],
+      "taskTypes": [
+        "Potenzen zusammenfassen (a^m · a^n)",
+        "Potenzen dividieren (a^m : a^n)",
+        "Potenz potenzieren ((a^m)^n)",
+        "Negative Exponenten umformen",
+        "Produkte/Quotienten potenzieren"
+      ]
+    },
+    {
+      "id": "gym-02",
+      "title": "Term-Tuner",
+      "description": "Vereinfache komplexe Terme mit Variablen",
+      "icon": "🎛️",
+      "type": "training",
+      "difficulty": "Mittel",
+      "sourceTasks": ["Aufgabe 9", "Aufgabe 10", "Aufgabe 11"],
+      "coinsReward": 90,
+      "bounty": 220,
+      "category": "Transformation",
+      "keywords": ["terme", "vereinfachen", "variablen", "umformen", "algebra"],
+      "taskTypes": [
+        "Terme in Form a^n umformen",
+        "Positive Exponenten schreiben",
+        "Variablen kombinieren"
+      ]
+    },
+    {
+      "id": "gym-03",
+      "title": "Wurzel-Labor",
+      "description": "Experimentiere mit Wurzeln und rationalen Exponenten",
+      "icon": "🧪",
+      "type": "training",
+      "difficulty": "Mittel",
+      "sourceTasks": ["Aufgabe 12", "Aufgabe 13", "Aufgabe 15", "Aufgabe 18", "Aufgabe 19"],
+      "coinsReward": 100,
+      "bounty": 250,
+      "category": "Berechnung",
+      "keywords": ["wurzeln", "rationale exponenten", "n-te wurzel", "umrechnung", "berechnung"],
+      "taskTypes": [
+        "Wurzeln in Potenzschreibweise",
+        "Potenzen als Wurzeln schreiben",
+        "n-te Wurzeln berechnen",
+        "Rationale Exponenten vereinfachen"
+      ]
+    },
+    {
+      "id": "gym-04",
+      "title": "Gleichungsknacker",
+      "description": "Löse Wurzelgleichungen - aber vergiss die Probe nicht!",
+      "icon": "🔓",
+      "type": "training",
+      "difficulty": "Schwer",
+      "sourceTask": "Aufgabe 20",
+      "coinsReward": 120,
+      "bounty": 300,
+      "category": "Berechnung",
+      "keywords": ["wurzelgleichungen", "quadrieren", "probe", "lösungsmenge", "definitionsmenge"],
+      "taskTypes": [
+        "Einfache Wurzelgleichungen (√(ax+b) = c)",
+        "Gleichungen mit zwei Wurzeln",
+        "Probe durchführen"
+      ],
+      "hint": "Wichtig: Nach dem Quadrieren immer eine Probe durchführen! Einige Lösungen können Scheinlösungen sein."
+    }
+  ],
+  "bounties": [
+    {
+      "id": "bounty-01",
+      "title": "Der Beweis",
+      "description": "Beweise mathematisch, dass √3 irrational ist",
+      "icon": "🧠",
+      "type": "proof",
+      "difficulty": "Schwer",
+      "sourceTask": "Aufgabe 2",
+      "bountyReward": 350,
+      "entryFee": 53,
+      "category": "Theorie",
+      "keywords": ["beweis", "irrationalität", "widerspruch", "theorie", "mathematik"],
+      "taskDescription": "Beweise durch Widerspruch, dass √3 keine rationale Zahl ist. Verwende die Annahme √3 = p/q (mit p, q teilerfremd) und zeige, dass dies zu einem Widerspruch führt."
+    },
+    {
+      "id": "bounty-02",
+      "title": "Heron-Verfahren",
+      "description": "Berechne irrationale Wurzeln auf 3 Nachkommastellen genau",
+      "icon": "🔢",
+      "type": "algorithm",
+      "difficulty": "Schwer",
+      "sourceTasks": ["Aufgabe 3", "Aufgabe 4"],
+      "bountyReward": 320,
+      "entryFee": 48,
+      "category": "Berechnung",
+      "keywords": ["heron", "näherungsverfahren", "wurzeln", "iteration", "algorithmus", "√7", "√13"],
+      "taskDescription": "Bestimme √7 und √13 mithilfe des Heron-Verfahrens auf 3 Nachkommastellen genau. Nutze die Iterationsformel: x_(n+1) = (x_n + a/x_n) / 2"
+    },
+    {
+      "id": "bounty-03",
+      "title": "Real World Science",
+      "description": "Anwendungsaufgaben aus Astronomie und Physik",
+      "icon": "🌍",
+      "type": "application",
+      "difficulty": "Schwer",
+      "sourceTasks": ["Aufgabe 21", "Aufgabe 22", "Aufgabe 23", "Aufgabe 24", "Aufgabe 25"],
+      "bountyReward": 380,
+      "entryFee": 57,
+      "category": "Modellierung",
+      "keywords": ["anwendung", "wissenschaft", "zehnerpotenzen", "wissenschaftliche schreibweise", "astronomie", "physik", "volumen", "atommasse"],
+      "taskTypes": [
+        "Volumenvergleiche (Erde/Sonne)",
+        "Teilchenanzahl berechnen",
+        "Dezimalzahlen in wissenschaftlicher Schreibweise",
+        "Wissenschaftliche Schreibweise zurück umwandeln",
+        "Astronomische Entfernungen"
+      ]
+    }
+  ],
+  "learningUnits": [
+    {
+      "id": "u_potenzen_01",
+      "group": "A",
+      "category": "Basics",
+      "title": "Zahlen-Sortierer",
+      "description": "Ordne Zahlen den richtigen Zahlbereichen zu",
+      "detailedInfo": "Lerne, wie die Zahlbereiche N, Z, Q, I und R aufgebaut sind und welche Zahlen wo hineinpassen. Wichtig: Jede Zahl kann in mehreren Mengen enthalten sein!",
+      "examples": [
+        "9 ∈ N, Z, Q, R",
+        "√5 ∈ I, R",
+        "-9/4 ∈ Z, Q, R"
+      ],
+      "difficulty": "Mittel",
+      "coinsReward": 50,
+      "bounty": 120,
+      "keywords": ["zahlbereiche", "n", "z", "q", "i", "r", "zuordnung"],
+      "tasks": [],
+      "bountyTasks": []
+    },
+    {
+      "id": "u_potenzen_02",
+      "group": "B",
+      "category": "Berechnung",
+      "title": "Power-Workout",
+      "description": "Trainiere die Basis-Potenzgesetze",
+      "detailedInfo": "Perfektioniere die grundlegenden Potenzgesetze: Multiplikation, Division, Potenzieren von Potenzen und negative Exponenten. Das ist die Basis für alles Weitere!",
+      "examples": [
+        "2³ · 2⁷ = 2¹⁰",
+        "5⁹ : 5¹² = 5⁻³ = 1/5³",
+        "(4⁻²)⁻⁴ = 4⁸"
+      ],
+      "difficulty": "Mittel",
+      "coinsReward": 80,
+      "bounty": 200,
+      "keywords": ["potenzen", "exponenten", "potenzgesetze", "basis"],
+      "tasks": [],
+      "bountyTasks": []
+    },
+    {
+      "id": "u_potenzen_03",
+      "group": "B",
+      "category": "Transformation",
+      "title": "Term-Tuner",
+      "description": "Vereinfache komplexe Terme mit Variablen",
+      "detailedInfo": "Wende die Potenzgesetze auf Terme mit Variablen an. Lerne, wie man Terme elegant vereinfacht und in die Form a^n bringt.",
+      "examples": [
+        "5⁶ · 2⁶ = (5·2)⁶ = 10⁶",
+        "2x⁻² = 2/x²",
+        "(5b)⁻³ = 1/(125b³)"
+      ],
+      "difficulty": "Mittel",
+      "coinsReward": 90,
+      "bounty": 220,
+      "keywords": ["terme", "vereinfachen", "variablen", "algebra"],
+      "tasks": [],
+      "bountyTasks": []
+    },
+    {
+      "id": "u_potenzen_04",
+      "group": "B",
+      "category": "Berechnung",
+      "title": "Wurzel-Labor",
+      "description": "Wurzeln und Potenzen mit rationalen Exponenten",
+      "detailedInfo": "Verstehe den Zusammenhang zwischen Wurzeln und Potenzen. Jede Wurzel ist auch eine Potenz - lerne, wie man zwischen beiden Darstellungen wechselt!",
+      "examples": [
+        "√a = a^(1/2)",
+        "³√(a²) = a^(2/3)",
+        "a^(1/n) = ⁿ√a"
+      ],
+      "difficulty": "Mittel",
+      "coinsReward": 100,
+      "bounty": 250,
+      "keywords": ["wurzeln", "rationale exponenten", "n-te wurzel", "umrechnung"],
+      "tasks": [],
+      "bountyTasks": []
+    },
+    {
+      "id": "u_potenzen_05",
+      "group": "B",
+      "category": "Berechnung",
+      "title": "Gleichungsknacker",
+      "description": "Löse Wurzelgleichungen sicher",
+      "detailedInfo": "Wurzelgleichungen lösen erfordert Vorsicht! Nach dem Quadrieren können Scheinlösungen entstehen. Die Probe ist nicht optional - sie ist Pflicht!",
+      "examples": [
+        "√(7x + 63) = 7 → x = -2 (mit Probe!)",
+        "√(4x - 8) = √(10x - 56) → x = 8 (mit Probe!)"
+      ],
+      "difficulty": "Schwer",
+      "coinsReward": 120,
+      "bounty": 300,
+      "keywords": ["wurzelgleichungen", "quadrieren", "probe", "lösungsmenge"],
+      "tasks": [],
+      "bountyTasks": []
+    }
+  ],
+  "bountyTasks": [
+    {
+      "unitId": "u_potenzen_proof",
+      "title": "Der Beweis: √3 ist irrational",
+      "description": "Beweise durch Widerspruch, dass √3 keine rationale Zahl ist",
+      "type": "proof",
+      "difficulty": "Schwer",
+      "bountyReward": 350,
+      "entryFee": 53,
+      "tasks": [
+        {
+          "id": "bounty_proof_01",
+          "question": "Beweise, dass √3 irrational ist. Verwende die Widerspruchsannahme: Angenommen, √3 = p/q, wobei p und q teilerfremde ganze Zahlen sind. Zeige den Widerspruch.",
+          "type": "shorttext",
+          "correctAnswer": "widerspruch_gezeigt",
+          "explanation": "Aus √3 = p/q folgt 3 = p²/q², also 3q² = p². Da p² durch 3 teilbar ist, muss auch p durch 3 teilbar sein (p = 3k). Einsetzen: 3q² = 9k², also q² = 3k². Dann ist auch q durch 3 teilbar - Widerspruch zur Teilerfremdheit!",
+          "validator": {
+            "type": "keywordMatch",
+            "requiredKeywords": ["widerspruch", "teilerfremd", "3", "p", "q"],
+            "forbiddenKeywords": []
+          }
+        }
+      ]
+    },
+    {
+      "unitId": "u_potenzen_heron",
+      "title": "Heron-Verfahren: √7 und √13",
+      "description": "Berechne beide Wurzeln auf 3 Nachkommastellen genau",
+      "type": "algorithm",
+      "difficulty": "Schwer",
+      "bountyReward": 320,
+      "entryFee": 48,
+      "tasks": [
+        {
+          "id": "bounty_heron_01",
+          "question": "Bestimme √7 mithilfe des Heron-Verfahrens auf 3 Nachkommastellen genau. Startwert: x₀ = 2. Führe mindestens 3 Iterationen durch.",
+          "type": "input",
+          "correctAnswer": "2.646",
+          "explanation": "x₁ = (2 + 7/2)/2 = 2.75, x₂ = (2.75 + 7/2.75)/2 ≈ 2.648, x₃ = (2.648 + 7/2.648)/2 ≈ 2.646. Nach 3-4 Iterationen erhältst du √7 ≈ 2.646.",
+          "validator": {
+            "type": "numericTolerance",
+            "numericAnswer": 2.646,
+            "tolerance": 0.001
+          }
+        },
+        {
+          "id": "bounty_heron_02",
+          "question": "Bestimme √13 mithilfe des Heron-Verfahrens auf 3 Nachkommastellen genau. Startwert: x₀ = 3. Führe mindestens 3 Iterationen durch.",
+          "type": "input",
+          "correctAnswer": "3.606",
+          "explanation": "x₁ = (3 + 13/3)/2 = 3.667, x₂ = (3.667 + 13/3.667)/2 ≈ 3.606, x₃ = (3.606 + 13/3.606)/2 ≈ 3.606. Nach 3-4 Iterationen erhältst du √13 ≈ 3.606.",
+          "validator": {
+            "type": "numericTolerance",
+            "numericAnswer": 3.606,
+            "tolerance": 0.001
+          }
+        }
+      ]
+    },
+    {
+      "unitId": "u_potenzen_science",
+      "title": "Real World Science",
+      "description": "Anwendungsaufgaben aus Astronomie und Physik",
+      "type": "application",
+      "difficulty": "Schwer",
+      "bountyReward": 380,
+      "entryFee": 57,
+      "tasks": [
+        {
+          "id": "bounty_science_01",
+          "question": "Das Volumen der Erde beträgt etwa 1,41 · 10¹⁸ km³, das Volumen der Sonne etwa 1,08 · 10²¹ m³. Wie viele Erden passen in die Sonne? (Gib das Ergebnis als ganze Zahl an)",
+          "type": "input",
+          "correctAnswer": "1305556",
+          "explanation": "Zuerst Einheiten angleichen: 1,41 · 10¹⁸ km³ = 1,41 · 10²⁷ m³. Dann: (1,41 · 10²⁷) / (1,08 · 10²¹) ≈ 1.305.556 Erden passen in die Sonne.",
+          "validator": {
+            "type": "numericTolerance",
+            "numericAnswer": 1305556,
+            "tolerance": 10000
+          }
+        },
+        {
+          "id": "bounty_science_02",
+          "question": "Ein Kohlenstoffatom wiegt etwa 2 · 10⁻²⁷ g. Wie viele Kohlenstoffatome befinden sich in 6 g Kohle? (Gib das Ergebnis in wissenschaftlicher Schreibweise an, z.B. 3 · 10²⁷)",
+          "type": "input",
+          "correctAnswer": "3 · 10²⁷",
+          "explanation": "Anzahl = 6 g / (2 · 10⁻²⁷ g) = 3 · 10²⁷. Es befinden sich also 3 · 10²⁷ Kohlenstoffatome in 6 g Kohle.",
+          "validator": {
+            "type": "keywordMatch",
+            "requiredKeywords": ["3", "10", "27"],
+            "caseSensitive": false
+          }
+        },
+        {
+          "id": "bounty_science_03",
+          "question": "Schreibe in wissenschaftlicher Schreibweise: 0,000025; -8500; 0,0009; 851,09",
+          "type": "multiInput",
+          "correctAnswers": ["2,5 · 10⁻⁵", "-8,5 · 10³", "9 · 10⁻⁴", "8,5109 · 10²"],
+          "explanation": "Wissenschaftliche Schreibweise: Eine Zahl zwischen 1 und 10 (oder -10 und -1) multipliziert mit einer Zehnerpotenz.",
+          "multiInputFields": [
+            {
+              "label": "0,000025",
+              "placeholder": "z.B. 2,5 · 10⁻⁵",
+              "validator": { "type": "keywordMatch", "requiredKeywords": ["2", "5", "10", "-5"] }
+            },
+            {
+              "label": "-8500",
+              "placeholder": "z.B. -8,5 · 10³",
+              "validator": { "type": "keywordMatch", "requiredKeywords": ["-8", "5", "10", "3"] }
+            },
+            {
+              "label": "0,0009",
+              "placeholder": "z.B. 9 · 10⁻⁴",
+              "validator": { "type": "keywordMatch", "requiredKeywords": ["9", "10", "-4"] }
+            },
+            {
+              "label": "851,09",
+              "placeholder": "z.B. 8,5109 · 10²",
+              "validator": { "type": "keywordMatch", "requiredKeywords": ["8", "5109", "10", "2"] }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

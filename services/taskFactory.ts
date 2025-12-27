@@ -1,5 +1,5 @@
 
-import { SupportVisual, Task } from '../types';
+import { PreTask, SupportVisual, Task } from '../types';
 import { getBountyTasks } from './bountyCatalog';
 import {
   createTrigonometrieQuest,
@@ -10,6 +10,23 @@ import {
   createVieleckQuest,
   createDreidQuest,
 } from './geometrieMundoQuests';
+import {
+  createPotenzgesetzeQuest,
+  createTermTunerQuest,
+  createWurzelLaborQuest,
+  createGleichungsknackerQuest,
+} from './potenzenQuests';
+import {
+  createParabelBasicsQuest,
+  createScheitelpunktQuest,
+  createStreckungQuest,
+  createFormTransformQuest,
+  createNullstellenQuest,
+  createAnwendungQuest,
+} from './quadratischQuests';
+import { POTENZEN_LEARNING_UNITS } from './potenzenLearningUnits';
+import { QUADRATISCH_LEARNING_UNITS } from './quadratischLearningUnits';
+import { getSegmentForUnit } from './segments';
 
 const getRandomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -22,6 +39,66 @@ const shuffleArray = <T>(array: T[]): T[] => {
   }
   return newArr;
 };
+
+const normalizePreTaskAnswer = (answer: PreTask['correctAnswer']): string => {
+  if (typeof answer === 'number') {
+    return answer.toString();
+  }
+  if (typeof answer === 'string') {
+    return answer;
+  }
+  try {
+    return JSON.stringify(answer);
+  } catch {
+    return '';
+  }
+};
+
+const convertPreTaskToTask = (unitId: string, preTask: PreTask, index: number): Task => {
+  const taskId = preTask.id ? `${unitId}-pre-${preTask.id}` : `${unitId}-pre-${index}`;
+  const question = preTask.title || 'Voraufgabe';
+  const instructions = preTask.description || '';
+  const explanation = preTask.explanation || 'Super gemacht!';
+
+  if (preTask.uiType === 'dragDrop' && preTask.meta?.dragDropData) {
+    return {
+      id: taskId,
+      type: 'dragDrop',
+      question,
+      instructions,
+      dragDropData: preTask.meta.dragDropData,
+      correctAnswer: normalizePreTaskAnswer(preTask.correctAnswer),
+      explanation,
+    };
+  }
+
+  return {
+    id: taskId,
+    type: 'choice',
+    question,
+    instructions,
+    options: ['Bereit!', "Los geht's!"],
+    correctAnswer: 0,
+    explanation,
+  };
+};
+
+const PRETASKS_BY_UNIT: Record<string, PreTask[]> = (() => {
+  const map: Record<string, PreTask[]> = {};
+
+  const registerPreTasks = (units: Array<{ id: string; preTasks?: PreTask[] }>) => {
+    units.forEach(unit => {
+      if (unit.preTasks && unit.preTasks.length > 0) {
+        map[unit.id] = unit.preTasks;
+      }
+    });
+  };
+
+  registerPreTasks(POTENZEN_LEARNING_UNITS);
+  registerPreTasks(QUADRATISCH_LEARNING_UNITS);
+
+  return map;
+})();
 
 type AngleLineSpec = {
   x1: number;
@@ -363,20 +440,53 @@ const createRightTriangleSupportVisual = (alpha: number): SupportVisual => {
 export const TaskFactory = {
   // === NEUE API (für Kompatibilität mit neuem Hauptprojekt) ===
   getTasksForUnit(unitId: string, type: 'pre' | 'standard' | 'bounty'): Task[] {
-    const seed = Date.now();
     switch (type) {
       case 'pre':
-        // PreTasks aus segments.ts kommen später, erstmal leer
-        return [];
+        return this.generatePreTasks(unitId);
       case 'standard':
+        {
+          const seed = Date.now();
         // Standard-Aufgaben aus dem Task-Pool
         return this.generateTasks(unitId, 5);
+        }
       case 'bounty':
-        const bountyTasks = getBountyTasks(unitId);
+        {
+          const bountyTasks = getBountyTasks(unitId);
         return bountyTasks.length > 0 ? bountyTasks : [this.generateBountyTask(unitId)];
+        }
       default:
         return [];
     }
+  },
+
+  generatePreTasks(unitId: string): Task[] {
+    const learningUnitPreTasks = PRETASKS_BY_UNIT[unitId] || [];
+    const segmentPreTasks = getSegmentForUnit(unitId)?.preTasks || [];
+    const allPreTasks = [...learningUnitPreTasks, ...segmentPreTasks];
+
+    console.log(`[TaskFactory] generatePreTasks for ${unitId}:`, {
+      learningUnitPreTasks: learningUnitPreTasks.length,
+      segmentPreTasks: segmentPreTasks.length,
+      total: allPreTasks.length,
+      registeredUnits: Object.keys(PRETASKS_BY_UNIT)
+    });
+
+    if (allPreTasks.length === 0) {
+      console.warn(`[TaskFactory] No PreTasks found for unit ${unitId}. Available units:`, Object.keys(PRETASKS_BY_UNIT));
+      return [];
+    }
+
+    const tasks = allPreTasks.map((preTask, idx) => {
+      try {
+        return convertPreTaskToTask(unitId, preTask, idx);
+      } catch (error) {
+        console.error(`[TaskFactory] Error converting PreTask ${idx} for unit ${unitId}:`, error, preTask);
+        throw error;
+      }
+    });
+
+    console.log(`[TaskFactory] Generated ${tasks.length} tasks from PreTasks for ${unitId}`);
+    return tasks;
   },
 
   // === ALTE API (behält alle vorhandenen Aufgaben) ===
@@ -489,6 +599,23 @@ export const TaskFactory = {
         ...Array.from({ length: 4 }, (_, i) => createTrigonometrieQuest(i * 2 + 1, seed)),
         ...Array.from({ length: 3 }, (_, i) => createPythagorasQuest(i, seed)),
       ];
+      // Potenzen & Reelle Zahlen
+      case 'u_potenzen_01': return []; // Zahlen-Sortierer: PreTask (Drag-Drop)
+      case 'u_potenzen_02': return Array.from({ length: 6 }, (_, i) => createPotenzgesetzeQuest(i, seed));
+      case 'u_potenzen_03': return Array.from({ length: 4 }, (_, i) => createTermTunerQuest(i, seed));
+      case 'u_potenzen_04': return Array.from({ length: 4 }, (_, i) => createWurzelLaborQuest(i, seed));
+      case 'u_potenzen_05': return Array.from({ length: 4 }, (_, i) => createGleichungsknackerQuest(i, seed));
+      case 'u_potenzen_bounty_proof':
+      case 'u_potenzen_bounty_heron':
+      case 'u_potenzen_bounty_science': return []; // Bounty-only units
+      // Quadratische Funktionen
+      case 'u_quadratisch_01': return Array.from({ length: 4 }, (_, i) => createParabelBasicsQuest(i, seed));
+      case 'u_quadratisch_02': return Array.from({ length: 5 }, (_, i) => createScheitelpunktQuest(i, seed));
+      case 'u_quadratisch_03': return Array.from({ length: 4 }, (_, i) => createStreckungQuest(i, seed));
+      case 'u_quadratisch_04': return Array.from({ length: 3 }, (_, i) => createFormTransformQuest(i, seed));
+      case 'u_quadratisch_05': return Array.from({ length: 3 }, (_, i) => createFormTransformQuest(i + 3, seed)); // Mehr Umwandlungsaufgaben
+      case 'u_quadratisch_06': return Array.from({ length: 4 }, (_, i) => createNullstellenQuest(i, seed));
+      case 'u_quadratisch_07': return []; // Bounty-only unit
       default: return [];
     }
   },
@@ -634,7 +761,7 @@ export const TaskFactory = {
         ]
       },
       {
-        q: "Die markierte Wandfläche für das Graffiti. Welche Form soll hier gefüllt werden?",
+        q: "Die markierte Wandfläche für das Graffiti. Welche Form soll hier gefüllt werden? (Tipp: Prüfe die Winkel - alle vier Winkel sind 90°.)",
         ans: 'rect',
         expl: 'Die Fläche hat vier rechte Winkel. Es ist ein Rechteck. Auch wenn die Wand schräg gezeichnet ist, sind alle vier Winkel 90°.',
         context: 'Geometrische Formen in der Realität: Eine Wandfläche für Graffiti.',

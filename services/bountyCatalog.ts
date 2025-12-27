@@ -8,6 +8,12 @@ import {
   VIELEcke_BOUNTIES,
   DREID_BOUNTIES,
 } from './geometrieMundoBounties';
+import {
+  BEWEIS_BOUNTIES,
+  HERON_BOUNTIES,
+  SCIENCE_BOUNTIES,
+} from './potenzenBounties';
+import { QUADRATISCH_BOUNTIES } from './quadratischBounties';
 
 type UnitId = 'u1' | 'u2' | 'u3' | 'u4' | 'u5' | 'u6';
 
@@ -569,6 +575,23 @@ function cloneTask(task: Task): Task {
 }
 
 export function getBountyTasks(unitId: string): Task[] {
+  // Potenzen-Bounties (separate Unit-IDs)
+  if (unitId === 'u_potenzen_bounty_proof') {
+    return BEWEIS_BOUNTIES;
+  }
+  if (unitId === 'u_potenzen_bounty_heron') {
+    return [...HERON_BOUNTIES, ...SCIENCE_BOUNTIES.slice(0, 1)]; // 3 Tasks: √7, √13, + 1 Science
+  }
+  if (unitId === 'u_potenzen_bounty_science') {
+    return SCIENCE_BOUNTIES;
+  }
+
+  // Quadratische Funktionen-Bounties
+  if (unitId === 'u_quadratisch_07') {
+    return QUADRATISCH_BOUNTIES;
+  }
+
+  // Geometrie-Bounties (bestehende Units)
   const bounties = COMBINED_BOUNTIES[unitId as UnitId] || BASE_BOUNTIES[unitId as UnitId];
   if (!bounties) {
     return [];

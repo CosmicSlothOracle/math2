@@ -78,6 +78,8 @@ function normalizeUser(serverUser: any): User {
       ensureArray(serverUser.perfect_bounty_units, [])
     ),
     unlockedItems: [...new Set(unlockedRaw)],
+    unlockedTools: ensureArray(serverUser.unlockedTools, ensureArray(serverUser.unlocked_tools, [])),
+    calculatorGadgets: ensureArray(serverUser.calculatorGadgets, ensureArray(serverUser.calculator_gadgets, [])),
     activeEffects: ensureArray(serverUser.activeEffects, ensureArray(serverUser.active_effects, [])),
     solvedQuestionIds: Array.isArray(serverUser.solvedQuestionIds) ? serverUser.solvedQuestionIds : [],
     questCoinsEarnedByUnit: serverUser.questCoinsEarnedByUnit || {},
@@ -85,6 +87,7 @@ function normalizeUser(serverUser: any): User {
     username: serverUser.username || serverUser.display_name || 'User',
     avatar: serverUser.avatar || '👤',
     calculatorSkin: serverUser.calculatorSkin || serverUser.calculator_skin || 'default',
+    formelsammlungSkin: serverUser.formelsammlungSkin || serverUser.formelsammlung_skin || 'base',
   };
 }
 
@@ -128,6 +131,9 @@ export const AuthService = {
           perfectStandardQuizUnits: [],
           perfectBountyUnits: [],
           unlockedItems: ['av_1', 'calc_default'],
+          unlockedTools: [],
+          calculatorGadgets: [],
+          formelsammlungSkin: 'base',
           activeEffects: [],
           calculatorSkin: 'default',
           xp: 0,
@@ -175,6 +181,9 @@ export const AuthService = {
         perfectStandardQuizUnits: [],
         perfectBountyUnits: [],
         unlockedItems: ['av_1', 'calc_default'],
+        unlockedTools: [],
+        calculatorGadgets: [],
+        formelsammlungSkin: 'base',
         activeEffects: [],
         calculatorSkin: 'default',
         xp: 0,
@@ -216,11 +225,14 @@ export const DataService = {
           calculatorSkin: user.calculatorSkin,
           activeEffects: user.activeEffects,
           unlockedItems: user.unlockedItems,
+          unlockedTools: user.unlockedTools,
+          calculatorGadgets: user.calculatorGadgets,
           completedUnits: user.completedUnits,
           masteredUnits: user.masteredUnits,
           preClearedUnits: user.preClearedUnits,
           perfectStandardQuizUnits: user.perfectStandardQuizUnits,
           perfectBountyUnits: user.perfectBountyUnits,
+          formelsammlungSkin: user.formelsammlungSkin,
         }),
       });
 
@@ -252,6 +264,52 @@ export const SocialService = {
   async getLeaderboard(): Promise<User[]> {
     // Leaderboard is local-only for now
     return (db.get('mm_users') || []).sort((a: User, b: User) => b.xp - a.xp);
+  },
+
+  async getAllUsers(): Promise<User[]> {
+    try {
+      const headers = getApiHeaders();
+      const resp = await fetch('/.netlify/functions/usersList', { headers });
+
+      persistAnonId(resp);
+
+      if (!resp.ok) throw new Error('non-ok');
+      const json = await resp.json();
+
+      if (json && Array.isArray(json.users)) {
+        return json.users.map((u: any) => {
+          // Calculate XP from completed units (rough estimate: 100 XP per unit)
+          const completedUnits = u.completed_units || [];
+          const masteredUnits = u.mastered_units || [];
+          const perfectBountyUnits = u.perfect_bounty_units || [];
+          const xp = (completedUnits.length * 100) + (masteredUnits.length * 150) + (perfectBountyUnits.length * 200);
+
+          return {
+            id: u.id,
+            username: u.display_name || 'Anonym',
+            avatar: u.avatar || '👤',
+            coins: typeof u.coins === 'number' ? u.coins : 0,
+            totalEarned: u.coins || 0, // Approximate
+            completedUnits: completedUnits || [],
+            masteredUnits: masteredUnits || [],
+            preClearedUnits: u.pre_cleared_units || [],
+            unlockedItems: u.unlocked_items || [],
+            activeEffects: u.active_effects || [],
+            calculatorSkin: u.calculator_skin || 'default',
+            xp,
+            solvedQuestionIds: [],
+            // Battle stats
+            battleStats: u.battle_stats || { total: 0, wins: 0, win_rate: 0 },
+            perfectBountyUnits: perfectBountyUnits || [],
+          } as User & { battleStats: { total: number; wins: number; win_rate: number } };
+        });
+      }
+    } catch (err) {
+      console.warn('[getAllUsers] Error:', err);
+      // Fallback to empty array
+      return [];
+    }
+    return [];
   },
 
   async getChatMessages(channelId: string = 'class:global', since?: number): Promise<ChatMessage[]> {

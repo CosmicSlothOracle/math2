@@ -383,24 +383,38 @@ export const QuestService = {
     return { updatedUser, coinsAwarded };
   },
 
-  completePreQuest: async (user: User, unitId: string): Promise<User> => {
+  completePreQuest: async (user: User, unitId: string, reward: number = 0): Promise<{ updatedUser: User; coinsAwarded: number }> => {
     const preCleared = user.preClearedUnits || [];
-    const updatedUser: User = {
+    let workingUser: User = {
       ...user,
       preClearedUnits: [...new Set([...preCleared, unitId])],
     };
-    await DataService.updateUser(updatedUser);
+
+    let coinsAwarded = 0;
+    if (reward > 0) {
+      const { user: rewardedUser, applied } = await applyQuestCoinsDelta(
+        workingUser,
+        unitId,
+        reward,
+        'standard'
+      );
+      workingUser = rewardedUser;
+      coinsAwarded = applied;
+    } else {
+      await DataService.updateUser(workingUser);
+    }
+
     try {
       const resp = await fetch('/.netlify/functions/progressSave', {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify({
           unitId,
-          questCoinsEarned: updatedUser.questCoinsEarnedByUnit?.[unitId] || 0,
+          questCoinsEarned: workingUser.questCoinsEarnedByUnit?.[unitId] || 0,
           questCompletedCount: 0,
           bountyCompleted: false,
-          perfectStandardQuiz: (updatedUser.perfectStandardQuizUnits || []).includes(unitId),
-          perfectBounty: (updatedUser.perfectBountyUnits || []).includes(unitId)
+          perfectStandardQuiz: (workingUser.perfectStandardQuizUnits || []).includes(unitId),
+          perfectBounty: (workingUser.perfectBountyUnits || []).includes(unitId)
         }),
       });
       processResponseHeaders(resp);
@@ -419,7 +433,7 @@ export const QuestService = {
     } catch (e) {
       console.warn('progressSave failed', e);
     }
-    return updatedUser;
+    return { updatedUser: workingUser, coinsAwarded };
   },
 
   startBountyAttempt: async (user: User, unitId: string, entryFee: number): Promise<User> => {

@@ -591,8 +591,8 @@ export const FormelsammlungWidget: React.FC<{ onClose: () => void; skin?: string
           container: 'bg-black/90 backdrop-blur-xl border-green-400/60 shadow-[0_0_50px_rgba(34,197,94,0.4)]',
           header: 'bg-black/60 border-green-700/50 text-green-400 font-mono',
           section: 'bg-gray-900/80 border-green-500/40 backdrop-blur-sm',
-          formula: 'text-green-300 font-mono',
-          title: 'text-green-400 font-bold',
+          formula: 'text-green-300 font-mono [text-shadow:0_0_8px_rgba(34,197,94,0.6)]',
+          title: 'text-green-400 font-bold [text-shadow:0_0_10px_rgba(34,197,94,0.8)]',
           example: 'text-green-200 italic',
           scrollbar: 'scrollbar-thumb-green-500/50 scrollbar-track-black/30',
         };
@@ -601,9 +601,9 @@ export const FormelsammlungWidget: React.FC<{ onClose: () => void; skin?: string
           container: 'bg-amber-50/95 backdrop-blur-xl border-amber-300/60 shadow-[0_20px_50px_rgba(245,158,11,0.2)]',
           header: 'bg-gradient-to-r from-amber-200/80 to-orange-200/80 border-amber-300/60 text-amber-900 font-serif',
           section: 'bg-white/90 border-amber-300/60 shadow-md backdrop-blur-sm',
-          formula: 'text-gray-700 font-serif',
-          title: 'text-amber-800 font-bold',
-          example: 'text-gray-600 italic',
+          formula: 'text-gray-700 font-serif text-lg leading-relaxed',
+          title: 'text-amber-800 font-bold font-serif',
+          example: 'text-gray-600 italic font-serif',
           scrollbar: 'scrollbar-thumb-amber-400/50 scrollbar-track-amber-100/30',
         };
       case 'minimal':
@@ -620,10 +620,10 @@ export const FormelsammlungWidget: React.FC<{ onClose: () => void; skin?: string
         return {
           container: 'bg-gradient-to-br from-blue-50/95 via-purple-50/95 to-pink-50/95 backdrop-blur-xl border-blue-300/60 shadow-[0_20px_50px_rgba(59,130,246,0.3)]',
           header: 'bg-gradient-to-r from-blue-200/80 to-purple-200/80 border-blue-400/60 text-purple-900 font-bold',
-          section: 'bg-white/90 border-blue-400/60 shadow-lg hover:shadow-xl transition-shadow backdrop-blur-sm',
-          formula: 'text-blue-700 font-mono',
-          title: 'text-purple-700 font-bold',
-          example: 'text-blue-600 italic',
+          section: 'bg-white/90 border-blue-400/60 shadow-lg hover:shadow-xl transition-all duration-300 backdrop-blur-sm',
+          formula: 'text-blue-700 font-mono transition-all duration-200',
+          title: 'text-purple-700 font-bold transition-all duration-200',
+          example: 'text-blue-600 italic transition-all duration-200',
           scrollbar: 'scrollbar-thumb-blue-400/50 scrollbar-track-blue-100/30',
         };
       default: // base
@@ -649,26 +649,103 @@ export const FormelsammlungWidget: React.FC<{ onClose: () => void; skin?: string
     padding: `${Math.max(8, 16 * scaleFactor)}px`,
   }), [scaleFactor]);
 
-  const formatFormula = (formula: string) => {
-    return formula
+  const formatFormula = (formula: string, skinType: string) => {
+    // Zuerst komplexe Strukturen formatieren (mit Klammern)
+    let formatted = formula
+      // Potenzen mit Klammern zuerst
+      .replace(/\^\(([^)]+)\)/g, '<sup>$1</sup>')
+      .replace(/_\(([^)]+)\)/g, '<sub>$1</sub>')
+      // Dann einfache Potenzen/Indizes
       .replace(/\^(\d+)/g, '<sup>$1</sup>')
       .replace(/_(\d+)/g, '<sub>$1</sub>')
-      .replace(/\^\(([^)]+)\)/g, '<sup>$1</sup>')
-      .replace(/_\(([^)]+)\)/g, '<sub>$1</sub>');
+      // n-te Wurzeln
+      .replace(/(\d+)√/g, '<sup>$1</sup>√')
+      // Multiplikationspunkte besser sichtbar machen
+      .replace(/·/g, ' <span style="opacity: 0.8;">·</span> ')
+      // Gleichheitszeichen und Pfeile mit Leerzeichen (aber nicht doppelt)
+      .replace(/([^→])(→)([^→])/g, '$1 → $3')
+      .replace(/([^±])(±)([^±])/g, '$1 ± $3')
+      .replace(/([^≈])(≈)([^≈])/g, '$1 ≈ $3')
+      // Operatoren mit Leerzeichen
+      .replace(/([≠≤≥])/g, ' $1 ');
+
+    // Für klassik-Skin: zusätzliche Formatierung für besseres LaTeX-Rendering
+    // Variablen kursiv setzen (aber nicht in HTML-Tags und nicht bereits formatiert)
+    if (skinType === 'klassik') {
+      // Setze einzelne lateinische Buchstaben kursiv (nicht in Tags und nicht bereits formatiert)
+      formatted = formatted.replace(/\b([a-z])\b(?![^<]*>)/gi, '<span style="font-style: italic;">$1</span>');
+      // Korrigiere doppelte Ersetzungen innerhalb von Tags
+      formatted = formatted.replace(/<span style="font-style: italic;">(<[^>]+>)<\/span>/g, '$1');
+    }
+
+    // Für neon-Skin: Glow-Effekte für Exponenten
+    if (skinType === 'neon') {
+      formatted = formatted.replace(
+        /<sup>([^<]+)<\/sup>/g,
+        '<sup style="text-shadow: 0 0 8px currentColor, 0 0 12px currentColor;">$1</sup>'
+      );
+    }
+
+    return formatted;
   };
 
+  const [expandedExamples, setExpandedExamples] = useState<Set<string>>(new Set());
+
   const renderFormula = (formula: { name: string; formula: string; example?: string; explanation?: string }) => {
+    const isExpanded = expandedExamples.has(formula.name);
+
     return (
-      <div key={formula.name} className={`p-3 mb-2 rounded-lg border ${styles.section}`}>
-        <div className={`${styles.title} mb-1 text-sm`}>{formula.name}</div>
-        <div className={`${styles.formula} text-base mb-1`} dangerouslySetInnerHTML={{ __html: formatFormula(formula.formula) }} />
+      <div
+        key={formula.name}
+        className={`p-3 mb-2 rounded-lg border ${styles.section} ${
+          skin === 'interaktiv' ? 'transition-all duration-300 hover:scale-[1.02] hover:shadow-lg' : ''
+        }`}
+      >
+        <div className={`${styles.title} mb-1 text-sm ${skin === 'interaktiv' ? 'hover:scale-105 transition-transform' : ''}`}>
+          {formula.name}
+        </div>
+        <div
+          className={`${styles.formula} text-base mb-1 ${
+            skin === 'neon' ? 'drop-shadow-[0_0_4px_rgba(34,197,94,0.8)]' : ''
+          } ${skin === 'klassik' ? 'tracking-wide leading-relaxed' : ''}`}
+          dangerouslySetInnerHTML={{ __html: formatFormula(formula.formula, skin) }}
+        />
         {formula.example && (
           <div className={`${styles.example} text-xs mb-1`}>
-            <strong>Beispiel:</strong> {formula.example}
+            {skin === 'interaktiv' ? (
+              <div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newSet = new Set(expandedExamples);
+                    if (isExpanded) {
+                      newSet.delete(formula.name);
+                    } else {
+                      newSet.add(formula.name);
+                    }
+                    setExpandedExamples(newSet);
+                  }}
+                  className="font-semibold hover:underline text-blue-600 dark:text-blue-400 transition-all"
+                >
+                  {isExpanded ? '▼ Beispiel:' : '▶ Beispiel:'}
+                </button>
+                {isExpanded && (
+                  <div className="mt-1 pl-4 border-l-2 border-blue-300 animate-in fade-in duration-300">
+                    {formula.example}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <strong>Beispiel:</strong> {formula.example}
+              </>
+            )}
           </div>
         )}
         {formula.explanation && (
-          <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+          <div className={`text-xs text-gray-600 dark:text-gray-400 mt-1 ${
+            skin === 'interaktiv' ? 'transition-opacity hover:opacity-100 opacity-80' : ''
+          }`}>
             {formula.explanation}
           </div>
         )}

@@ -465,10 +465,11 @@ export function createNullstellenQuest(index: number, seed: number): Task {
 /**
  * ANWENDUNG: Textaufgaben mit quadratischen Funktionen
  * Wurfparabeln, Optimierungsprobleme, etc.
+ * Erweitert basierend auf: Lern_kanon 2025-12-09, 2025-12-11
  */
 export function createAnwendungQuest(index: number, seed: number): Task {
   const id = `quadratisch-anwendung-${index}-${seed}`;
-  const scenarioIndex = index % 3;
+  const scenarioIndex = index % 5; // Erweitert von 3 auf 5
 
   let question: string;
   let answer: string;
@@ -513,7 +514,7 @@ export function createAnwendungQuest(index: number, seed: number): Task {
       };
       break;
     }
-    default: {
+    case 3: {
       // Brückenbogen - Scheitelpunkt
       const spannweite = getRandomInt(20, 40);
       const höhe = getRandomInt(5, 15);
@@ -527,6 +528,25 @@ export function createAnwendungQuest(index: number, seed: number): Task {
         type: 'coordinatePair',
         coordinateAnswer: { x: d, y: höhe },
         coordinateTolerance: 0.5,
+      };
+      break;
+    }
+    default: {
+      // Parabel durch drei Punkte - Scheitelpunktform finden
+      const d = getRandomInt(-3, 3);
+      const e = getRandomInt(-3, 3);
+      const a = 1; // Vereinfacht
+      // Parabel durch (0, y0), (d, e), (2d, y2)
+      const y0 = a * d * d + e;
+      question = `Eine Parabel verläuft durch die Punkte (0|${y0.toFixed(0)}), (${d}|${e}) und (${2 * d}|${y0.toFixed(0)}). Der Scheitelpunkt liegt bei S(${d}|${e}). Gib die Scheitelpunktform an. Format: f(x) = (x-d)²+e`;
+      const dSign = d >= 0 ? '-' : '+';
+      const eSign = e >= 0 ? '+' : '-';
+      answer = `f(x) = (x ${dSign} ${Math.abs(d)})² ${eSign} ${Math.abs(e)}`;
+      explanation = `Da der Scheitelpunkt S(${d}|${e}) ist, lautet die Scheitelpunktform: f(x) = (x ${dSign} ${Math.abs(d)})² ${eSign} ${Math.abs(e)}.`;
+      validator = {
+        type: 'keywords',
+        keywordsAll: [String(d), String(e)],
+        keywordsAny: ['(', ')', '²'],
       };
       break;
     }

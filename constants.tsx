@@ -121,7 +121,7 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'calc_gadget_wurzel', name: 'Wurzel-Profi', type: 'calc_gadget', cost: 400, value: 'wurzel', icon: '√', description: 'Heron-Verfahren Schritt-für-Schritt, n-te Wurzeln berechnen, Wurzel-Potenz-Umrechnung.', rarity: 'rare' },
 
   // --- FORMELSAMMLUNG ---
-  { id: 'formelsammlung_base', name: 'Formelsammlung (Basis)', type: 'formelsammlung', cost: 0, value: 'base', icon: '📚', description: 'Alle wichtigen Formeln für Potenzen, Wurzeln und quadratische Funktionen.', rarity: 'common' },
+  { id: 'formelsammlung_base', name: 'Formelsammlung (Basis)', type: 'formelsammlung', cost: 0, value: 'base', icon: '📚', description: 'Vollständige Formelsammlung für die Sekundarstufe I: Grundlagen, Potenzen, Lineare/Quadratische/Exponentialfunktionen, Geometrie (Dreiecke, Vierecke, Körper), Stochastik.', rarity: 'common' },
   { id: 'formelsammlung_neon', name: 'Neon-Formelsammlung', type: 'formelsammlung', cost: 300, value: 'neon', icon: '💚', description: 'Glowing-Text, Matrix-Style. Für echte Hacker-Enthusiasten.', rarity: 'rare' },
   { id: 'formelsammlung_klassik', name: 'Klassik-Formelsammlung', type: 'formelsammlung', cost: 250, value: 'klassik', icon: '📖', description: 'Elegantes LaTeX-Rendering, Buch-Look. Für traditionelle Mathe-Fans.', rarity: 'rare' },
   { id: 'formelsammlung_minimal', name: 'Minimal-Formelsammlung', type: 'formelsammlung', cost: 200, value: 'minimal', icon: '🎯', description: 'Clean, fokussiert, Dark Mode optimiert. Minimalismus pur.', rarity: 'common' },

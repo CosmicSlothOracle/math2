@@ -15,6 +15,7 @@ import {
   createTermTunerQuest,
   createWurzelLaborQuest,
   createGleichungsknackerQuest,
+  createZehnerpotenzenQuest,
 } from './potenzenQuests';
 import {
   createParabelBasicsQuest,
@@ -600,10 +601,10 @@ export const TaskFactory = {
         ...Array.from({ length: 3 }, (_, i) => createPythagorasQuest(i, seed)),
       ];
       // Potenzen & Reelle Zahlen
-      case 'u_potenzen_01': return []; // Zahlen-Sortierer: PreTask (Drag-Drop)
-      case 'u_potenzen_02': return Array.from({ length: 6 }, (_, i) => createPotenzgesetzeQuest(i, seed));
-      case 'u_potenzen_03': return Array.from({ length: 4 }, (_, i) => createTermTunerQuest(i, seed));
-      case 'u_potenzen_04': return Array.from({ length: 4 }, (_, i) => createWurzelLaborQuest(i, seed));
+      case 'u_potenzen_01': return Array.from({ length: 6 }, (_, i) => createZehnerpotenzenQuest(i, seed)); // Zehnerpotenzen & wissenschaftliche Schreibweise
+      case 'u_potenzen_02': return Array.from({ length: 8 }, (_, i) => createPotenzgesetzeQuest(i, seed)); // Erweitert von 6 auf 8
+      case 'u_potenzen_03': return Array.from({ length: 6 }, (_, i) => createTermTunerQuest(i, seed)); // Erweitert von 4 auf 6
+      case 'u_potenzen_04': return Array.from({ length: 6 }, (_, i) => createWurzelLaborQuest(i, seed)); // Erweitert von 4 auf 6
       case 'u_potenzen_05': return Array.from({ length: 4 }, (_, i) => createGleichungsknackerQuest(i, seed));
       case 'u_potenzen_bounty_proof':
       case 'u_potenzen_bounty_heron':
@@ -615,7 +616,7 @@ export const TaskFactory = {
       case 'u_quadratisch_04': return Array.from({ length: 3 }, (_, i) => createFormTransformQuest(i, seed));
       case 'u_quadratisch_05': return Array.from({ length: 3 }, (_, i) => createFormTransformQuest(i + 3, seed)); // Mehr Umwandlungsaufgaben
       case 'u_quadratisch_06': return Array.from({ length: 4 }, (_, i) => createNullstellenQuest(i, seed));
-      case 'u_quadratisch_07': return []; // Bounty-only unit
+      case 'u_quadratisch_07': return Array.from({ length: 5 }, (_, i) => createAnwendungQuest(i, seed)); // Anwendungsaufgaben als Standard-Quest
       default: return [];
     }
   },

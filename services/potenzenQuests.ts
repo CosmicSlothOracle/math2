@@ -3,6 +3,7 @@
  *
  * Basierend auf: Diagnosebogen HSG 9 KA 1 (2025-26)
  * Aufgaben 5-20: Potenzgesetze, Terme, Wurzeln, Wurzelgleichungen
+ * Lern_kanon: Zehnerpotenzen, wissenschaftliche Schreibweise
  */
 
 import { Task } from '../types';
@@ -11,11 +12,134 @@ const getRandomInt = (min: number, max: number) =>
   Math.floor(Math.random() * (max - min + 1)) + min;
 
 /**
+ * ZEHNERPOTENZEN-MASTER: Wissenschaftliche Schreibweise und Zehnerpotenzen
+ * Basierend auf: Lern_kanon 2025-09-09, 2025-10-09
+ */
+export function createZehnerpotenzenQuest(index: number, seed: number): Task {
+  const id = `potenzen-zehner-${index}-${seed}`;
+  const scenarioIndex = index % 6;
+
+  let question: string;
+  let answer: string;
+  let explanation: string;
+  let validator: any;
+
+  switch (scenarioIndex) {
+    case 0: {
+      // Normale Zahl → wissenschaftliche Schreibweise (große Zahlen)
+      const num = getRandomInt(1000, 999999);
+      const numStr = num.toString();
+      const firstDigit = parseInt(numStr[0]);
+      const restDigits = numStr.substring(1).replace(/^0+/, '');
+      const exponent = numStr.length - 1;
+      const mantissa = parseFloat(`${firstDigit}.${restDigits || '0'}`).toFixed(restDigits ? restDigits.length : 0);
+      question = `Schreibe in wissenschaftlicher Schreibweise: ${num.toLocaleString('de-DE')}`;
+      answer = `${mantissa} · 10^${exponent}`;
+      explanation = `Wissenschaftliche Schreibweise: Zahl zwischen 1 und 10 mal Zehnerpotenz. ${num} = ${mantissa} · 10^${exponent}`;
+      validator = {
+        type: 'keywords',
+        keywordsAll: [mantissa.split('.')[0], '10', String(exponent)],
+        keywordsAny: ['·', '*', 'e', '^'],
+      };
+      break;
+    }
+    case 1: {
+      // Normale Zahl → wissenschaftliche Schreibweise (kleine Zahlen)
+      const num = getRandomInt(1, 999) / 10000; // 0,0001 bis 0,0999
+      const numStr = num.toString().replace('0.', '');
+      const firstNonZero = numStr.search(/[1-9]/);
+      const exponent = -(firstNonZero + 1);
+      const mantissa = parseFloat(numStr.substring(firstNonZero, firstNonZero + 1) + '.' + numStr.substring(firstNonZero + 1)).toFixed(4);
+      question = `Schreibe in wissenschaftlicher Schreibweise: ${num.toLocaleString('de-DE', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`;
+      answer = `${mantissa} · 10^${exponent}`;
+      explanation = `Wissenschaftliche Schreibweise für kleine Zahlen: ${num} = ${mantissa} · 10^${exponent}`;
+      validator = {
+        type: 'keywords',
+        keywordsAll: [mantissa.split('.')[0], '10', String(exponent)],
+        keywordsAny: ['·', '*', 'e', '^'],
+      };
+      break;
+    }
+    case 2: {
+      // Wissenschaftliche Schreibweise → normale Zahl
+      const mantissa = getRandomInt(1, 9) + getRandomInt(0, 9) / 10;
+      const exponent = getRandomInt(2, 6);
+      const result = mantissa * Math.pow(10, exponent);
+      question = `Schreibe aus: ${mantissa.toFixed(1)} · 10^${exponent}`;
+      answer = Math.round(result).toString();
+      explanation = `${mantissa.toFixed(1)} · 10^${exponent} = ${mantissa.toFixed(1)} · ${Math.pow(10, exponent)} = ${result.toFixed(0)}`;
+      validator = { type: 'numericTolerance', numericAnswer: result, tolerance: 1 };
+      break;
+    }
+    case 3: {
+      // Wissenschaftliche Schreibweise → normale Zahl (negativer Exponent)
+      const mantissa = getRandomInt(1, 9) + getRandomInt(0, 9) / 10;
+      const exponent = -getRandomInt(2, 5);
+      const result = mantissa * Math.pow(10, exponent);
+      question = `Schreibe aus: ${mantissa.toFixed(1)} · 10^${exponent}`;
+      answer = result.toFixed(4);
+      explanation = `${mantissa.toFixed(1)} · 10^${exponent} = ${mantissa.toFixed(1)} · ${Math.pow(10, exponent)} = ${result.toFixed(4)}`;
+      validator = { type: 'numericTolerance', numericAnswer: result, tolerance: 0.0001 };
+      break;
+    }
+    case 4: {
+      // Rechnen mit Zehnerpotenzen (Multiplikation)
+      const m1 = getRandomInt(1, 9) + getRandomInt(0, 9) / 10;
+      const e1 = getRandomInt(2, 5);
+      const m2 = getRandomInt(1, 9) + getRandomInt(0, 9) / 10;
+      const e2 = getRandomInt(2, 5);
+      const result = m1 * m2 * Math.pow(10, e1 + e2);
+      const resultMantissa = (m1 * m2).toFixed(1);
+      const resultExponent = e1 + e2;
+      question = `Berechne: ${m1.toFixed(1)} · 10^${e1} · ${m2.toFixed(1)} · 10^${e2}. Gib das Ergebnis in wissenschaftlicher Schreibweise an.`;
+      answer = `${resultMantissa} · 10^${resultExponent}`;
+      explanation = `Multiplikation: (${m1.toFixed(1)} · ${m2.toFixed(1)}) · 10^${e1 + e2} = ${resultMantissa} · 10^${resultExponent}`;
+      validator = {
+        type: 'keywords',
+        keywordsAll: [resultMantissa.split('.')[0], '10', String(resultExponent)],
+        keywordsAny: ['·', '*', 'e', '^'],
+      };
+      break;
+    }
+    default: {
+      // Rechnen mit Zehnerpotenzen (Division)
+      const m1 = getRandomInt(1, 9) + getRandomInt(0, 9) / 10;
+      const e1 = getRandomInt(3, 6);
+      const m2 = getRandomInt(1, 9) + getRandomInt(0, 9) / 10;
+      const e2 = getRandomInt(2, 4);
+      const result = (m1 / m2) * Math.pow(10, e1 - e2);
+      const resultMantissa = (m1 / m2).toFixed(1);
+      const resultExponent = e1 - e2;
+      question = `Berechne: (${m1.toFixed(1)} · 10^${e1}) : (${m2.toFixed(1)} · 10^${e2}). Gib das Ergebnis in wissenschaftlicher Schreibweise an.`;
+      answer = `${resultMantissa} · 10^${resultExponent}`;
+      explanation = `Division: (${m1.toFixed(1)} / ${m2.toFixed(1)}) · 10^${e1 - e2} = ${resultMantissa} · 10^${resultExponent}`;
+      validator = {
+        type: 'keywords',
+        keywordsAll: [resultMantissa.split('.')[0], '10', String(resultExponent)],
+        keywordsAny: ['·', '*', 'e', '^'],
+      };
+      break;
+    }
+  }
+
+  return {
+    id,
+    type: 'input',
+    question,
+    correctAnswer: answer,
+    explanation,
+    difficultyLevel: 'Mittel',
+    validator,
+  };
+}
+
+/**
  * POWER-WORKOUT: Potenzgesetze (Aufgaben 5-8)
+ * Erweitert basierend auf: Lern_kanon 2025-09-11, 2025-09-16
  */
 export function createPotenzgesetzeQuest(index: number, seed: number): Task {
   const id = `potenzen-power-${index}-${seed}`;
-  const scenarioIndex = index % 6;
+  const scenarioIndex = index % 8; // Erweitert von 6 auf 8 für mehr Variationen
 
   // Gemeinsame Zufallswerte
   const base = getRandomInt(2, 9);
@@ -82,7 +206,7 @@ export function createPotenzgesetzeQuest(index: number, seed: number): Task {
       validator = { type: 'numericTolerance', numericAnswer: result, tolerance: 0.01 };
       break;
     }
-    default: {
+    case 5: {
       // Quotient potenzieren ((a/b)^n = a^n / b^n)
       const smallN = getRandomInt(2, 3);
       const numerator = Math.pow(a, smallN);
@@ -96,6 +220,35 @@ export function createPotenzgesetzeQuest(index: number, seed: number): Task {
       } else {
         validator = { type: 'keywords', keywordsAll: [String(numerator), String(denominator)] };
       }
+      break;
+    }
+    case 6: {
+      // Potenzen mit negativen Exponenten kombinieren (a^(-m) · a^(-n))
+      const smallBase = getRandomInt(2, 5);
+      const m = getRandomInt(2, 4);
+      const n = getRandomInt(2, 4);
+      const result = Math.pow(smallBase, -(m + n));
+      const denominator = Math.pow(smallBase, m + n);
+      question = `Fasse zusammen: ${smallBase}^(-${m}) · ${smallBase}^(-${n})`;
+      answer = `1/${denominator}`;
+      explanation = `Potenzen mit gleicher Basis multiplizieren: Exponenten addieren. ${smallBase}^(-${m}) · ${smallBase}^(-${n}) = ${smallBase}^(-${m + n})) = 1/${denominator}`;
+      validator = {
+        type: 'keywords',
+        keywordsAll: ['1', String(denominator)],
+        keywordsAny: [`1/${denominator}`],
+      };
+      break;
+    }
+    default: {
+      // Komplexe Potenzgesetze: (a^n)^m mit negativen Exponenten
+      const smallBase = getRandomInt(2, 5);
+      const m = getRandomInt(2, 3);
+      const n = getRandomInt(2, 3);
+      const result = Math.pow(smallBase, m * n);
+      question = `Fasse zusammen und berechne: (${smallBase}^${m})^${n}`;
+      answer = result.toString();
+      explanation = `Potenz potenzieren: Exponenten multiplizieren. (${smallBase}^${m})^${n} = ${smallBase}^${m * n} = ${result}`;
+      validator = { type: 'numericTolerance', numericAnswer: result, tolerance: 0.01 };
       break;
     }
   }
@@ -113,10 +266,11 @@ export function createPotenzgesetzeQuest(index: number, seed: number): Task {
 
 /**
  * TERM-TUNER: Terme mit Variablen vereinfachen (Aufgaben 9-11)
+ * Erweitert basierend auf: Lern_kanon 2025-09-11, 2025-09-16
  */
 export function createTermTunerQuest(index: number, seed: number): Task {
   const id = `potenzen-term-${index}-${seed}`;
-  const scenarioIndex = index % 4;
+  const scenarioIndex = index % 6; // Erweitert von 4 auf 6
 
   const a = getRandomInt(2, 9);
   const m = getRandomInt(2, 6);
@@ -156,13 +310,33 @@ export function createTermTunerQuest(index: number, seed: number): Task {
       validator = { type: 'keywords', keywordsAll: [String(base), String(n)], keywordsAny: ['/', 'x'] };
       break;
     }
-    default: {
+    case 3: {
       // Produkt potenzieren
       const product = a * b;
       question = `Forme um: (${a}^${n} · ${b}^${n}) = ? (Schreibe als Potenz: (a*b)^n)`;
       answer = `(${product})^${n}`;
       explanation = `Gleicher Exponent: Basis multiplizieren. ${a}^${n} · ${b}^${n} = (${a}·${b})^${n} = ${product}^${n}`;
       validator = { type: 'keywords', keywordsAll: [String(product), String(n)] };
+      break;
+    }
+    case 4: {
+      // Division von Potenzen mit Variablen (x^m : x^n)
+      const x = 'x';
+      const exponent = m - n;
+      question = `Forme um: ${x}^${m} : ${x}^${n} = ? (Schreibe als Potenz: x^exponent)`;
+      answer = exponent === 1 ? 'x' : `${x}^${exponent}`;
+      explanation = `Gleiche Basis: Exponenten subtrahieren. ${x}^${m} : ${x}^${n} = ${x}^${exponent}`;
+      validator = { type: 'keywords', keywordsAll: ['x', String(exponent)] };
+      break;
+    }
+    default: {
+      // Komplexe Terme: (x^a · y^b) : (x^c · y^d)
+      const xExp = m - getRandomInt(1, m - 1);
+      const yExp = n;
+      question = `Forme um: (x^${m} · y^${n}) : x^${m - xExp} = ? (Schreibe als Potenz: x^a · y^b)`;
+      answer = `x^${xExp} · y^${yExp}`;
+      explanation = `Division: x^${m} : x^${m - xExp} = x^${xExp}, y^${n} bleibt. Ergebnis: x^${xExp} · y^${yExp}`;
+      validator = { type: 'keywords', keywordsAll: ['x', String(xExp), 'y', String(yExp)] };
       break;
     }
   }
@@ -180,10 +354,11 @@ export function createTermTunerQuest(index: number, seed: number): Task {
 
 /**
  * WURZEL-LABOR: Wurzeln und Potenzen mit rationalen Exponenten (Aufgaben 12, 13, 15, 18, 19)
+ * Erweitert basierend auf: Lern_kanon 2025-09-23, 2025-09-25, 2025-09-30
  */
 export function createWurzelLaborQuest(index: number, seed: number): Task {
   const id = `potenzen-wurzel-${index}-${seed}`;
-  const scenarioIndex = index % 4;
+  const scenarioIndex = index % 6; // Erweitert von 4 auf 6
 
   // Perfekte Potenzen für saubere Ergebnisse
   const perfectPowers = [4, 8, 9, 16, 25, 27, 32, 64, 81, 125];
@@ -223,7 +398,7 @@ export function createWurzelLaborQuest(index: number, seed: number): Task {
       validator = { type: 'keywords', keywordsAll: [String(a), String(n)], keywordsAny: [String(m), '√'] };
       break;
     }
-    default: {
+    case 3: {
       // n-te Wurzel berechnen
       const numResult = Math.pow(a, 1 / n);
       const isExact = numResult % 1 === 0;
@@ -231,6 +406,34 @@ export function createWurzelLaborQuest(index: number, seed: number): Task {
       answer = isExact ? numResult.toString() : numResult.toFixed(2);
       explanation = `${rootSymbol(n)}${a} = ${a}^(1/${n}) ${isExact ? '=' : '≈'} ${answer}`;
       validator = { type: 'numericTolerance', numericAnswer: numResult, tolerance: 0.05 };
+      break;
+    }
+    case 4: {
+      // Wurzelgesetze: √(a · b) = √a · √b
+      const a1 = getRandomInt(4, 16);
+      const b1 = getRandomInt(4, 16);
+      const product = a1 * b1;
+      const sqrtA = Math.sqrt(a1);
+      const sqrtB = Math.sqrt(b1);
+      const result = sqrtA * sqrtB;
+      question = `Vereinfache: √(${product})`;
+      answer = result % 1 === 0 ? result.toString() : `${sqrtA.toFixed(1)} · ${sqrtB.toFixed(1)}`;
+      explanation = `Wurzelgesetz: √(${product}) = √(${a1} · ${b1}) = √${a1} · √${b1} = ${result.toFixed(2)}`;
+      validator = { type: 'numericTolerance', numericAnswer: result, tolerance: 0.1 };
+      break;
+    }
+    default: {
+      // Wurzelgesetze: √(a / b) = √a / √b
+      const a1 = getRandomInt(9, 25);
+      const b1 = getRandomInt(4, 16);
+      const quotient = a1 / b1;
+      const sqrtA = Math.sqrt(a1);
+      const sqrtB = Math.sqrt(b1);
+      const result = sqrtA / sqrtB;
+      question = `Vereinfache: √(${a1}/${b1})`;
+      answer = result % 1 === 0 ? result.toString() : result.toFixed(2);
+      explanation = `Wurzelgesetz: √(${a1}/${b1}) = √${a1} / √${b1} = ${sqrtA.toFixed(1)} / ${sqrtB.toFixed(1)} = ${result.toFixed(2)}`;
+      validator = { type: 'numericTolerance', numericAnswer: result, tolerance: 0.1 };
       break;
     }
   }

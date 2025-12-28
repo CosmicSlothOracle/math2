@@ -17,6 +17,15 @@ function containsSolution(text) {
   return false;
 }
 
-module.exports = { containsSolution };
+// Export for CommonJS if available
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { containsSolution };
+}
+// Also expose on globalThis for ESM environments if needed
+try {
+  if (typeof globalThis !== 'undefined') {
+    globalThis.containsSolution = containsSolution;
+  }
+} catch (e) {}
 
 

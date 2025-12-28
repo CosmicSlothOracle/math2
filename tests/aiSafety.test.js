@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-const { containsSolution } = require('../src/lib/aiSafety');
+import * as aiSafety from '../src/lib/aiSafety.js';
+const containsSolution = aiSafety.containsSolution || globalThis.containsSolution;
 
 describe('aiSafety.containsSolution', () => {
   it('detects explicit numeric answers', () => {

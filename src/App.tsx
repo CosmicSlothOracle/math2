@@ -2,10 +2,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LEARNING_UNITS, SHOP_ITEMS, PROGRESS_LEVELS, GEOMETRY_DEFINITIONS } from './constants';
 import { LearningUnit, User, Task, ShopItem, ChatMessage, CategoryGroup, BattleRequest, ToastMessage, ToastType, getTileStatus, isGoldUnlocked } from './types';
-import { AuthService, DataService, SocialService, bootstrapServerUser } from './services/apiService';
+import { AuthService, DataService, SocialService, bootstrapServerUser, refreshUserFromServer } from './services/apiService';
 import { getApiHeaders } from './lib/userId';
 import { QuestService } from './services/questService';
-import { getMatheHint } from './services/geminiService';
+import { getMatheHint, getAIFirstHint, sendAIMessage } from './services/geminiService';
+import AIHelperPanel from '../components/AIHelperPanel';
+import AIHelperChat from '../components/AIHelperChat';
+import { AIMessage } from './types';
+import { FormelsammlungView } from '../components/FormelsammlungView';
 import { TaskFactory } from './services/taskFactory';
 import {
   Button, GlassCard, SectionHeading, CardTitle, Badge, DifficultyStars,
@@ -2429,6 +2433,8 @@ const SHOP_CATEGORIES = {
   avatar: { label: 'Avatare', icon: '👤' },
   effect: { label: 'Effekte', icon: '✨' },
   calculator: { label: 'Skins', icon: '🧮' },
+  persona: { label: 'KI-Persönlichkeiten', icon: '🤖' },
+  skin: { label: 'KI-Designs', icon: '🎨' },
   voucher: { label: 'Gutscheine', icon: '🎁' }
 } as const;
 
@@ -2725,11 +2731,13 @@ const ShopView: React.FC<{
   );
 };
 
-const InventoryModal: React.FC<{ user: User; onClose: () => void; onToggleEffect: (id: string) => void; onAvatarChange: (val: string) => void; onSkinChange: (val: string) => void }> = ({ user, onClose, onToggleEffect, onAvatarChange, onSkinChange }) => {
+const InventoryModal: React.FC<{ user: User; onClose: () => void; onToggleEffect: (id: string) => void; onAvatarChange: (val: string) => void; onSkinChange: (val: string) => void; onPersonaChange?: (val: string) => void; onAISkinChange?: (val: string) => void }> = ({ user, onClose, onToggleEffect, onAvatarChange, onSkinChange, onPersonaChange, onAISkinChange }) => {
   const unlockedItems = Array.isArray(user.unlockedItems) ? user.unlockedItems : [];
   const ownedAvatars = SHOP_ITEMS.filter(i => i.type === 'avatar' && (i.cost === 0 || unlockedItems.includes(i.id)));
   const ownedEffects = SHOP_ITEMS.filter(i => i.type === 'effect' && unlockedItems.includes(i.id));
   const ownedSkins = SHOP_ITEMS.filter(i => i.type === 'calculator' && (i.cost === 0 || unlockedItems.includes(i.id)));
+  const ownedPersonas = SHOP_ITEMS.filter(i => i.type === 'persona' && (i.cost === 0 || unlockedItems.includes(i.id)));
+  const ownedAISkins = SHOP_ITEMS.filter(i => i.type === 'skin' && (i.cost === 0 || unlockedItems.includes(i.id)));
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -2751,6 +2759,42 @@ const InventoryModal: React.FC<{ user: User; onClose: () => void; onToggleEffect
                 </button>
              ))}
           </div>
+
+          {onPersonaChange && (
+            <>
+              <h3 className="font-bold text-slate-400 uppercase tracking-widest mb-4">KI-Persönlichkeiten</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+                {ownedPersonas.map(persona => (
+                  <button
+                    key={persona.id}
+                    onClick={() => onPersonaChange(persona.value)}
+                    className={`p-4 rounded-2xl border-2 transition-all ${user.aiPersona === persona.value ? 'bg-indigo-50 border-indigo-500 scale-105 shadow-lg' : 'bg-white border-slate-100 hover:border-indigo-200'}`}
+                  >
+                    <div className="text-2xl mb-2">{persona.icon || '🤖'}</div>
+                    <div className="text-xs font-black uppercase">{persona.name}</div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {onAISkinChange && (
+            <>
+              <h3 className="font-bold text-slate-400 uppercase tracking-widest mb-4">KI-Designs</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
+                {ownedAISkins.map(skin => (
+                  <button
+                    key={skin.id}
+                    onClick={() => onAISkinChange(skin.value)}
+                    className={`p-4 rounded-2xl border-2 transition-all ${user.aiSkin === skin.value ? 'bg-indigo-50 border-indigo-500 scale-105 shadow-lg' : 'bg-white border-slate-100 hover:border-indigo-200'}`}
+                  >
+                    <div className="text-2xl mb-2">{skin.icon || '🎨'}</div>
+                    <div className="text-xs font-black uppercase">{skin.name}</div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
           <h3 className="font-bold text-slate-400 uppercase tracking-widest mb-4">Taschenrechner Skins</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
@@ -3599,6 +3643,15 @@ export default function App() {
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [previewEffect, setPreviewEffect] = useState<string | null>(null);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [isFormelsammlungOpen, setIsFormelsammlungOpen] = useState(false);
+  const [isAIPanelOpen, setIsAIPanelOpen] = useState(false);
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
+  const [previewPersona, setPreviewPersona] = useState<string | null>(null);
+  const [previewAISkin, setPreviewAISkin] = useState<string | null>(null);
+  const [previewOriginalPersona, setPreviewOriginalPersona] = useState<string | null>(null);
+  const [previewOriginalAISkin, setPreviewOriginalAISkin] = useState<string | null>(null);
+  const [aiChatInitialQuestion, setAiChatInitialQuestion] = useState<string | undefined>();
+  const [aiChatInitialTopic, setAiChatInitialTopic] = useState<string | undefined>();
   const [isDevFallback, setIsDevFallback] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
@@ -3729,6 +3782,39 @@ export default function App() {
     setSelectedUnit(null);
   }
 
+  // AI Helper handlers
+  const handleGetFirstHint = async (question: string, topic?: string): Promise<string> => {
+    const persona = user.aiPersona || 'default';
+    return await getAIFirstHint(question, topic, persona);
+  };
+
+  const handleSendAIMessage = async (
+    message: string,
+    topic?: string,
+    existingMessages: AIMessage[] = []
+  ): Promise<{ content: string; coinsCharged: number }> => {
+    const persona = user.aiPersona || 'default';
+    const result = await sendAIMessage(message, topic, existingMessages, persona);
+
+    // Refresh user coins after charge
+    if (result.coinsCharged > 0 && (isOnline && !isDevFallback)) {
+      const refreshedUser = await refreshUserFromServer();
+      if (refreshedUser) {
+        setUser(refreshedUser);
+        setIsCoinPulsing(true);
+        setTimeout(() => setIsCoinPulsing(false), 500);
+      }
+    }
+
+    return result;
+  };
+
+  const handleOpenAIChat = (initialQuestion?: string, initialTopic?: string) => {
+    setAiChatInitialQuestion(initialQuestion);
+    setAiChatInitialTopic(initialTopic);
+    setIsAIChatOpen(true);
+  };
+
   const handleBuy = async (item: ShopItem) => {
     if (!user) return;
     const userCoins = Number.isFinite(user.coins) ? user.coins : 0;
@@ -3749,6 +3835,8 @@ export default function App() {
     if (item.type !== 'feature' && item.type !== 'voucher') {
       updatedUser.unlockedItems = [...new Set([...currentUnlockedItems, item.id])];
       if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
+      if (item.type === 'persona') updatedUser.aiPersona = item.value;
+      if (item.type === 'skin') updatedUser.aiSkin = item.value;
     }
     // Ensure unlockedItems is always an array
     if (!Array.isArray(updatedUser.unlockedItems)) {
@@ -3881,6 +3969,25 @@ export default function App() {
                 </div>
             </div>
             <div className="flex gap-2 sm:gap-3 items-center">
+                <button
+                  onClick={() => {
+                    // If user is in a quest, open chat with current task context as initial question (paid tip)
+                    if (isQuestActive && currentQuest) {
+                      const currentTask = tasksForCurrentQuest && tasksForCurrentQuest.length > 0 ? tasksForCurrentQuest[0] : null;
+                      // Prefer the currently visible task if we can find it (App may track index elsewhere)
+                      const taskQuestion = currentTask ? currentTask.question || currentTask.placeholder || '' : '';
+                      const context = `${currentQuest.unit.title}: ${taskQuestion}`.slice(0, 200);
+                      handleOpenAIChat(context, currentQuest.unit.title);
+                    } else {
+                      setIsAIPanelOpen(true);
+                    }
+                  }}
+                  className="p-2.5 sm:p-3 bg-slate-100 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
+                  title="KI-Hilfe"
+                >
+                  🤖
+                </button>
+                <button onClick={() => setIsFormelsammlungOpen(true)} className="p-2.5 sm:p-3 bg-slate-100 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation" title="Formelsammlung">📚</button>
                 <button onClick={() => setIsCalculatorOpen(true)} className="p-2.5 sm:p-3 bg-slate-100 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation">🧮</button>
                 <div className={`px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-900 text-white rounded-xl font-black text-[10px] sm:text-xs transition-all shadow-lg min-h-[44px] flex items-center ${isCoinPulsing ? 'scale-110 bg-amber-500' : ''}`}>🪙 {Number.isFinite(user.coins) ? user.coins : 0}</div>
             </div>
@@ -3931,12 +4038,51 @@ export default function App() {
             )}
              {activeTab === 'community' && <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto lg:h-[70vh]"><ChatView currentUser={user} /><LeaderboardView currentUser={user} onChallenge={() => {}} /></div>}
             {activeTab === 'shop' && <ShopView user={user} onBuy={handleBuy} onPreview={async (item: ShopItem, cost: number) => {
-              // Toggle off
+              // persona or skin preview: apply locally without charging
+              if (item.type === 'persona') {
+                if (previewPersona === item.value) {
+                  // cancel preview - revert
+                  setPreviewPersona(null);
+                  if (previewOriginalPersona !== null) {
+                    const u = { ...user, aiPersona: previewOriginalPersona };
+                    setUser(u);
+                    setPreviewOriginalPersona(null);
+                  }
+                  addToast('Persona Vorschau beendet', 'info');
+                  return;
+                }
+                // start preview
+                setPreviewOriginalPersona(user.aiPersona || 'default');
+                setPreviewPersona(item.value);
+                setUser({ ...user, aiPersona: item.value });
+                addToast(`Vorschau Persona: ${item.name}`, 'info');
+                return;
+              }
+
+              if (item.type === 'skin') {
+                if (previewAISkin === item.value) {
+                  setPreviewAISkin(null);
+                  if (previewOriginalAISkin !== null) {
+                    const u = { ...user, aiSkin: previewOriginalAISkin };
+                    setUser(u);
+                    setPreviewOriginalAISkin(null);
+                  }
+                  addToast('Skin-Vorschau beendet', 'info');
+                  return;
+                }
+                setPreviewOriginalAISkin(user.aiSkin || 'default');
+                setPreviewAISkin(item.value);
+                setUser({ ...user, aiSkin: item.value });
+                addToast(`Vorschau Skin: ${item.name}`, 'info');
+                return;
+              }
+
+              // Toggle off visual effect preview (existing behavior)
               if (previewEffect === item.value) {
                 setPreviewEffect(null);
                 return;
               }
-              // Check if can afford preview
+              // Check if can afford preview for effect
               const userCoins = Number.isFinite(user.coins) ? user.coins : 0;
               if (cost > 0 && userCoins >= cost) {
                 const u = {...user, coins: userCoins - cost};
@@ -3955,7 +4101,36 @@ export default function App() {
 
       {selectedUnit && <UnitView unit={selectedUnit} user={user} onClose={() => setSelectedUnit(null)} onStartQuest={startQuest} />}
 
-      {isInventoryOpen && <InventoryModal user={user} onClose={() => setIsInventoryOpen(false)} onToggleEffect={handleToggleEffect} onAvatarChange={async (v) => { const u = {...user, avatar: v}; setUser(u); await DataService.updateUser(u); }} onSkinChange={async (v) => { const u = {...user, calculatorSkin: v}; setUser(u); await DataService.updateUser(u); }} />}
+      {isInventoryOpen && <InventoryModal user={user} onClose={() => setIsInventoryOpen(false)} onToggleEffect={handleToggleEffect} onAvatarChange={async (v) => { const u = {...user, avatar: v}; setUser(u); await DataService.updateUser(u); }} onSkinChange={async (v) => { const u = {...user, calculatorSkin: v}; setUser(u); await DataService.updateUser(u); }} onPersonaChange={async (v) => { const u = {...user, aiPersona: v}; setUser(u); await DataService.updateUser(u); }} onAISkinChange={async (v) => { const u = {...user, aiSkin: v}; setUser(u); await DataService.updateUser(u); }} />}
+
+      {isAIPanelOpen && (
+        <AIHelperPanel
+          user={user}
+          onClose={() => setIsAIPanelOpen(false)}
+          onOpenChat={handleOpenAIChat}
+          onGetFirstHint={handleGetFirstHint}
+        />
+      )}
+
+      {isFormelsammlungOpen && (
+        <ModalOverlay onClose={() => setIsFormelsammlungOpen(false)}>
+          <FormelsammlungView onClose={() => setIsFormelsammlungOpen(false)} skin={user.calculatorSkin as any} />
+        </ModalOverlay>
+      )}
+
+      {isAIChatOpen && (
+        <AIHelperChat
+          user={user}
+          onClose={() => {
+            setIsAIChatOpen(false);
+            setAiChatInitialQuestion(undefined);
+            setAiChatInitialTopic(undefined);
+          }}
+          onSendMessage={handleSendAIMessage}
+          initialQuestion={aiChatInitialQuestion}
+          initialTopic={aiChatInitialTopic}
+        />
+      )}
 
       {isQuestActive && currentQuest && (
           <QuestExecutionView

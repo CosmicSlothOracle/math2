@@ -1,15 +1,21 @@
 const { GoogleGenAI } = require("@google/genai");
+const { getUserIdFromEvent, isUserRegistered } = require('./_utils.cjs');
+const { createSupabaseClient } = require('./_supabase.cjs');
+const { checkRateLimit, getClientIP, shouldBlockByUserAgent } = require('./_rateLimit.cjs');
+
+const HEADERS = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-dev-user, x-anon-id',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 exports.handler = async (event) => {
   // CORS Preflight
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      },
+      headers: HEADERS,
       body: JSON.stringify({ ok: true }),
     };
   }
@@ -17,11 +23,44 @@ exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers: HEADERS,
       body: JSON.stringify({ error: "Method not allowed" }),
+    };
+  }
+
+  // 1. Bot detection via User-Agent
+  if (shouldBlockByUserAgent(event)) {
+    console.warn('[hint] Blocked bot request:', event.headers['user-agent'] || 'no-user-agent');
+    return {
+      statusCode: 403,
+      headers: HEADERS,
+      body: JSON.stringify({
+        error: "Forbidden",
+        hint: "Der Tipp-Service steht nur registrierten Nutzern zur Verfügung."
+      }),
+    };
+  }
+
+  // 2. Rate limiting (10 requests per minute per IP)
+  const clientIP = getClientIP(event);
+  const rateLimit = checkRateLimit(clientIP, 10, 60000); // 10 requests per 60 seconds
+
+  if (!rateLimit.allowed) {
+    console.warn('[hint] Rate limit exceeded:', { clientIP, count: rateLimit.count });
+    return {
+      statusCode: 429,
+      headers: {
+        ...HEADERS,
+        'Retry-After': Math.ceil((rateLimit.resetAt - Date.now()) / 1000),
+        'X-RateLimit-Limit': '10',
+        'X-RateLimit-Remaining': '0',
+        'X-RateLimit-Reset': new Date(rateLimit.resetAt).toISOString(),
+      },
+      body: JSON.stringify({
+        error: "Too many requests",
+        hint: "Bitte warte einen Moment und versuche es dann erneut.",
+        retryAfter: Math.ceil((rateLimit.resetAt - Date.now()) / 1000)
+      }),
     };
   }
 
@@ -31,6 +70,7 @@ exports.handler = async (event) => {
   } catch (err) {
     return {
       statusCode: 400,
+      headers: HEADERS,
       body: JSON.stringify({ error: "Invalid JSON" }),
     };
   }
@@ -39,12 +79,32 @@ exports.handler = async (event) => {
   if (!topic || !question) {
     return {
       statusCode: 400,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers: HEADERS,
       body: JSON.stringify({ error: "Missing topic or question" }),
     };
+  }
+
+  // 3. Require user registration for expensive operations
+  const userId = getUserIdFromEvent(event);
+  const supabase = createSupabaseClient();
+
+  // In dev mode without Supabase, allow access (graceful degradation)
+  if (supabase) {
+    const registered = await isUserRegistered(supabase, userId);
+    if (!registered) {
+      console.warn('[hint] Unregistered user attempt:', userId);
+      return {
+        statusCode: 401,
+        headers: HEADERS,
+        body: JSON.stringify({
+          error: "USER_NOT_REGISTERED",
+          hint: "Bitte registriere dich zuerst, um den Tipp-Service zu nutzen.",
+          message: "Registration required"
+        }),
+      };
+    }
+  } else {
+    console.warn('[hint] Dev mode - registration check skipped (Supabase unavailable)');
   }
 
   const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
@@ -53,16 +113,15 @@ exports.handler = async (event) => {
     // Return graceful error message instead of 500 error
     return {
       statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers: HEADERS,
       body: JSON.stringify({
         hint: "Der Tipp-Service ist momentan nicht verfügbar. Bitte versuche es später noch einmal oder frage deinen Lehrer um Hilfe.",
         error: "Missing Gemini API key"
       }),
     };
   }
+
+  console.log('[hint] Processing request:', { userId, clientIP, topic, questionLength: question?.length });
 
   try {
     const ai = new GoogleGenAI({ apiKey });
@@ -156,8 +215,10 @@ REGELN:
     return {
       statusCode: 200,
       headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        ...HEADERS,
+        'X-RateLimit-Limit': '10',
+        'X-RateLimit-Remaining': String(rateLimit.remaining),
+        'X-RateLimit-Reset': new Date(rateLimit.resetAt).toISOString(),
       },
       body: JSON.stringify({ hint: hintText }),
     };
@@ -170,13 +231,11 @@ REGELN:
     });
     return {
       statusCode: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
+      headers: HEADERS,
       body: JSON.stringify({
         error: "Gemini request failed",
         details: error.message || "Unknown error",
+        hint: "Der Tipp-Service ist momentan nicht verfügbar. Bitte versuche es später noch einmal."
       }),
     };
   }

@@ -88,6 +88,34 @@ function getUserIdFromEvent(event) {
   return anonId;
 }
 
-module.exports = { getUserIdFromEvent };
+/**
+ * Check if a user is registered (has a valid display_name)
+ * @param {Object} supabase - Supabase client instance
+ * @param {string} userId - User ID to check
+ * @returns {Promise<boolean>} - True if user is registered
+ */
+async function isUserRegistered(supabase, userId) {
+  if (!supabase || !userId) return false;
+
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('display_name')
+      .eq('id', userId)
+      .limit(1)
+      .single();
+
+    if (error || !data) return false;
+
+    const displayName = data.display_name;
+    // User is registered if display_name exists and is at least 2 characters
+    return displayName && typeof displayName === 'string' && displayName.length >= 2 && displayName !== 'User';
+  } catch (err) {
+    console.warn('[isUserRegistered] Error:', err.message);
+    return false;
+  }
+}
+
+module.exports = { getUserIdFromEvent, isUserRegistered };
 
 

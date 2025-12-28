@@ -87,6 +87,16 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'calc_soup', name: 'Alphabet Soup', type: 'calculator', cost: 800, value: 'soup', icon: '🍲', description: 'Zahlen werden zu Buchstaben! Mathe-Rätsel im warmen Bernstein-Look.', rarity: 'legendary' },
   { id: 'calc_quantum', name: 'Quantum Matrix', type: 'calculator', cost: 1200, value: 'quantum', icon: '⚛️', description: 'Holographische UI mit Teilchen-Effekten. Rechnen in der vierten Dimension.', rarity: 'legendary' },
 
+  // --- KI-PERSÖNLICHKEITEN ---
+  { id: 'ai_persona_default', name: 'Standard Tutor', type: 'persona', cost: 0, value: 'default', icon: '🤖', description: 'Standard KI-Persönlichkeit - freundlich und geduldig.', rarity: 'common' },
+  { id: 'ai_persona_tutor', name: 'Freundliche Tutorin', type: 'persona', cost: 300, value: 'tutor', icon: '👩‍🏫', description: 'Eine geduldige Tutorin mit klaren Erklärungen.', rarity: 'rare' },
+  { id: 'ai_persona_coach', name: 'Motivierender Coach', type: 'persona', cost: 450, value: 'coach', icon: '💪', description: 'Ein motivierender Coach, der dich zum selbstständigen Denken anleitet.', rarity: 'epic' },
+
+  // --- KI-VISUELLE SKINS ---
+  { id: 'ai_skin_default', name: 'Standard Design', type: 'skin', cost: 0, value: 'default', icon: '🎨', description: 'Standard visuelles Design für die KI-Hilfe.', rarity: 'common' },
+  { id: 'ai_skin_neon', name: 'Neon Style', type: 'skin', cost: 400, value: 'neon', icon: '⚡', description: 'Cyber-ähnliches Neon-Design für die KI-Interaktion.', rarity: 'epic' },
+  { id: 'ai_skin_minimal', name: 'Minimalistisch', type: 'skin', cost: 250, value: 'minimal', icon: '✨', description: 'Sauberes, minimalistisches Design.', rarity: 'rare' },
+
   // --- EFFEKTE ---
   { id: 'eff_rain', name: 'Matrix Rain', type: 'effect', cost: 250, value: 'rain', icon: '📟', description: 'Lass Zahlen auf dem Screen regnen.', rarity: 'rare' },
   { id: 'eff_storm', name: 'Electric Storm', type: 'effect', cost: 400, value: 'storm', icon: '🌩️', description: 'Deine Maus sprüht Funken und Blitze.', rarity: 'epic' },

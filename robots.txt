@@ -1,0 +1,9 @@
+# Block all crawlers to reduce bot traffic
+User-agent: *
+Disallow: /
+
+# Optional: Allow legitimate search engines (uncomment if needed)
+# User-agent: Googlebot
+# User-agent: Bingbot
+# Allow: /
+

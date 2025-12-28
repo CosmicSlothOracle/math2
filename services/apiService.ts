@@ -88,6 +88,8 @@ function normalizeUser(serverUser: any): User {
     avatar: serverUser.avatar || '👤',
     calculatorSkin: serverUser.calculatorSkin || serverUser.calculator_skin || 'default',
     formelsammlungSkin: serverUser.formelsammlungSkin || serverUser.formelsammlung_skin || 'base',
+    aiPersona: serverUser.aiPersona || serverUser.ai_persona || 'default',
+    aiSkin: serverUser.aiSkin || serverUser.ai_skin || 'default',
   };
 }
 

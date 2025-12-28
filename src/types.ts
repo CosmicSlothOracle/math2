@@ -63,7 +63,7 @@ export interface GeometryDefinition {
 export interface ShopItem {
   id: string;
   name: string;
-  type: 'avatar' | 'effect' | 'feature' | 'voucher' | 'calculator' | 'prize';
+  type: 'avatar' | 'effect' | 'feature' | 'voucher' | 'calculator' | 'prize' | 'persona' | 'skin';
   cost: number;
   value: string;
   icon?: string; // New: Display symbol separate from logic value
@@ -86,6 +86,8 @@ export interface User {
   calculatorSkin: string;
   xp: number;
   solvedQuestionIds: string[]; // NEU: Für Anti-Farming-Logik
+  aiPersona?: string; // Optional: Selected AI personality
+  aiSkin?: string; // Optional: Selected AI visual skin
 }
 
 export interface ChatMessage {
@@ -128,4 +130,19 @@ export interface ToastMessage {
   id: string;
   type: ToastType;
   message: string;
+}
+
+export interface AIMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: number;
+  costCoins?: number; // For user messages that cost coins
+}
+
+export interface AIInteractionRecord {
+  userId: string;
+  timestamp: number;
+  messageCount: number;
+  coinsCharged: number;
 }

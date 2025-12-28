@@ -2537,11 +2537,21 @@ const BloodDomeUserModal: React.FC<{
   currentUserId: string;
   onChallenge: (u: User) => void;
   isDarkMode?: boolean;
-}> = ({ user, currentUserId, onChallenge, isDarkMode = false }) => {
+  currentUser?: User;
+  isLoading?: boolean;
+}> = ({ user, currentUserId, onChallenge, isDarkMode = false, currentUser, isLoading = false }) => {
   const rarity = getAvatarRarity(user.avatar);
   const battleStats = user.battleStats || { total: 0, wins: 0, win_rate: 0 };
   const perfectQuests = (user as any).perfectBountyUnits?.length || 0;
   const isCurrentUser = user.id === currentUserId;
+
+  // Check if current user can challenge (registered and has enough coins)
+  const canChallenge = currentUser &&
+    currentUser.username &&
+    currentUser.username.trim().length >= 2 &&
+    currentUser.username !== 'User' &&
+    Number.isFinite(currentUser.coins) &&
+    currentUser.coins >= 25; // Minimum stake for battles
 
   // Rarity-based glow classes
   const rarityClasses = {
@@ -2613,10 +2623,12 @@ const BloodDomeUserModal: React.FC<{
         <div className="mt-4">
           <Button
             onClick={() => onChallenge(user)}
-            className="w-full font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 text-white"
+            disabled={isLoading || !canChallenge}
+            className="w-full font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
             size="sm"
+            title={!canChallenge ? (currentUser && (!currentUser.username || currentUser.username === 'User' || currentUser.username.trim().length < 2) ? 'Registrierung erforderlich' : 'Nicht genug Coins (min. 25)') : undefined}
           >
-            ⚔️ VS
+            {isLoading ? 'Wird erstellt...' : '⚔️ VS'}
           </Button>
         </div>
       )}
@@ -2637,7 +2649,7 @@ const BloodDomeUserModal: React.FC<{
   );
 };
 
-const BloodDomeLeaderboard: React.FC<{ currentUser: User; onChallenge: (u: User) => void; isDarkMode?: boolean }> = ({ currentUser, onChallenge, isDarkMode = false }) => {
+const BloodDomeLeaderboard: React.FC<{ currentUser: User; onChallenge: (u: User) => void; isDarkMode?: boolean; isLoading?: boolean }> = ({ currentUser, onChallenge, isDarkMode = false, isLoading = false }) => {
   const [users, setUsers] = useState<(User & { battleStats?: { total: number; wins: number; win_rate: number } })[]>([]);
   const [sortBy, setSortBy] = useState<'coins' | 'xp' | 'battles' | 'winrate'>('coins');
   const [sortAsc, setSortAsc] = useState(false);
@@ -2731,6 +2743,8 @@ const BloodDomeLeaderboard: React.FC<{ currentUser: User; onChallenge: (u: User)
                 currentUserId={currentUser.id}
                 onChallenge={onChallenge}
                 isDarkMode={isDarkMode}
+                currentUser={currentUser}
+                isLoading={isLoading}
               />
             ))}
           </div>
@@ -4692,6 +4706,13 @@ export default function App() {
   const handleChallengeUser = useCallback(async (opponent: User) => {
     if (!user) return;
 
+    // Check if user is registered (has a proper username)
+    const isRegistered = user.username && user.username.trim().length >= 2 && user.username !== 'User';
+    if (!isRegistered) {
+      addToast('Bitte registriere dich zuerst mit einem Benutzernamen', 'error');
+      return;
+    }
+
     // Validate opponent
     if (!opponent || !opponent.id) {
       addToast('Ungültiger Gegner ausgewählt', 'error');
@@ -4709,6 +4730,13 @@ export default function App() {
       const defaultScenario = BATTLE_SCENARIOS[0];
       if (!defaultScenario) {
         addToast('Kein Battle-Szenario verfügbar', 'error');
+        return;
+      }
+
+      // Check if user has enough coins
+      const userCoins = Number.isFinite(user.coins) ? user.coins : 0;
+      if (userCoins < defaultScenario.stake) {
+        addToast(`Nicht genug Coins! Du brauchst ${defaultScenario.stake} Coins für dieses Battle.`, 'error');
         return;
       }
 
@@ -5098,7 +5126,7 @@ export default function App() {
             <div className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto lg:h-[70vh]">
                 <ChatView currentUser={user} />
-                <BloodDomeLeaderboard currentUser={user} onChallenge={handleChallengeUser} isDarkMode={isDarkMode} />
+                <BloodDomeLeaderboard currentUser={user} onChallenge={handleChallengeUser} isDarkMode={isDarkMode} isLoading={isBattleSyncLoading} />
               </div>
               <BattleLobby currentUser={user} />
             <BattlePanel

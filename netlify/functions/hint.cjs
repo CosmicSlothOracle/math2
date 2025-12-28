@@ -75,7 +75,7 @@ REGELN:
 
     const preferredModelsEnv =
       process.env.GEMINI_MODELS ||
-      'models/gemini-1.5-flash-latest,models/gemini-1.5-flash-001,models/gemini-pro';
+      'gemini-1.5-flash,gemini-1.5-pro,gemini-pro';
     const modelCandidates = preferredModelsEnv
       .split(',')
       .map((m) => m.trim())

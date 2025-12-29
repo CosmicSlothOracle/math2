@@ -32,3 +32,23 @@ dist-ssr
 
 # Local Netlify folder
 .netlify
+
+# Documentation (keep in repo but exclude from builds)
+# Note: .netlifyignore handles deployment exclusions
+
+# Test files
+test-*.js
+test-*.mjs
+test-*.ts
+test-*.cjs
+
+# Temporary files
+temp_*.txt
+*.ini
+!robots.txt
+
+# Backup files
+*_BACKUP*
+*_OLD*
+constants_OLD.tsx
+types_BACKUP.ts

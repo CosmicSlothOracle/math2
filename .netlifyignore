@@ -1,0 +1,57 @@
+# Documentation files
+*.md
+docs/
+
+# PDF files
+*.pdf
+Lern_kanon/
+
+# Test files
+test-*.js
+test-*.mjs
+test-*.ts
+test-*.cjs
+tests/
+
+# Scripts (not needed for production)
+scripts/
+check-*.mjs
+verify-*.mjs
+
+# Temporary files
+*.txt
+!robots.txt
+!public/robots.txt
+*.ini
+
+# Backup files
+*_BACKUP*
+*_OLD*
+constants_OLD.tsx
+types_BACKUP.ts
+
+# Legacy files (not imported)
+GEOMETRIE_QUESTS_CODE.ts
+GEOMETRIE_BOUNTIES_CODE.ts
+
+# Development files
+temp_*
+metadata.json
+potenzen_reelle_zahlen_content.json
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment files (already in .gitignore, but extra safety)
+.env
+.env.local
+.env.*.local
+

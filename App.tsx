@@ -30,15 +30,15 @@ import {
   ToastContainer, ModalOverlay, CoinFlightAnimation,
   CalculatorWidget, FormelsammlungWidget
 } from './ui-components.tsx';
-import { subscribeVirtualPointer } from './src/utils/virtualPointer.ts';
+import { subscribeVirtualPointer } from '@/src/utils/virtualPointer';
 import BattlePanel from './components/BattlePanel.tsx';
 import { MultiFieldInput } from './components/MultiFieldInput.tsx';
 import { DragDropTask } from './components/DragDropTask.tsx';
 import { validateAnswer } from './utils/answerValidators.ts';
 import { FormelsammlungView } from './components/FormelsammlungView.tsx';
 import AIHelperChat from './components/AIHelperChat.tsx';
-import { CurrentTaskProvider, useCurrentTask } from './src/contexts/CurrentTaskContext.tsx';
-import { AIMessage } from './src/types.ts';
+import { CurrentTaskProvider, useCurrentTask } from '@/src/contexts/CurrentTaskContext';
+import { AIMessage } from '@/src/types';
 import { FormelRechner } from './components/FormelRechner.tsx';
 import { SchrittLoeser } from './components/SchrittLoeser.tsx';
 import { SpickerTrainer } from './components/SpickerTrainer.tsx';

@@ -2,6 +2,7 @@ const { GoogleGenAI } = require("@google/genai");
 const { getUserIdFromEvent, isUserRegistered } = require('./_utils.cjs');
 const { createSupabaseClient } = require('./_supabase.cjs');
 const { checkRateLimit, getClientIP } = require('./_rateLimit.cjs');
+const { fetchUserCoins, applyCoinDelta } = require('./_coins.cjs');
 
 const HEADERS = {
   'Content-Type': 'application/json',
@@ -153,7 +154,6 @@ exports.handler = async (event) => {
   }
 
   // All messages cost 5 coins - check and deduct BEFORE API call
-  let userCoins = 0;
   if (supabase) {
     const registered = await isUserRegistered(supabase, userId);
     if (!registered) {
@@ -167,85 +167,85 @@ exports.handler = async (event) => {
       };
     }
 
-    // Check and deduct coins
-    const { data: userRows, error: fetchErr } = await supabase
-      .from('users')
-      .select('coins')
-      .eq('id', userId)
-      .limit(1);
+    // Deduct coins using helper function with retry logic
+    let coinsDeducted = false;
+    let retries = 3;
+    let lastError = null;
 
-    if (fetchErr) {
-      console.error('[aiAssistant] User fetch error:', fetchErr);
+    while (retries > 0 && !coinsDeducted) {
+      try {
+        // Check current coins first
+        const currentCoins = await fetchUserCoins(supabase, userId);
+
+        if (currentCoins < COINS_PER_MESSAGE) {
+          return {
+            statusCode: 400,
+            headers: HEADERS,
+            body: JSON.stringify({
+              error: "INSUFFICIENT_COINS",
+              message: `Nicht genug Coins. Du hast ${currentCoins}, benötigt werden ${COINS_PER_MESSAGE}.`,
+              required: COINS_PER_MESSAGE,
+              current: currentCoins,
+            }),
+          };
+        }
+
+        // Deduct coins atomically using helper function
+        await applyCoinDelta(supabase, {
+          userId,
+          delta: -COINS_PER_MESSAGE,
+          reason: 'ai_assistant_message',
+          refType: 'ai_chat',
+          refId: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        });
+
+        coinsDeducted = true;
+      } catch (err) {
+        lastError = err;
+        if (err.code === 'INSUFFICIENT_COINS' || err.message === 'INSUFFICIENT_COINS') {
+          // Don't retry if insufficient coins
+          return {
+            statusCode: 400,
+            headers: HEADERS,
+            body: JSON.stringify({
+              error: "INSUFFICIENT_COINS",
+              message: `Nicht genug Coins. Du hast ${err.previous || 0}, benötigt werden ${COINS_PER_MESSAGE}.`,
+              required: COINS_PER_MESSAGE,
+              current: err.previous || 0,
+            }),
+          };
+        }
+
+        // Check if it's a conflict error that we should retry
+        if (err.code === 'COIN_UPDATE_CONFLICT' || err.message === 'COIN_UPDATE_CONFLICT') {
+          retries--;
+          if (retries > 0) {
+            // Wait a bit before retry (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, 100 * (4 - retries)));
+            console.warn(`[aiAssistant] Coin update conflict, retrying... (${retries} attempts left)`, err.message);
+          } else {
+            // Out of retries
+            lastError = err;
+          }
+        } else {
+          // Other errors shouldn't be retried
+          throw err;
+        }
+      }
+    }
+
+    if (!coinsDeducted) {
+      console.error('[aiAssistant] Coin update failed after retries:', lastError);
       return {
         statusCode: 500,
         headers: HEADERS,
-        body: JSON.stringify({ error: "USER_FETCH_FAILED", message: fetchErr.message }),
-      };
-    }
-
-    if (!userRows || userRows.length === 0) {
-      return {
-        statusCode: 404,
-        headers: HEADERS,
-        body: JSON.stringify({ error: "USER_NOT_FOUND" }),
-      };
-    }
-
-    userCoins = typeof userRows[0].coins === 'number' ? userRows[0].coins : 0;
-    if (userCoins < COINS_PER_MESSAGE) {
-      return {
-        statusCode: 400,
-        headers: HEADERS,
         body: JSON.stringify({
-          error: "INSUFFICIENT_COINS",
-          message: `Nicht genug Coins. Du hast ${userCoins}, benötigt werden ${COINS_PER_MESSAGE}.`,
-          required: COINS_PER_MESSAGE,
-          current: userCoins,
+          error: "COIN_UPDATE_FAILED",
+          message: "Fehler beim Aktualisieren der Coins. Bitte versuche es erneut.",
+          details: lastError?.message || "Unknown error",
         }),
       };
     }
-
-    // Deduct coins BEFORE API call (atomic update to prevent race conditions)
-    const newCoins = Math.max(0, userCoins - COINS_PER_MESSAGE);
-    const { data: updData, error: updErr } = await supabase
-      .from('users')
-      .update({ coins: newCoins })
-      .eq('id', userId)
-      .eq('coins', userCoins); // Atomic check
-
-    if (updErr) {
-      console.error('[aiAssistant] Coin update error:', updErr);
-      return {
-        statusCode: 500,
-        headers: HEADERS,
-        body: JSON.stringify({ error: "COIN_UPDATE_FAILED", message: updErr.message }),
-      };
-    }
-
-    // Verify update succeeded (concurrent modification check)
-    if (!updData || updData.length === 0) {
-      console.warn('[aiAssistant] Coin update conflict: concurrent modification', { userId });
-      return {
-        statusCode: 409,
-        headers: HEADERS,
-        body: JSON.stringify({
-          error: "COIN_UPDATE_CONFLICT",
-          message: "Kontoänderung erkannt. Bitte versuche es erneut.",
-        }),
-      };
-    }
-
-    // Log to ledger (best-effort, non-fatal)
-    const ledgerPayload = {
-      user_id: userId,
-      delta: -COINS_PER_MESSAGE,
-      reason: 'ai_assistant_message',
-      ref_type: 'ai_chat',
-      ref_id: `msg-${Date.now()}`,
-    };
-    await supabase.from('coin_ledger').insert(ledgerPayload).catch((err) => {
-      console.warn('[aiAssistant] Ledger insert failed (non-fatal):', err.message);
-    });
   }
 
   // Call Gemini API

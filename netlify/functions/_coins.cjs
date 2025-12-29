@@ -41,8 +41,22 @@ async function applyCoinDelta(supabase, {
   }
 
   const safeNext = Math.max(0, next);
-  const { error: updateError } = await supabase.from('users').update({ coins: safeNext }).eq('id', userId);
+  // Use optimistic locking to prevent race conditions
+  const { data: updateData, error: updateError } = await supabase
+    .from('users')
+    .update({ coins: safeNext })
+    .eq('id', userId)
+    .eq('coins', prev); // Only update if coins haven't changed
+
   if (updateError) throw updateError;
+
+  // Check if update succeeded (if coins changed between read and update, this will be empty)
+  if (!updateData || (Array.isArray(updateData) && updateData.length === 0)) {
+    const err = new Error('COIN_UPDATE_CONFLICT');
+    err.code = 'COIN_UPDATE_CONFLICT';
+    err.previous = prev;
+    throw err;
+  }
 
   try {
     await supabase.from('coin_ledger').insert({

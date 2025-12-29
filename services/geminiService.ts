@@ -1,5 +1,4 @@
 import { AIMessage } from '../src/types';
-import { getApiHeaders } from '../src/lib/userId';
 
 // Hinweis: Lokale Hilfsfunktion ruft das Netlify-Backend auf, das wiederum Gemini anspricht
 export async function getMatheHint(topic: string, question: string): Promise<string> {
@@ -53,46 +52,14 @@ export async function getTopicExplanation(topic: string) {
 }
 
 /**
- * Get AI assistant hint (first tip, free)
- */
-export async function getAIFirstHint(question: string, topic?: string, persona?: string): Promise<string> {
-  try {
-    const headers = getApiHeaders();
-    const res = await fetch("/.netlify/functions/aiAssistant", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...headers,
-      },
-      body: JSON.stringify({ question, topic: topic || '', isFirstTip: true, persona: persona || 'default', existingMessages: [] }),
-    });
-
-    const data = await res.json();
-
-    if (data.error) {
-      console.warn("AI Assistant error:", data.error, data.details || '');
-      return data.message || "Der KI-Service ist momentan nicht verfügbar. Bitte versuche es später noch einmal.";
-    }
-
-    if (!res.ok) {
-      return data.message || "Der KI-Service ist momentan nicht verfügbar. Bitte versuche es später noch einmal.";
-    }
-
-    return data.content || "Kein Tipp verfügbar.";
-  } catch (error) {
-    console.error("AI Assistant fetch failed:", error);
-    return `Der KI-Service ist gerade nicht verfügbar. ${error instanceof Error ? error.message : 'Versuch es nochmal!'}`;
-  }
-}
-
-/**
- * Send message to AI assistant (costs coins)
+ * Send message to AI assistant (costs 5 coins)
  */
 export async function sendAIMessage(
   question: string,
   topic?: string,
   existingMessages: AIMessage[] = [],
-  persona?: string
+  persona?: string,
+  isQuestContext?: boolean
 ): Promise<{ content: string; coinsCharged: number }> {
   try {
     const headers = getApiHeaders();
@@ -106,8 +73,8 @@ export async function sendAIMessage(
         question,
         topic: topic || '',
         existingMessages: existingMessages.filter(m => m.role !== 'system'), // Exclude system messages from API
-        isFirstTip: false,
-        persona: persona || 'default',
+        persona: persona || 'insight',
+        isQuestContext: isQuestContext || false,
       }),
     });
 

@@ -5,7 +5,8 @@ import { Button, GlassCard, CardTitle, ModalOverlay } from '../src/ui-components
 interface Props {
   user: User;
   onClose: () => void;
-  onOpenChat: (initialQuestion?: string, initialTopic?: string) => void;
+  onOpenChat: () => void;
+  onGetFirstHint: (question: string, topic?: string) => Promise<string>;
 }
 
 const MAX_INPUT_LENGTH = 400;
@@ -17,13 +18,23 @@ const AIHelperPanel: React.FC<Props> = ({ user, onClose, onOpenChat, onGetFirstH
   const [hint, setHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!question.trim() || question.length > MAX_INPUT_LENGTH) return;
 
-    // Open the chat with the submitted question as initial message.
-    onOpenChat(question.trim(), topic.trim() || undefined);
-    onClose();
+    setIsLoading(true);
+    setError(null);
+    setHint(null);
+
+    try {
+      const hintText = await onGetFirstHint(question.trim(), topic.trim() || undefined);
+      setHint(hintText);
+    } catch (err) {
+      setError('Fehler beim Abrufen des Tipps. Bitte versuche es erneut.');
+      console.error('AI Hint Error:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const remainingChars = MAX_INPUT_LENGTH - question.length;
@@ -31,7 +42,7 @@ const AIHelperPanel: React.FC<Props> = ({ user, onClose, onOpenChat, onGetFirstH
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className={`bg-white rounded-[2rem] p-6 sm:p-8 max-w-2xl w-full mx-auto relative ${user.aiSkin === 'neon' ? 'bg-black text-green-300' : user.aiSkin === 'minimal' ? 'bg-white' : user.aiSkin === 'klassik' ? 'bg-amber-50' : ''}`}>
+      <div className="bg-white rounded-[2rem] p-6 sm:p-8 max-w-2xl w-full mx-auto relative">
         <button
           onClick={onClose}
           className="absolute top-6 right-6 w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-400 hover:bg-rose-100 hover:text-rose-500 transition-colors"
@@ -144,8 +155,7 @@ const AIHelperPanel: React.FC<Props> = ({ user, onClose, onOpenChat, onGetFirstH
               </Button>
               <Button
                 onClick={() => {
-                  // Pass current question/topic to chat as initial context
-                  onOpenChat(question.trim() || undefined, topic.trim() || undefined);
+                  onOpenChat();
                   onClose();
                 }}
                 className="flex-1"

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { LEARNING_UNITS, SHOP_ITEMS, PROGRESS_LEVELS, GEOMETRY_DEFINITIONS } from './constants';
+import { LEARNING_UNITS, SHOP_ITEMS, PROGRESS_LEVELS, GEOMETRY_DEFINITIONS } from './constants.tsx';
 import {
   LearningUnit,
   User,
@@ -15,35 +15,35 @@ import {
   BattleScenario,
   BattleRecord,
   BattleSummaryPayload,
-} from './types';
-import { AuthService, DataService, SocialService, bootstrapServerUser } from './services/apiService';
-import { sanitizeMathInput } from './utils/inputSanitizer';
-import { getRealtimeClient } from './services/realtimeClient';
-import { QuestService } from './services/questService';
-import { BattleService } from './services/battleService';
-import { BATTLE_SCENARIOS, generateBattleTaskBundle, getBattleScenarioById } from './services/mathBattles';
-import { getQuestCap, getQuestCoinsEarned, getQuestCapRemaining, isQuestCapReached, computeEntryFee } from './services/economyService';
-import { sendAIMessage } from './services/geminiService';
-import { TaskFactory } from './services/taskFactory';
+} from './types.ts';
+import { AuthService, DataService, SocialService, bootstrapServerUser } from './services/apiService.ts';
+import { sanitizeMathInput } from './utils/inputSanitizer.ts';
+import { getRealtimeClient } from './services/realtimeClient.ts';
+import { QuestService } from './services/questService.ts';
+import { BattleService } from './services/battleService.ts';
+import { BATTLE_SCENARIOS, generateBattleTaskBundle, getBattleScenarioById } from './services/mathBattles.ts';
+import { getQuestCap, getQuestCoinsEarned, getQuestCapRemaining, isQuestCapReached, computeEntryFee } from './services/economyService.ts';
+import { sendAIMessage } from './services/geminiService.ts';
+import { TaskFactory } from './services/taskFactory.ts';
 import {
   Button, GlassCard, SectionHeading, CardTitle, Badge, DifficultyStars,
   ToastContainer, ModalOverlay, CoinFlightAnimation,
   CalculatorWidget, FormelsammlungWidget
-} from './ui-components';
-import { subscribeVirtualPointer } from './src/utils/virtualPointer';
-import BattlePanel from './components/BattlePanel';
-import { MultiFieldInput } from './components/MultiFieldInput';
-import { DragDropTask } from './components/DragDropTask';
-import { validateAnswer } from './utils/answerValidators';
-import { FormelsammlungView } from './components/FormelsammlungView';
-import AIHelperChat from './components/AIHelperChat';
-import { CurrentTaskProvider, useCurrentTask } from './src/contexts/CurrentTaskContext';
-import { AIMessage } from './src/types';
-import { FormelRechner } from './components/FormelRechner';
-import { SchrittLoeser } from './components/SchrittLoeser';
-import { SpickerTrainer } from './components/SpickerTrainer';
-import { ScheitelCoach } from './components/ScheitelCoach';
-import { HeaderBar } from './components/HeaderBar';
+} from './ui-components.tsx';
+import { subscribeVirtualPointer } from './src/utils/virtualPointer.ts';
+import BattlePanel from './components/BattlePanel.tsx';
+import { MultiFieldInput } from './components/MultiFieldInput.tsx';
+import { DragDropTask } from './components/DragDropTask.tsx';
+import { validateAnswer } from './utils/answerValidators.ts';
+import { FormelsammlungView } from './components/FormelsammlungView.tsx';
+import AIHelperChat from './components/AIHelperChat.tsx';
+import { CurrentTaskProvider, useCurrentTask } from './src/contexts/CurrentTaskContext.tsx';
+import { AIMessage } from './src/types.ts';
+import { FormelRechner } from './components/FormelRechner.tsx';
+import { SchrittLoeser } from './components/SchrittLoeser.tsx';
+import { SpickerTrainer } from './components/SpickerTrainer.tsx';
+import { ScheitelCoach } from './components/ScheitelCoach.tsx';
+import { HeaderBar } from './components/HeaderBar.tsx';
 
 // --- Theme Helpers ---
 const GROUP_THEME: Record<CategoryGroup, { color: string; bg: string; text: string; border: string; darkBg: string }> = {

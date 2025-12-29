@@ -234,12 +234,18 @@ export interface GeometryDefinition {
 export interface ShopItem {
   id: string;
   name: string;
-  type: 'avatar' | 'effect' | 'feature' | 'voucher' | 'calculator' | 'prize' | 'tool' | 'formelsammlung' | 'calc_gadget';
+  type: 'avatar' | 'effect' | 'feature' | 'voucher' | 'calculator' | 'prize' | 'tool' | 'formelsammlung' | 'calc_gadget' | 'persona' | 'skin';
   cost: number;
   value: string;
   icon?: string; // New: Display symbol separate from logic value
   description: string;
   rarity?: 'common' | 'rare' | 'epic' | 'legendary';
+}
+
+export interface AIMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  costCoins?: number;
 }
 
 export interface User {

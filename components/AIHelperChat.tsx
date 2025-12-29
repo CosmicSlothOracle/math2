@@ -10,12 +10,22 @@ interface Props {
   initialTopic?: string;
 }
 
-const MAX_INPUT_LENGTH = 200; // max chars
-const MAX_INPUT_WORDS = 50; // approx limit
+const MAX_INPUT_LENGTH = 200;
 const COINS_PER_MESSAGE = 5;
 
 const AIHelperChat: React.FC<Props> = ({ user, onClose, onSendMessage, initialQuestion, initialTopic }) => {
-  const [messages, setMessages] = useState<AIMessage[]>([]);
+  const [messages, setMessages] = useState<AIMessage[]>(() => {
+    if (initialQuestion) {
+      return [{
+        id: 'initial',
+        role: 'user',
+        content: initialQuestion,
+        timestamp: Date.now(),
+        costCoins: 0, // First message is free
+      }];
+    }
+    return [];
+  });
   const [input, setInput] = useState('');
   const [topic, setTopic] = useState(initialTopic || '');
   const [isLoading, setIsLoading] = useState(false);
@@ -32,17 +42,14 @@ const AIHelperChat: React.FC<Props> = ({ user, onClose, onSendMessage, initialQu
     scrollToBottom();
   }, [messages]);
 
-  // Auto-send initial question if provided
-  // If initialQuestion provided, prompt user to confirm sending (treat as paid)
+  // Auto-send initial question if provided (Quest context)
   useEffect(() => {
-    if (initialQuestion) {
-      setPendingMessage(initialQuestion);
-      setPendingTopic(initialTopic || '');
-      setShowConfirmDialog(true);
+    if (initialQuestion && messages.length === 1 && messages[0].role === 'user' && !isLoading) {
+      // Auto-send Quest hint (costs 5 coins)
+      handleSendMessage(initialQuestion, initialTopic || undefined, true);
     }
-    // run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // Only run once on mount
 
   const handleSendMessage = async (messageText: string, topicText?: string, isInitial = false) => {
     if (!messageText.trim() || messageText.length > MAX_INPUT_LENGTH) return;
@@ -57,7 +64,7 @@ const AIHelperChat: React.FC<Props> = ({ user, onClose, onSendMessage, initialQu
         role: 'user',
         content: messageText.trim(),
         timestamp: Date.now(),
-        costCoins: isInitial ? 0 : COINS_PER_MESSAGE,
+        costCoins: COINS_PER_MESSAGE, // All messages cost 5 coins
       };
 
       const assistantMsg: AIMessage = {
@@ -109,15 +116,21 @@ const AIHelperChat: React.FC<Props> = ({ user, onClose, onSendMessage, initialQu
   };
 
   const remainingChars = MAX_INPUT_LENGTH - input.length;
-  const remainingWords = Math.max(0, MAX_INPUT_WORDS - input.trim().split(/\s+/).filter(Boolean).length);
   const userCoins = Number.isFinite(user.coins) ? user.coins : 0;
   const canAfford = userCoins >= COINS_PER_MESSAGE;
-  const wordCount = input.trim().split(/\s+/).filter(Boolean).length;
-  const canSubmit = input.trim().length > 0 && input.length <= MAX_INPUT_LENGTH && wordCount <= MAX_INPUT_WORDS && !isLoading && canAfford;
+  const canSubmit = input.trim().length > 0 && input.length <= MAX_INPUT_LENGTH && !isLoading && canAfford;
+
+  const chatSkin = user.aiSkin || 'default';
+  const skinClasses = {
+    default: 'bg-white',
+    neon: 'bg-black text-green-400 border-green-500',
+    minimal: 'bg-white border-2 border-slate-200',
+  };
+  const skinClass = skinClasses[chatSkin as keyof typeof skinClasses] || skinClasses.default;
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className={`bg-white rounded-[2rem] p-6 sm:p-8 max-w-3xl w-full mx-auto relative flex flex-col ${user.aiSkin === 'neon' ? 'bg-black text-green-300' : user.aiSkin === 'minimal' ? 'bg-white' : user.aiSkin === 'klassik' ? 'bg-amber-50' : ''}`} style={{ maxHeight: '90vh' }}>
+      <div className={`${skinClass} rounded-[2rem] p-6 sm:p-8 max-w-3xl w-full mx-auto relative flex flex-col`} style={{ maxHeight: '90vh' }}>
         <button
           onClick={onClose}
           className="absolute top-6 right-6 w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-400 hover:bg-rose-100 hover:text-rose-500 transition-colors z-10"
@@ -126,23 +139,25 @@ const AIHelperChat: React.FC<Props> = ({ user, onClose, onSendMessage, initialQu
           ✕
         </button>
 
-        <div className="flex items-center justify-between mb-6 pr-12">
+        <div className={`flex items-center justify-between mb-6 pr-12 ${chatSkin === 'neon' ? 'text-green-300' : ''}`}>
           <div className="flex items-center gap-3">
             <span className="text-3xl">🤖</span>
             <div>
-              <h2 className="text-2xl font-black uppercase italic">KI-Chat</h2>
-              <p className="text-xs text-slate-400 font-black uppercase tracking-widest">
+              <h2 className={`text-2xl font-black uppercase italic ${chatSkin === 'neon' ? 'text-green-400' : ''}`}>
+                {initialQuestion ? 'KI-Tipp zur Aufgabe' : 'KI-Chat'}
+              </h2>
+              <p className={`text-xs font-black uppercase tracking-widest ${chatSkin === 'neon' ? 'text-green-500' : 'text-slate-400'}`}>
                 {COINS_PER_MESSAGE} Coins pro Nachricht
               </p>
             </div>
           </div>
-          <div className="text-sm font-black text-slate-600">
+          <div className={`text-sm font-black ${chatSkin === 'neon' ? 'text-green-300' : 'text-slate-600'}`}>
             🪙 {userCoins} Coins
           </div>
         </div>
 
-        <GlassCard className="!p-4 mb-4 bg-indigo-50 border-indigo-200">
-          <p className="text-xs text-indigo-900 font-medium">
+        <GlassCard className={`!p-4 mb-4 ${chatSkin === 'neon' ? 'bg-green-900/50 border-green-500' : 'bg-indigo-50 border-indigo-200'}`}>
+          <p className={`text-xs font-medium ${chatSkin === 'neon' ? 'text-green-200' : 'text-indigo-900'}`}>
             💡 <strong>Erinnerung:</strong> Die KI liefert <strong>keine Lösungen</strong>, sondern Hinweise und Fragen, damit du selbst auf die Lösung kommst.
           </p>
         </GlassCard>
@@ -171,13 +186,17 @@ const AIHelperChat: React.FC<Props> = ({ user, onClose, onSendMessage, initialQu
                 }`}
               >
                 {msg.role === 'user' && msg.costCoins !== undefined && msg.costCoins > 0 && (
-                  <div className="text-[10px] font-black uppercase text-indigo-200 mb-1">
+                  <div className={`text-[10px] font-black uppercase mb-1 ${
+                    chatSkin === 'neon' ? 'text-green-400' : chatSkin === 'minimal' ? 'text-slate-400' : 'text-indigo-200'
+                  }`}>
                     -{msg.costCoins} Coins
                   </div>
                 )}
                 <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                 <div className={`text-[10px] mt-2 font-black uppercase ${
-                  msg.role === 'user' ? 'text-indigo-200' : 'text-slate-400'
+                  msg.role === 'user'
+                    ? chatSkin === 'neon' ? 'text-green-400' : chatSkin === 'minimal' ? 'text-slate-300' : 'text-indigo-200'
+                    : chatSkin === 'neon' ? 'text-green-500' : 'text-slate-400'
                 }`}>
                   {msg.role === 'user' ? 'Du' : msg.role === 'assistant' ? 'KI' : 'System'}
                 </div>
@@ -212,14 +231,14 @@ const AIHelperChat: React.FC<Props> = ({ user, onClose, onSendMessage, initialQu
                   setInput(e.target.value);
                 }
               }}
-              placeholder="Deine Nachricht... (max. 400 Zeichen)"
+              placeholder="Deine Nachricht... (max. 200 Zeichen)"
               rows={3}
               className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-white text-sm focus:outline-none focus:border-indigo-500 resize-none"
               disabled={isLoading}
             />
             <div className="flex justify-between items-center mt-1">
               <span className="text-[10px] text-slate-400 font-bold uppercase">
-                {remainingChars} Zeichen · {remainingWords} Wörter übrig
+                {remainingChars} Zeichen
               </span>
               {!canAfford && (
                 <span className="text-[10px] text-rose-500 font-bold uppercase">

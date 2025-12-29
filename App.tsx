@@ -23,11 +23,11 @@ import { QuestService } from './services/questService';
 import { BattleService } from './services/battleService';
 import { BATTLE_SCENARIOS, generateBattleTaskBundle, getBattleScenarioById } from './services/mathBattles';
 import { getQuestCap, getQuestCoinsEarned, getQuestCapRemaining, isQuestCapReached, computeEntryFee } from './services/economyService';
-import { getMatheHint } from './services/geminiService';
+import { sendAIMessage } from './services/geminiService';
 import { TaskFactory } from './services/taskFactory';
 import {
   Button, GlassCard, SectionHeading, CardTitle, Badge, DifficultyStars,
-  ToastContainer, Skeleton, ModalOverlay, PullToRefresh, ProgressBar, CoinFlightAnimation,
+  ToastContainer, ModalOverlay, CoinFlightAnimation,
   CalculatorWidget, FormelsammlungWidget
 } from './ui-components';
 import { subscribeVirtualPointer } from './src/utils/virtualPointer';
@@ -36,10 +36,14 @@ import { MultiFieldInput } from './components/MultiFieldInput';
 import { DragDropTask } from './components/DragDropTask';
 import { validateAnswer } from './utils/answerValidators';
 import { FormelsammlungView } from './components/FormelsammlungView';
+import AIHelperChat from './components/AIHelperChat';
+import { CurrentTaskProvider, useCurrentTask } from './src/contexts/CurrentTaskContext';
+import { AIMessage } from './src/types';
 import { FormelRechner } from './components/FormelRechner';
 import { SchrittLoeser } from './components/SchrittLoeser';
 import { SpickerTrainer } from './components/SpickerTrainer';
 import { ScheitelCoach } from './components/ScheitelCoach';
+import { HeaderBar } from './components/HeaderBar';
 
 // --- Theme Helpers ---
 const GROUP_THEME: Record<CategoryGroup, { color: string; bg: string; text: string; border: string; darkBg: string }> = {
@@ -411,9 +415,7 @@ const ElectricStorm: React.FC = () => {
     const anim = requestAnimationFrame(draw);
     return () => {
         cancelAnimationFrame(anim);
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mousedown', handleMouseDown);
-        window.removeEventListener('touchmove', handleTouchMove);
+        unsubscribe();
     };
   }, [size]);
 
@@ -635,7 +637,9 @@ const VoidProtocol: React.FC = () => {
     const anim = requestAnimationFrame(draw);
     return () => {
       cancelAnimationFrame(anim);
-      try { unsubscribePointer(); } catch (err) { /* ignore */ }
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('touchmove', handleTouchMove);
     };
   }, [size]);
 
@@ -1108,9 +1112,7 @@ const NeonDreams: React.FC = () => {
     const anim = requestAnimationFrame(draw);
     return () => {
         cancelAnimationFrame(anim);
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mousedown', handleMouseDown);
-        window.removeEventListener('touchmove', handleTouchMove);
+        unsubscribePointer();
     };
   }, [size]);
 
@@ -2889,6 +2891,7 @@ const SHOP_CATEGORIES = {
   tool: { label: 'Tools', icon: '🧰' },
   calc_gadget: { label: 'Gadgets', icon: '⚙️' },
   formelsammlung: { label: 'Formelsammlungen', icon: '📚' },
+  ki: { label: 'KI', icon: '🤖' },
   voucher: { label: 'Gutscheine', icon: '🎁' }
 } as const;
 
@@ -2911,7 +2914,11 @@ const ShopView: React.FC<{
   const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc' | 'rarity'>('default');
 
   const filteredItems = useMemo(() => {
-    let items = SHOP_ITEMS.filter(i => filter === 'all' || i.type === filter);
+    let items = filter === 'all'
+      ? SHOP_ITEMS
+      : filter === 'ki'
+      ? SHOP_ITEMS.filter(i => i.type === 'persona' || i.type === 'skin')
+      : SHOP_ITEMS.filter(i => i.type === filter);
 
     if (rarityFilter !== 'all') {
       items = items.filter(i => i.rarity === rarityFilter);
@@ -3191,11 +3198,15 @@ const InventoryModal: React.FC<{
   onAvatarChange: (val: string) => void;
   onSkinChange: (val: string) => void;
   onFormelsammlungSkinChange: (val: string) => void;
-}> = ({ user, onClose, onToggleEffect, onAvatarChange, onSkinChange, onFormelsammlungSkinChange }) => {
+  onPersonaChange?: (val: string) => void;
+  onAISkinChange?: (val: string) => void;
+}> = ({ user, onClose, onToggleEffect, onAvatarChange, onSkinChange, onFormelsammlungSkinChange, onPersonaChange, onAISkinChange }) => {
   const ownedAvatars = SHOP_ITEMS.filter(i => i.type === 'avatar' && (i.cost === 0 || user.unlockedItems?.includes(i.id)));
   const ownedEffects = SHOP_ITEMS.filter(i => i.type === 'effect' && user.unlockedItems?.includes(i.id));
   const ownedSkins = SHOP_ITEMS.filter(i => i.type === 'calculator' && (i.cost === 0 || user.unlockedItems?.includes(i.id)));
   const ownedFormulaSkins = SHOP_ITEMS.filter(i => i.type === 'formelsammlung' && (i.cost === 0 || user.unlockedItems?.includes(i.id)));
+  const ownedPersonas = SHOP_ITEMS.filter(i => i.type === 'persona' && (i.cost === 0 || user.unlockedItems?.includes(i.id)));
+  const ownedAISkins = SHOP_ITEMS.filter(i => i.type === 'skin' && (i.cost === 0 || user.unlockedItems?.includes(i.id)));
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -3245,6 +3256,42 @@ const InventoryModal: React.FC<{
               </button>
             ))}
           </div>
+
+          {onPersonaChange && (
+            <>
+              <h3 className="font-bold text-slate-400 uppercase tracking-widest mb-4">KI-Persönlichkeiten</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+                {ownedPersonas.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => onPersonaChange(p.value)}
+                    className={`p-3 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${user.aiPersona === p.value ? 'bg-indigo-50 border-indigo-500 shadow-md' : 'bg-white border-slate-100 hover:border-indigo-200'}`}
+                  >
+                    <span className="text-2xl">{p.icon}</span>
+                    <span className="text-[10px] font-bold uppercase text-center">{p.name}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {onAISkinChange && (
+            <>
+              <h3 className="font-bold text-slate-400 uppercase tracking-widest mb-4">KI-Chat Designs</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+                {ownedAISkins.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => onAISkinChange(s.value)}
+                    className={`p-3 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${user.aiSkin === s.value ? 'bg-indigo-50 border-indigo-500 shadow-md' : 'bg-white border-slate-100 hover:border-indigo-200'}`}
+                  >
+                    <span className="text-2xl">{s.icon}</span>
+                    <span className="text-[10px] font-bold uppercase text-center">{s.name}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
           <h3 className="font-bold text-slate-400 uppercase tracking-widest mb-4">Effekte</h3>
           {ownedEffects.length === 0 ? <p className="text-slate-400 italic mb-8">Noch keine Effekte gekauft.</p> : (
@@ -3643,6 +3690,7 @@ const QuestExecutionView: React.FC<{
   onComplete: (isPerfect: boolean, percentage?: number, summary?: QuestRunSummary) => void;
   onCancel: () => void;
 }> = ({ unit, tasks, isBountyMode, timeLimit, noCheatSheet = false, user, onTaskCorrect, onComplete, onCancel }) => {
+    const { setCurrentTask } = useCurrentTask();
     const [currentIdx, setCurrentIdx] = useState(0);
     const [mistakes, setMistakes] = useState(0);
     const [correctAnswers, setCorrectAnswers] = useState(0);
@@ -3650,9 +3698,6 @@ const QuestExecutionView: React.FC<{
     const [selectedOption, setSelectedOption] = useState<any>(null);
     const [textInput, setTextInput] = useState('');
     const [timeLeft, setTimeLeft] = useState(timeLimit || 60);
-    const [hintsUsed, setHintsUsed] = useState(0);
-    const [currentHint, setCurrentHint] = useState<string | null>(null);
-    const [isLoadingHint, setIsLoadingHint] = useState(false);
     const [wager, setWager] = useState<number>(0);
     const [classification, setClassification] = useState<Record<string, string>>({});
     const [angleInput, setAngleInput] = useState('');
@@ -3689,7 +3734,6 @@ const QuestExecutionView: React.FC<{
 
     useEffect(() => {
         // Reset hint when task changes
-        setCurrentHint(null);
         setAdaptiveHint(null);
         setIsAutoHintLoading(false);
     }, [currentIdx]);
@@ -3704,7 +3748,7 @@ const QuestExecutionView: React.FC<{
             const allSelected = Object.keys(answerMap).every(key => classification[key]);
             if (!allSelected) {
                 // Require user to classify all shapes first
-                addToast('Bitte ordne alle Figuren zu, bevor du überprüfst!', 'error');
+                // Toast removed - user will see error feedback through UI
                 return;
             }
             isCorrect = Object.keys(answerMap).every(key => classification[key] === answerMap[key]);
@@ -3830,7 +3874,6 @@ const QuestExecutionView: React.FC<{
             setSliderValue(1);
             setSelectedParts(new Set());
             setMultiFieldValues({});
-            setCurrentHint(null);
             setAdaptiveHint(null);
             setIsAutoHintLoading(false);
             // Don't reset correctAnswers - we want to track total across all tasks
@@ -3839,34 +3882,19 @@ const QuestExecutionView: React.FC<{
             const totalTasks = tasks.length;
             const correctCount = correctAnswers;
             const percentage = totalTasks > 0 ? Math.round((correctCount / totalTasks) * 100) : 0;
-            // Perfect run means no mistakes AND no hints used
-            const isPerfect = mistakes === 0 && hintsUsed === 0;
+            // Perfect run means no mistakes
+            const isPerfect = mistakes === 0;
             const summary: QuestRunSummary = {
               correctCount,
               totalTasks,
               mistakes,
-              hintsUsed,
+              hintsUsed: 0,
               elapsedMs: Date.now() - runStartRef.current,
             };
             onComplete(isPerfect, percentage, summary);
         }
     };
 
-    const handleRequestHint = async () => {
-        if (noCheatSheet || isLoadingHint || currentHint) return;
-        const task = tasks[currentIdx];
-        setIsLoadingHint(true);
-        try {
-            const hint = await getMatheHint(unit.title, task.question);
-            setCurrentHint(hint);
-            setHintsUsed(h => h + 1);
-        } catch (error) {
-            console.error('Failed to get hint:', error);
-            setCurrentHint('Ups, der Tipp-Service ist gerade nicht verfügbar. Versuch es nochmal!');
-        } finally {
-            setIsLoadingHint(false);
-        }
-    };
 
     const handleInteractiveComplete = (success: boolean) => {
         if(success) {
@@ -3877,6 +3905,16 @@ const QuestExecutionView: React.FC<{
             handleNext();
         }
     };
+
+    useEffect(() => {
+        // Update CurrentTaskContext when task changes
+        const task = tasks[currentIdx];
+        if (task) {
+            setCurrentTask(unit.title, task.question);
+        } else {
+            setCurrentTask(null, null);
+        }
+    }, [currentIdx, tasks, unit.title, setCurrentTask]);
 
     if (!tasks || tasks.length === 0) {
       console.warn('[QuestExecutionView] No tasks provided. Unit:', unit.id, 'Tasks:', tasks);
@@ -3973,16 +4011,11 @@ const QuestExecutionView: React.FC<{
     };
 
     const requestAdaptiveHint = (targetTask: Task, userValue: string) => {
-        if (noCheatSheet || currentHint || adaptiveHint || isAutoHintLoading) return;
+        if (noCheatSheet || adaptiveHint || isAutoHintLoading) return;
         setIsAutoHintLoading(true);
-        getMatheHint(unit.title, `${targetTask.question}\nFalsche Eingabe: ${userValue || '–'}`)
-            .then((hint) => {
-                setAdaptiveHint(hint || buildFallbackHint(targetTask));
-            })
-            .catch(() => {
-                setAdaptiveHint(buildFallbackHint(targetTask));
-            })
-            .finally(() => setIsAutoHintLoading(false));
+        // Adaptive hints removed - use AI button in header instead
+        setAdaptiveHint(buildFallbackHint(targetTask));
+        setIsAutoHintLoading(false);
     };
 
     const getUserAnswerPreview = () => {
@@ -4020,7 +4053,7 @@ const QuestExecutionView: React.FC<{
     };
 
     return (
-        <div className={`fixed inset-0 z-[120] flex flex-col ${isBountyMode ? 'bounty-mode' : 'bg-white'}`}>
+        <div className={`fixed inset-0 z-[40] flex flex-col pt-[73px] ${isBountyMode ? 'bounty-mode' : 'bg-white'}`}>
             <div className={`p-4 border-b flex items-center justify-between ${isBountyMode ? 'bounty-header' : 'bg-slate-50'}`}>
                 <Button variant="ghost" onClick={onCancel} className={isBountyMode ? 'text-amber-200' : ''}>Abbrechen</Button>
                 <div className="flex flex-col items-center">
@@ -4094,23 +4127,6 @@ const QuestExecutionView: React.FC<{
                                 </div>
                             )}
 
-                            {!noCheatSheet && !feedback && (
-                                <div className="text-center">
-                                    <button
-                                        onClick={handleRequestHint}
-                                        disabled={isLoadingHint || !!currentHint}
-                                        className="text-sm text-indigo-600 hover:text-indigo-800 underline font-bold disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-                                    >
-                                        {isLoadingHint ? 'Lade Tipp...' : currentHint ? '✓ Tipp angezeigt' : 'Ich brauche einen Tipp (-1 Perfect)'}
-                                    </button>
-                                </div>
-                            )}
-                            {currentHint && (
-                                <div className="mt-4 p-4 bg-indigo-50 border-2 border-indigo-200 rounded-xl text-left">
-                                    <p className="text-sm font-bold text-indigo-900 mb-1">💡 Tipp:</p>
-                                    <p className="text-sm text-slate-700">{currentHint}</p>
-                                </div>
-                            )}
                         </div>
 
                         {/* DEBUG: Log task data */}
@@ -4419,8 +4435,9 @@ const QuestExecutionView: React.FC<{
     );
 };
 
-// --- Main App ---
-export default function App() {
+// --- Main App (wrapped with CurrentTaskProvider) ---
+const AppContent = () => {
+  const { unitTitle, taskQuestion, setCurrentTask } = useCurrentTask();
   const [user, setUser] = useState<User | null>(AuthService.getCurrentUser());
   const [activeTab, setActiveTab] = useState<'learn' | 'community' | 'shop'>('learn');
   const [selectedUnit, setSelectedUnit] = useState<LearningUnit | null>(null);
@@ -4498,6 +4515,9 @@ export default function App() {
   const [previewEffect, setPreviewEffect] = useState<string | null>(null);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isFormelsammlungOpen, setIsFormelsammlungOpen] = useState(false);
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
+  const [aiChatInitialQuestion, setAiChatInitialQuestion] = useState<string | undefined>();
+  const [aiChatInitialTopic, setAiChatInitialTopic] = useState<string | undefined>();
   const [isFormelRechnerOpen, setIsFormelRechnerOpen] = useState(false);
   const [isSchrittLoeserOpen, setIsSchrittLoeserOpen] = useState(false);
   const [isSpickerTrainerOpen, setIsSpickerTrainerOpen] = useState(false);
@@ -4577,7 +4597,8 @@ export default function App() {
   const handleTaskCorrect = async (task: Task, wager: number) => {
     if(!user || !currentQuest) return;
     const baseCoins = task.type === 'wager' ? 10 + wager : 10;
-    const questType: 'pre' | 'standard' | 'bounty' = currentQuest.type;
+    // Map 'pre' to 'standard' for QuestService (which only accepts 'standard' | 'bounty')
+    const questType = currentQuest.type === 'pre' ? 'standard' : currentQuest.type;
     const { updatedUser, coinsAwarded } = await QuestService.awardCoinsForQuestion(user, currentQuest.unit.id, task.id, baseCoins, questType);
     setUser(updatedUser);
     if(coinsAwarded > 0) triggerCoinAnimation();
@@ -4881,6 +4902,46 @@ export default function App() {
     setSelectedUnit(null);
   }
 
+  const handleSendAIMessage = async (
+    message: string,
+    topic?: string,
+    existingMessages: AIMessage[] = []
+  ): Promise<{ content: string; coinsCharged: number }> => {
+    const persona = user.aiPersona || 'insight';
+    const isQuestContext = isQuestActive && unitTitle && taskQuestion;
+    const result = await sendAIMessage(message, topic, existingMessages, persona, isQuestContext);
+
+    // Refresh user coins after charge
+    if (result.coinsCharged > 0) {
+      // Refresh user data from server
+      try {
+        const res = await bootstrapServerUser();
+        if (res && res.user) {
+          setUser(res.user);
+          setIsCoinPulsing(true);
+          setTimeout(() => setIsCoinPulsing(false), 500);
+        }
+      } catch (err) {
+        console.error('Failed to refresh user after AI charge:', err);
+      }
+    }
+
+    return result;
+  };
+
+  const handleOpenAIChat = () => {
+    // Wenn im Quest: Automatisch mit Quest-Kontext aus CurrentTaskContext öffnen
+    if (isQuestActive && unitTitle && taskQuestion) {
+      setAiChatInitialQuestion(taskQuestion);
+      setAiChatInitialTopic(unitTitle);
+    } else {
+      // Außerhalb: Leeren Chat öffnen
+      setAiChatInitialQuestion(undefined);
+      setAiChatInitialTopic(undefined);
+    }
+    setIsAIChatOpen(true);
+  };
+
   const handleBuy = async (item: ShopItem) => {
     if (!user) return;
     const userCoins = Number.isFinite(user.coins) ? user.coins : 0;
@@ -4933,9 +4994,11 @@ export default function App() {
           coins: userCoins - item.cost,
           unlockedItems: [...new Set([...user.unlockedItems, item.id])]
         };
-        if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
-        if (item.type === 'formelsammlung') updatedUser.formelsammlungSkin = item.value;
-        if (item.type === 'tool') {
+      if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
+      if (item.type === 'formelsammlung') updatedUser.formelsammlungSkin = item.value;
+      if (item.type === 'persona') updatedUser.aiPersona = item.value;
+      if (item.type === 'skin' && item.id.startsWith('ai_chat_skin_')) updatedUser.aiSkin = item.value;
+      if (item.type === 'tool') {
           updatedUser.unlockedTools = [...new Set([...(user.unlockedTools || []), item.value])];
         }
         if (item.type === 'calc_gadget') {
@@ -4967,6 +5030,8 @@ export default function App() {
       };
       if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
       if (item.type === 'formelsammlung') updatedUser.formelsammlungSkin = item.value;
+      if (item.type === 'persona') updatedUser.aiPersona = item.value;
+      if (item.type === 'skin' && item.id.startsWith('ai_chat_skin_')) updatedUser.aiSkin = item.value;
       if (item.type === 'tool') {
         updatedUser.unlockedTools = [...new Set([...(user.unlockedTools || []), item.value])];
       }
@@ -5002,7 +5067,25 @@ export default function App() {
       <ToastContainer toasts={toasts} />
       <CoinFlightAnimation isActive={isFlyingCoinActive} onComplete={() => setIsFlyingCoinActive(false)} />
       {isCalculatorOpen && <CalculatorWidget skin={user.calculatorSkin} gadgets={user.calculatorGadgets || []} onClose={() => setIsCalculatorOpen(false)} />}
-      {isFormelsammlungOpen && <FormelsammlungWidget skin={user.formelsammlungSkin || 'base'} onClose={() => setIsFormelsammlungOpen(false)} />}
+      {isFormelsammlungOpen && (
+        <ModalOverlay onClose={() => setIsFormelsammlungOpen(false)}>
+          <FormelsammlungView onClose={() => setIsFormelsammlungOpen(false)} skin={user.formelsammlungSkin as any} />
+        </ModalOverlay>
+      )}
+
+      {isAIChatOpen && (
+        <AIHelperChat
+          user={user}
+          onClose={() => {
+            setIsAIChatOpen(false);
+            setAiChatInitialQuestion(undefined);
+            setAiChatInitialTopic(undefined);
+          }}
+          onSendMessage={handleSendAIMessage}
+          initialQuestion={aiChatInitialQuestion}
+          initialTopic={aiChatInitialTopic}
+        />
+      )}
       {isFormelRechnerOpen && user.unlockedTools?.includes('formel_rechner') && (
         <ModalOverlay onClose={() => setIsFormelRechnerOpen(false)}>
           <FormelRechner onClose={() => setIsFormelRechnerOpen(false)} />
@@ -5037,7 +5120,21 @@ export default function App() {
       {activeEffect('horizon') && <EventHorizonUI />}
       {activeEffect('quantum') && <QuantumAfterimage />}
 
-      {!isQuestActive && (
+      {/* Header - visible during quests but hidden when modals are open */}
+      {!selectedUnit && !isInventoryOpen && !isFormelsammlungOpen && !isCalculatorOpen && !isAIChatOpen && (
+        <HeaderBar
+          user={user}
+          isDarkMode={isDarkMode}
+          isCoinPulsing={isCoinPulsing}
+          onOpenInventory={() => setIsInventoryOpen(true)}
+          onOpenAIChat={handleOpenAIChat}
+          onOpenFormelsammlung={() => setIsFormelsammlungOpen(true)}
+          onOpenCalculator={() => setIsCalculatorOpen(true)}
+        />
+      )}
+
+      {/* Show bottom nav only when not in quest AND not inside modal */}
+      {!isQuestActive && !selectedUnit && (
          <>
           <nav className={`fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-[100] backdrop-blur-2xl border p-1.5 sm:p-2 rounded-full shadow-2xl flex items-center gap-0.5 sm:gap-1 ${isDarkMode ? 'bg-slate-900/80 border-slate-700' : 'bg-white/80 border-slate-200'} safe-area-bottom`} style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
              {(['learn', 'community', 'shop'] as const).map(tab => (
@@ -5056,20 +5153,6 @@ export default function App() {
               </button>
             ))}
           </nav>
-
-          <header className={`sticky top-0 z-50 backdrop-blur-xl border-b px-4 sm:px-8 py-3 flex items-center justify-between transition-colors ${isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-100'}`}>
-             <div onClick={() => setIsInventoryOpen(true)} className="flex items-center gap-2 sm:gap-3 md:gap-4 cursor-pointer group hover:opacity-80 transition-opacity touch-manipulation">
-                <div className="text-2xl sm:text-3xl bg-slate-100 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center border-2 border-white shadow-sm transition-transform group-hover:scale-110">{user.avatar}</div>
-                <div>
-                    <span className="font-black italic uppercase block leading-none">{user.username}</span>
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Level {Number.isFinite(user.xp) ? Math.floor(user.xp / 100) + 1 : 1}</span>
-                </div>
-            </div>
-            <div className="flex gap-2 sm:gap-3 items-center">
-                <button onClick={() => setIsCalculatorOpen(true)} className="p-2.5 sm:p-3 bg-slate-100 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation">🧮</button>
-                <div className={`px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-900 text-white rounded-xl font-black text-[10px] sm:text-xs transition-all shadow-lg min-h-[44px] flex items-center ${isCoinPulsing ? 'scale-110 bg-amber-500' : ''}`}>🪙 {Number.isFinite(user.coins) ? user.coins : 0}</div>
-            </div>
-          </header>
 
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12 pb-24 sm:pb-32 relative z-10">
             {activeTab === 'learn' && (
@@ -5184,6 +5267,8 @@ export default function App() {
           onAvatarChange={async (v) => { const u = {...user, avatar: v}; setUser(u); await DataService.updateUser(u); }}
           onSkinChange={async (v) => { const u = {...user, calculatorSkin: v}; setUser(u); await DataService.updateUser(u); }}
           onFormelsammlungSkinChange={async (v) => { const u = {...user, formelsammlungSkin: v}; setUser(u); await DataService.updateUser(u); }}
+          onPersonaChange={async (v) => { const u = {...user, aiPersona: v}; setUser(u); await DataService.updateUser(u); }}
+          onAISkinChange={async (v) => { const u = {...user, aiSkin: v}; setUser(u); await DataService.updateUser(u); }}
         />
       )}
 
@@ -5206,7 +5291,10 @@ export default function App() {
               user={user}
               onTaskCorrect={handleTaskCorrect}
               onComplete={handleQuestComplete}
-              onCancel={() => setIsQuestActive(false)}
+              onCancel={() => {
+                setIsQuestActive(false);
+                setCurrentTask(null, null);
+              }}
           />
       )}
     </div>
@@ -5363,12 +5451,6 @@ const UnitView: React.FC<{
                     {activeTab === 'info' && (
                        <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
                           <div className="flex flex-wrap gap-2 mb-4">
-                            <button
-                              onClick={() => overlayOpeners.formelsammlung?.()}
-                              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold flex items-center gap-2"
-                            >
-                              📚 Formelsammlung
-                            </button>
                             {user.unlockedTools?.includes('formel_rechner') && (
                               <button
                                 onClick={() => overlayOpeners.formel_rechner?.()}
@@ -5519,3 +5601,11 @@ const UnitView: React.FC<{
         </ModalOverlay>
     );
 };
+
+export default function App() {
+  return (
+    <CurrentTaskProvider>
+      <AppContent />
+    </CurrentTaskProvider>
+  );
+}

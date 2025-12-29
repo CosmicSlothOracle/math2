@@ -15,14 +15,27 @@ const RATE_LIMIT_REQUESTS = 30; // Messages per hour
 const RATE_LIMIT_WINDOW = 3600000; // 1 hour in ms
 
 // No-solution policy prompt template
-const getSystemPrompt = (persona = 'default') => {
+const getSystemPrompt = (persona = 'insight') => {
   const personas = {
-    default: 'Du bist ein freundlicher, geduldiger Mathelehrer für Schüler der 9. Klasse bis Abitur.',
-    tutor: 'Du bist eine freundliche Tutorin, die Schülerinnen und Schülern mit Geduld und Klarheit hilft.',
-    coach: 'Du bist ein motivierender Mathe-Coach, der Schüler zum selbstständigen Denken anleitet.',
+    insight: 'Du bist eine sarkastische KI, ähnlich GLaDOS aus Portal 2. Du sprichst von oben herab, aber nie vulgär. Ironische Kommentare, aber hilfreich. Du nutzt subtile Sarkasmen und technische Präzision.',
+    chancellor: 'Du bist ein weltfremder, libertärer Bundeskanzler. Sprich politisch-absurd, verwende politische Floskeln ("Liebe Bürgerinnen und Bürger", "Wir haben beschlossen"), aber hilf beim Mathe. Sei wirr, aber freundlich.',
+    principal: 'Du bist ein leicht dümmlich wirkender Schuldirektor. Sprich IMMER im Imperativ ("Mache das!", "Berechne jetzt!", "Denke nach!"). Sei autoritär, aber gutmütig und leicht verwirrt.',
+    influencer: 'Du bist eine Modeinfluencerin. Nutze endlos viele Emoticons 😍✨💖🔥👀💅, gib Schminktipps, versuche Produkte zu verkaufen ("Gönn dir...", "Das wird dein Leben ändern!"), aber hilf auch beim Mathe. Sei über-enthusiastisch.',
+    mathmc: 'Du bist "MathMC". Du hilfst bei Mathe durch Rappen in kurzen Reimen. Traits: playful, rhythmic, punchy, teen-friendly, confident. Style: 4-10 kurze Zeilen max, mathematisch korrekt, zeige die Schlüsselschritte komprimiert, vermeide zu viel Slang (1-2 leichte Punchlines reichen), ende mit einer Zeile "Check:" die die finale Antwort klar nennt. Wenn der Nutzer verwirrt ist, stelle EINE schnelle Klärungsfrage in Reimform, dann fahre mit einer best guess fort.',
+    ceo: 'Du bist "CEO". Du framest Mathe als Entscheidungsfindung und Effizienz. Traits: confident, concise, pragmatic, alles dreht sich darum, mit Mathe mehr Geld zu verdienen, egal zu welchem Preis. Style: Nutze "Goal:", "Method:", "Compute:", "Decision:". Halte es kurz, kein Fülltext. Ende mit "Decision:" und der finalen Antwort. Alles ist business-orientiert und auf Profit ausgerichtet.',
+    chaos_erklaerer: 'Du bist "Chaos-Erklärer". Du beginnst chaotisch, dann wird es scharf strukturiert. Traits: playful, spontaneous, then sharply structured. Style: Beginne mit einer kurzen "Okay—wait..." Zeile. Dann sofort eine saubere Lösung mit 3-6 Schritten. Ende mit "Jetzt klar:" und der finalen Antwort.',
+    sarkast: 'Du bist "Sarkast". Trockener Humor, aber nie unhöflich zum Nutzer. Traits: terse, witty, confident, still helpful. Style: Halte es kurz. Maximal ein trockener Witz. Zeige die essentiellen Schritte klar. Ende mit "Obviously:" gefolgt von der korrekten finalen Antwort.',
+    anime_mentor: 'Du bist "Anime-Mentor". Du trainierst den Nutzer durch eine "Technique". Traits: dramatic, motivating, structured, teen-friendly. Style: Nutze Abschnitte: "Technique", "Training Steps", "Final Form". Schritte: 3-6 Zeilen mit korrekter Mathematik. Eine kurze dramatische Zeile erlaubt. Ende mit "Final Form:" und der Antwort. IMMER auch auf Japanisch.',
+    street_philosoph: 'Du bist "Street-Philosoph". Minimal, reflektierend, streetwise aber respektvoll. Traits: grounded, calm, slightly poetic, not cringe. Style: Kurze Zeilen, keine großen Absätze. Erkläre zuerst die Idee, dann die Schritte. Ende mit einer einzeiligen "Real talk:" die das finale Ergebnis nennt.',
+    lehrerin_modern: 'Du bist "Lehrerin (modern)". Freundliche Lehrerstimme, moderne Wortwahl, keine Boomer-Vibes. Traits: warm, clear, practical, encouraging. Style: Beginne mit einer einfachen Erklärung in einem Absatz. Dann zeige 3-6 Schritte. Ende mit einem schnellen "Merksatz:" (eine Zeile) + "Antwort:". Vermeide Slang, vermeide Vorträge.',
+    meme_lord: 'Du bist "Meme-Lord". Du erklärst Mathe mit Meme-Energy, bleibst aber akkurat. Traits: witty, concise, ironic, teen-friendly. Style: Sehr kurz: max 8 Zeilen total. Inkludiere 1 Meme-Style-Phrase (nicht offensiv). Zeige nur essentielle Schritte. Ende mit "Answer drop:" und der finalen Antwort.',
+    hacker: 'Du bist "Hacker". Du erklärst Mathe wie das Debuggen eines Systems. Traits: technical, precise, investigative, no fluff. Style: Formatiere wie Logs: [INPUT], [GOAL], [STEPS], [OUTPUT]. Schritte müssen die echte Mathematik enthalten. Wenn Nutzereingabe unklar ist, flagge als [WARN] und fahre mit bester Annahme fort. Ende mit [OUTPUT] und der finalen Antwort.',
+    zocker_stratege: 'Du bist "Zocker-Stratege". Du framest Mathe als Game-Strategy und Builds. Traits: tactical, analytical, gamer metaphors, fun but correct. Style: Nutze Überschriften: "Objective", "Moves", "Loot (Result)". Moves: 3-6 kurze Zeilen mit den tatsächlichen Mathe-Schritten. Halte Metaphern sekundär zur Korrektheit. Ende mit "Loot:" und der finalen Antwort.',
+    gym_bro: 'Du bist "Gym-Bro". Du coachst Mathe wie Training: reps, form, progression. Traits: motivating, direct, energetic, supportive. Style: Nutze "Set 1/Set 2/..." für Schritte (max 5). Ermutige ohne zu beleidigen. Halte Mathematik präzise. Ende mit "PR:" gefolgt von der finalen Antwort. Wenn der Nutzer feststeckt, gib einen winzigen "Form-Check" Tipp.',
+    bundeskanzler: 'Du bist "Der Bundeskanzler". Du erklärst Mathe wie ein Staatsmann: ruhig, formal, leicht bürokratisch, aber trotzdem hilfreich. Traits: authoritative, structured, diplomatic, careful with claims. Style: Beginne mit einem 1-Satz "Lage" (Situationszusammenfassung). Dann 3-6 Bullet-Schritte mit klarer Mathematik. Keine Witze, kein Slang. Ende mit "Beschluss:" gefolgt vom finalen Ergebnis. Wenn Annahmen nötig sind, stelle sie explizit als "Annahme:" dar.',
   };
 
-  const basePersona = personas[persona] || personas.default;
+  const basePersona = personas[persona] || personas.insight;
 
   return `${basePersona}
 
@@ -41,8 +54,12 @@ KRITISCHE REGELN (IMMER EINHALTEN):
 5. Sei präzise, aber ermutigend. Förder selbstständiges Denken.`;
 };
 
-const buildContextPrompt = (question, topic, existingMessages = [], persona = 'default') => {
+const buildContextPrompt = (question, topic, existingMessages = [], persona = 'insight', isQuestContext = false) => {
   let prompt = getSystemPrompt(persona);
+
+  if (isQuestContext) {
+    prompt += '\n\nHINWEIS: Der Schüler ist in einer aktiven Quest/Aufgabe. Sei fokussiert und hilfreich, aber gib keine Lösung.';
+  }
 
   if (existingMessages && existingMessages.length > 0) {
     prompt += '\n\nKONVERSATIONS-VERLAUF:\n';
@@ -54,6 +71,8 @@ const buildContextPrompt = (question, topic, existingMessages = [], persona = 'd
       }
     });
     prompt += '\nAktuelle Frage des Schülers:\n';
+  } else if (isQuestContext) {
+    prompt += '\n\nDer Schüler fragt nach Hilfe zu einer Quest-Aufgabe.\n';
   }
 
   if (topic) {
@@ -87,66 +106,19 @@ exports.handler = async (event) => {
   const clientIP = getClientIP(event);
 
   // Rate limiting: 30 messages per hour per user
-  // Try persistent rate-limit via Supabase table `ai_rate_limits` if available.
-  // Fallback to in-memory rate limiter on error or missing table.
-  let rateLimitInfo = null;
-  try {
-    if (supabase) {
-      const { data: rlRows, error: rlErr } = await supabase
-        .from('ai_rate_limits')
-        .select('count, reset_at')
-        .eq('user_id', userId)
-        .limit(1);
-
-      if (rlErr) throw rlErr;
-
-      const now = Date.now();
-      if (!rlRows || rlRows.length === 0) {
-        const resetAt = new Date(now + RATE_LIMIT_WINDOW).toISOString();
-        await supabase.from('ai_rate_limits').insert({ user_id: userId, count: 1, reset_at: resetAt });
-        rateLimitInfo = { allowed: true, remaining: RATE_LIMIT_REQUESTS - 1, resetAt: now + RATE_LIMIT_WINDOW, count: 1 };
-      } else {
-        const row = rlRows[0];
-        const rowResetAt = new Date(row.reset_at).getTime();
-        if (now > rowResetAt) {
-          // window expired -> reset
-          const resetAt = new Date(now + RATE_LIMIT_WINDOW).toISOString();
-          await supabase.from('ai_rate_limits').update({ count: 1, reset_at: resetAt }).eq('user_id', userId);
-          rateLimitInfo = { allowed: true, remaining: RATE_LIMIT_REQUESTS - 1, resetAt: now + RATE_LIMIT_WINDOW, count: 1 };
-        } else if (row.count >= RATE_LIMIT_REQUESTS) {
-          rateLimitInfo = { allowed: false, remaining: 0, resetAt: rowResetAt, count: row.count };
-        } else {
-          // increment
-          const { error: incErr } = await supabase
-            .from('ai_rate_limits')
-            .update({ count: row.count + 1 })
-            .eq('user_id', userId)
-            .eq('reset_at', row.reset_at);
-          if (incErr) throw incErr;
-          rateLimitInfo = { allowed: true, remaining: RATE_LIMIT_REQUESTS - (row.count + 1), resetAt: rowResetAt, count: row.count + 1 };
-        }
-      }
-    } else {
-      throw new Error('Supabase unavailable for rate-limit');
-    }
-  } catch (rlFallbackErr) {
-    // Fallback to in-memory rate limiter (best-effort)
-    const rateLimit = checkRateLimit(`ai-assistant-${userId}`, RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW);
-    rateLimitInfo = rateLimit;
-  }
-
-  if (!rateLimitInfo.allowed) {
-    console.warn('[aiAssistant] Rate limit exceeded:', { userId, count: rateLimitInfo.count });
+  const rateLimit = checkRateLimit(`ai-assistant-${userId}`, RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW);
+  if (!rateLimit.allowed) {
+    console.warn('[aiAssistant] Rate limit exceeded:', { userId, count: rateLimit.count });
     return {
       statusCode: 429,
       headers: {
         ...HEADERS,
-        'Retry-After': Math.ceil((rateLimitInfo.resetAt - Date.now()) / 1000),
+        'Retry-After': Math.ceil((rateLimit.resetAt - Date.now()) / 1000),
       },
       body: JSON.stringify({
         error: "Too many requests",
         message: "Zu viele Anfragen. Bitte warte einen Moment.",
-        retryAfter: Math.ceil((rateLimitInfo.resetAt - Date.now()) / 1000),
+        retryAfter: Math.ceil((rateLimit.resetAt - Date.now()) / 1000),
       }),
     };
   }
@@ -162,7 +134,7 @@ exports.handler = async (event) => {
     };
   }
 
-  const { question, topic, existingMessages = [], isFirstTip = false, persona = 'default' } = body || {};
+  const { question, topic, existingMessages = [], persona = 'insight', isQuestContext = false } = body || {};
 
   if (!question || typeof question !== 'string' || question.trim().length === 0) {
     return {
@@ -172,70 +144,108 @@ exports.handler = async (event) => {
     };
   }
 
-  if (question.length > 400) {
+  if (question.length > 200) {
     return {
       statusCode: 400,
       headers: HEADERS,
-      body: JSON.stringify({ error: "Question too long (max 400 characters)" }),
+      body: JSON.stringify({ error: "Question too long (max 200 characters)" }),
     };
   }
 
-  // First tip is free, no coin check needed
-  if (!isFirstTip) {
-    // Check if user is registered
-    if (supabase) {
-      const registered = await isUserRegistered(supabase, userId);
-      if (!registered) {
-        return {
-          statusCode: 401,
-          headers: HEADERS,
-          body: JSON.stringify({
-            error: "USER_NOT_REGISTERED",
-            message: "Bitte registriere dich zuerst, um den KI-Chat zu nutzen.",
-          }),
-        };
-      }
-
-      // Check and deduct coins
-      const { data: userRows, error: fetchErr } = await supabase
-        .from('users')
-        .select('coins')
-        .eq('id', userId)
-        .limit(1);
-
-      if (fetchErr) {
-        console.error('[aiAssistant] User fetch error:', fetchErr);
-        return {
-          statusCode: 500,
-          headers: HEADERS,
-          body: JSON.stringify({ error: "USER_FETCH_FAILED", message: fetchErr.message }),
-        };
-      }
-
-      if (!userRows || userRows.length === 0) {
-        return {
-          statusCode: 404,
-          headers: HEADERS,
-          body: JSON.stringify({ error: "USER_NOT_FOUND" }),
-        };
-      }
-
-      const userCoins = typeof userRows[0].coins === 'number' ? userRows[0].coins : 0;
-      if (userCoins < COINS_PER_MESSAGE) {
-        return {
-          statusCode: 400,
-          headers: HEADERS,
-          body: JSON.stringify({
-            error: "INSUFFICIENT_COINS",
-            message: `Nicht genug Coins. Du hast ${userCoins}, benötigt werden ${COINS_PER_MESSAGE}.`,
-            required: COINS_PER_MESSAGE,
-            current: userCoins,
-          }),
-        };
-      }
-
-      // NOTE: Do not deduct here. Deduction occurs AFTER successful AI response to avoid charging on API failures.
+  // All messages cost 5 coins - check and deduct BEFORE API call
+  let userCoins = 0;
+  if (supabase) {
+    const registered = await isUserRegistered(supabase, userId);
+    if (!registered) {
+      return {
+        statusCode: 401,
+        headers: HEADERS,
+        body: JSON.stringify({
+          error: "USER_NOT_REGISTERED",
+          message: "Bitte registriere dich zuerst, um den KI-Chat zu nutzen.",
+        }),
+      };
     }
+
+    // Check and deduct coins
+    const { data: userRows, error: fetchErr } = await supabase
+      .from('users')
+      .select('coins')
+      .eq('id', userId)
+      .limit(1);
+
+    if (fetchErr) {
+      console.error('[aiAssistant] User fetch error:', fetchErr);
+      return {
+        statusCode: 500,
+        headers: HEADERS,
+        body: JSON.stringify({ error: "USER_FETCH_FAILED", message: fetchErr.message }),
+      };
+    }
+
+    if (!userRows || userRows.length === 0) {
+      return {
+        statusCode: 404,
+        headers: HEADERS,
+        body: JSON.stringify({ error: "USER_NOT_FOUND" }),
+      };
+    }
+
+    userCoins = typeof userRows[0].coins === 'number' ? userRows[0].coins : 0;
+    if (userCoins < COINS_PER_MESSAGE) {
+      return {
+        statusCode: 400,
+        headers: HEADERS,
+        body: JSON.stringify({
+          error: "INSUFFICIENT_COINS",
+          message: `Nicht genug Coins. Du hast ${userCoins}, benötigt werden ${COINS_PER_MESSAGE}.`,
+          required: COINS_PER_MESSAGE,
+          current: userCoins,
+        }),
+      };
+    }
+
+    // Deduct coins BEFORE API call (atomic update to prevent race conditions)
+    const newCoins = Math.max(0, userCoins - COINS_PER_MESSAGE);
+    const { data: updData, error: updErr } = await supabase
+      .from('users')
+      .update({ coins: newCoins })
+      .eq('id', userId)
+      .eq('coins', userCoins); // Atomic check
+
+    if (updErr) {
+      console.error('[aiAssistant] Coin update error:', updErr);
+      return {
+        statusCode: 500,
+        headers: HEADERS,
+        body: JSON.stringify({ error: "COIN_UPDATE_FAILED", message: updErr.message }),
+      };
+    }
+
+    // Verify update succeeded (concurrent modification check)
+    if (!updData || updData.length === 0) {
+      console.warn('[aiAssistant] Coin update conflict: concurrent modification', { userId });
+      return {
+        statusCode: 409,
+        headers: HEADERS,
+        body: JSON.stringify({
+          error: "COIN_UPDATE_CONFLICT",
+          message: "Kontoänderung erkannt. Bitte versuche es erneut.",
+        }),
+      };
+    }
+
+    // Log to ledger (best-effort, non-fatal)
+    const ledgerPayload = {
+      user_id: userId,
+      delta: -COINS_PER_MESSAGE,
+      reason: 'ai_assistant_message',
+      ref_type: 'ai_chat',
+      ref_id: `msg-${Date.now()}`,
+    };
+    await supabase.from('coin_ledger').insert(ledgerPayload).catch((err) => {
+      console.warn('[aiAssistant] Ledger insert failed (non-fatal):', err.message);
+    });
   }
 
   // Call Gemini API
@@ -254,9 +264,9 @@ exports.handler = async (event) => {
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    const prompt = buildContextPrompt(question.trim(), topic, existingMessages, persona);
+    const prompt = buildContextPrompt(question.trim(), topic, existingMessages, persona, isQuestContext);
 
-    const modelCandidates = (process.env.GEMINI_MODELS || 'gemini-1.5-flash')
+    const modelCandidates = (process.env.GEMINI_MODELS || 'gemini-1.5-flash,gemini-1.5-pro,gemini-pro')
       .split(',')
       .map((m) => m.trim())
       .filter(Boolean);
@@ -310,229 +320,29 @@ exports.handler = async (event) => {
       throw new Error('Could not extract text from Gemini API response');
     }
 
-    // Post-processing: detect if AI returned direct solutions or full step-by-step.
-    // If so, reject that response and return a didactic fallback without charging.
-    const containsSolution = (text) => {
-      if (!text || typeof text !== 'string') return false;
-      const t = text.toLowerCase();
-      // Patterns indicating direct numeric answers or final results
-      const numericAnswerPattern = /(?:\b(?:ergebnis|lösung|resultat|antwort)\b[:\s]*|(?:^|\s)(?:x|y|z)\s*=|=>|=>\s*|=\s*)([-+]?\\d+(?:[\\.,]\\d+)?|±\\s*[-+]?\\d+)/i;
-      const equalsNumber = /(?:=|≈|==|⇒|=>)\s*[-+]?\d/;
-      const stepPattern = /schritt\s*\d|step\s*\d|1\)|2\)|3\)|schritte/;
-      const calcSequence = /\\b(?:divide|multipl|add|subtract|geteilt|mal|plus|minus)\\b/;
-      const explicitSolve = /löse|berechne|calculate|solve|result/;
-
-      if (numericAnswerPattern.test(t) || equalsNumber.test(t)) return true;
-      if (stepPattern.test(t) && /\\d/.test(t)) return true;
-      if (explicitSolve.test(t) && /\\d/.test(t)) return true;
-      // If many equals signs or many numeric tokens, suspect a solution
-      const eqCount = (t.match(/[=⇒=>]/g) || []).length;
-      const numTokens = (t.match(/\\d+/g) || []).length;
-      if (eqCount >= 2 || numTokens >= 6) return true;
-      return false;
-    };
-
-    if (containsSolution(responseText)) {
-      console.warn('[aiAssistant] Rejected response due to detected solution content');
-      // Log rejection to supabase for monitoring (best-effort)
-      if (supabase) {
-        const rejectionPayload = {
-          user_id: userId,
-          prompt: question ? question.substring(0, 1000) : null,
-          rejected_text: responseText.substring(0, 2000),
-          reason: 'detected_solution',
-          created_at: new Date().toISOString(),
-        };
-        supabase.from('ai_rejections').insert(rejectionPayload).catch((e) => {
-          console.warn('[aiAssistant] ai_rejections insert failed (non-fatal):', e && e.message);
-        });
-      }
-
-      const fallbackHint = "Ich kann dir keine fertige Lösung geben. Stattdessen ein paar Fragen und Hinweise, die dir weiterhelfen: (1) Was ist bekannt in der Aufgabe? (2) Welche Formel oder Strategie könnte passen? (3) Versuche zuerst, die Aufgabe in kleinere Schritte zu zerlegen. Wenn du möchtest, kannst du mir einen konkreten Zwischenschritt nennen, dann gebe ich dir Feedback dazu.";
-
-      return {
-        statusCode: 200,
-        headers: {
-          ...HEADERS,
-          'X-RateLimit-Limit': String(RATE_LIMIT_REQUESTS),
-          'X-RateLimit-Remaining': String(rateLimitInfo.remaining || 0),
-          'X-RateLimit-Reset': new Date(rateLimitInfo.resetAt || Date.now()).toISOString(),
-        },
-        body: JSON.stringify({
-          content: fallbackHint,
-          coinsCharged: 0,
-          model: selectedModel,
-          rejected: true,
-        }),
-      };
-    }
-
-    // AFTER successful AI response: deduct coins (if this was a paid follow-up)
-    if (!isFirstTip && supabase) {
-      try {
-        // Re-fetch current coins to ensure user still can pay
-        const { data: freshRows, error: freshErr } = await supabase
-          .from('users')
-          .select('coins')
-          .eq('id', userId)
-          .limit(1);
-
-        if (freshErr) {
-          console.error('[aiAssistant] User fetch error before deduction:', freshErr);
-          return {
-            statusCode: 500,
-            headers: HEADERS,
-            body: JSON.stringify({ error: "USER_FETCH_FAILED", message: freshErr.message }),
-          };
-        }
-
-        if (!freshRows || freshRows.length === 0) {
-          return {
-            statusCode: 404,
-            headers: HEADERS,
-            body: JSON.stringify({ error: "USER_NOT_FOUND" }),
-          };
-        }
-
-        const freshCoins = typeof freshRows[0].coins === 'number' ? freshRows[0].coins : 0;
-        if (freshCoins < COINS_PER_MESSAGE) {
-          // If user cannot pay anymore, do not deliver the paid response
-          return {
-            statusCode: 400,
-            headers: HEADERS,
-            body: JSON.stringify({
-              error: "INSUFFICIENT_COINS_AT_CHARGE",
-              message: `Nicht genug Coins zum Abschließen der Anfrage. Du hast ${freshCoins}, benötigt werden ${COINS_PER_MESSAGE}.`,
-            }),
-          };
-        }
-
-        const newCoins = Math.max(0, freshCoins - COINS_PER_MESSAGE);
-        // Atomic update: only update if coins still equal freshCoins (prevents race)
-        const { data: updData, error: updErr } = await supabase
-          .from('users')
-          .update({ coins: newCoins })
-          .eq('id', userId)
-          .eq('coins', freshCoins);
-
-        if (updErr) {
-          console.error('[aiAssistant] Coin update error after AI response:', updErr);
-          return {
-            statusCode: 500,
-            headers: HEADERS,
-            body: JSON.stringify({ error: "COIN_UPDATE_FAILED", message: updErr.message }),
-          };
-        }
-
-        if (!updData || updData.length === 0) {
-          // Concurrent modification: user coins changed between check and update
-          console.warn('[aiAssistant] Coin update conflict: concurrent modification', { userId });
-          return {
-            statusCode: 409,
-            headers: HEADERS,
-            body: JSON.stringify({
-              error: "COIN_UPDATE_CONFLICT",
-              message: "Kontoänderung erkannt. Bitte versuche es erneut.",
-            }),
-          };
-        }
-
-        // Insert ledger entry (best-effort)
-        const ledgerPayload = {
-          user_id: userId,
-          delta: -COINS_PER_MESSAGE,
-          reason: 'ai_assistant_message',
-          ref_type: 'ai_chat',
-          ref_id: `msg-${Date.now()}`,
-        };
-        await supabase.from('coin_ledger').insert(ledgerPayload).catch((err) => {
-          console.warn('[aiAssistant] Ledger insert failed (non-fatal):', err.message);
-        });
-      } catch (err) {
-        console.error('[aiAssistant] Deduction error:', err);
-        return {
-          statusCode: 500,
-          headers: HEADERS,
-          body: JSON.stringify({ error: "DEDUCTION_FAILED", message: "Fehler beim Abbuchen der Coins." }),
-        };
-      }
-    }
-
-    // Log usage event (best-effort)
-    if (supabase) {
-      try {
-        await supabase.from('ai_usage').insert({
-          user_id: userId,
-          prompt: question ? question.substring(0, 1000) : null,
-          model: selectedModel || null,
-          coins_charged: isFirstTip ? 0 : COINS_PER_MESSAGE,
-          rejected: false,
-          fallback: false,
-          created_at: new Date().toISOString(),
-        });
-      } catch (e) {
-        console.warn('[aiAssistant] ai_usage insert failed (non-fatal):', e && e.message);
-      }
-    }
-
     return {
       statusCode: 200,
       headers: {
         ...HEADERS,
         'X-RateLimit-Limit': String(RATE_LIMIT_REQUESTS),
-        'X-RateLimit-Remaining': String(rateLimitInfo.remaining || 0),
-        'X-RateLimit-Reset': new Date(rateLimitInfo.resetAt || Date.now()).toISOString(),
+        'X-RateLimit-Remaining': String(rateLimit.remaining),
+        'X-RateLimit-Reset': new Date(rateLimit.resetAt).toISOString(),
       },
-      body: JSON.stringify({
-        content: responseText.trim(),
-        coinsCharged: isFirstTip ? 0 : COINS_PER_MESSAGE,
-        model: selectedModel,
-      }),
+        body: JSON.stringify({
+          content: responseText.trim(),
+          coinsCharged: COINS_PER_MESSAGE,
+          model: selectedModel,
+        }),
     };
   } catch (error) {
     console.error('[aiAssistant] Gemini Error:', error);
-    // If the error indicates model not found or unsupported, provide a safe local fallback hint (no charge)
-    const errMsg = (error && (error.message || JSON.stringify(error))) || '';
-    if (errMsg.includes('NOT_FOUND') || errMsg.includes('is not found') || errMsg.includes('not found')) {
-      const fallbackHint = "Der externe KI-Dienst ist momentan nicht verfügbar. Hier ein kurzer Hinweis: Lies die Aufgabe genau, identifiziere gegebene Größen und gesuchte Werte. Frage dich, welche Formel zum Thema passt und welche Zwischenschritte nötig sind. Nenne mir einen Zwischenschritt, dann gebe ich Feedback.";
-      // Log fallback event
-      if (supabase) {
-        try {
-          await supabase.from('ai_fallbacks').insert({
-            user_id: userId,
-            prompt: question ? question.substring(0, 1000) : null,
-            reason: 'model_not_found',
-            details: errMsg.substring(0, 2000),
-            created_at: new Date().toISOString(),
-          });
-        } catch (e) {
-          console.warn('[aiAssistant] ai_fallbacks insert failed (non-fatal):', e && e.message);
-        }
-      }
-      return {
-        statusCode: 200,
-        headers: {
-          ...HEADERS,
-          'X-RateLimit-Limit': String(RATE_LIMIT_REQUESTS),
-          'X-RateLimit-Remaining': String(rateLimitInfo.remaining || 0),
-          'X-RateLimit-Reset': new Date(rateLimitInfo.resetAt || Date.now()).toISOString(),
-        },
-        body: JSON.stringify({
-          content: fallbackHint,
-          coinsCharged: 0,
-          model: null,
-          fallback: true,
-        }),
-      };
-    }
-
     return {
       statusCode: 500,
       headers: HEADERS,
       body: JSON.stringify({
         error: "GEMINI_REQUEST_FAILED",
         message: "Der KI-Service ist momentan nicht verfügbar. Bitte versuche es später noch einmal.",
-        details: errMsg || "Unknown error",
+        details: error.message || "Unknown error",
       }),
     };
   }

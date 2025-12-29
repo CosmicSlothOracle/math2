@@ -88,14 +88,27 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'calc_quantum', name: 'Quantum Matrix', type: 'calculator', cost: 1200, value: 'quantum', icon: '⚛️', description: 'Holographische UI mit Teilchen-Effekten. Rechnen in der vierten Dimension.', rarity: 'legendary' },
 
   // --- KI-PERSÖNLICHKEITEN ---
-  { id: 'ai_persona_default', name: 'Standard Tutor', type: 'persona', cost: 0, value: 'default', icon: '🤖', description: 'Standard KI-Persönlichkeit - freundlich und geduldig.', rarity: 'common' },
-  { id: 'ai_persona_tutor', name: 'Freundliche Tutorin', type: 'persona', cost: 300, value: 'tutor', icon: '👩‍🏫', description: 'Eine geduldige Tutorin mit klaren Erklärungen.', rarity: 'rare' },
-  { id: 'ai_persona_coach', name: 'Motivierender Coach', type: 'persona', cost: 450, value: 'coach', icon: '💪', description: 'Ein motivierender Coach, der dich zum selbstständigen Denken anleitet.', rarity: 'epic' },
+  { id: 'ai_persona_insight', name: 'Insight-KI', type: 'persona', cost: 0, value: 'insight', icon: '🤖', description: 'Sarkastische KI im GLaDOS-Stil - von oben herab, aber hilfreich.', rarity: 'common' },
+  { id: 'ai_persona_chancellor', name: 'Bundeskanzler', type: 'persona', cost: 500, value: 'chancellor', icon: '👔', description: 'Weltfremder, libertärer Bundeskanzler - politisch-absurd, aber mathematisch kompetent.', rarity: 'epic' },
+  { id: 'ai_persona_principal', name: 'Schuldirektor', type: 'persona', cost: 350, value: 'principal', icon: '🎓', description: 'Autoritärer Schuldirektor - spricht im Imperativ, leicht dümmlich, aber gutmütig.', rarity: 'rare' },
+  { id: 'ai_persona_influencer', name: 'Mode-Influencerin', type: 'persona', cost: 400, value: 'influencer', icon: '💄', description: 'Modeinfluencerin mit endlosen Emoticons - gibt Schminktipps, verkauft Produkte, hilft beim Mathe.', rarity: 'epic' },
+  { id: 'ai_persona_mathmc', name: 'Math MC', type: 'persona', cost: 450, value: 'mathmc', icon: '🎤', description: 'Reimend, Beat-Flow, Punchlines, leicht cringe – aber merkbar.', rarity: 'epic' },
+  { id: 'ai_persona_ceo', name: 'CEO', type: 'persona', cost: 600, value: 'ceo', icon: '📊', description: 'Mathe als Business-Tool, Entscheidungen, Effizienz.', rarity: 'epic' },
+  { id: 'ai_persona_chaos_erklaerer', name: 'Chaos-Erklärer', type: 'persona', cost: 400, value: 'chaos_erklaerer', icon: '🌀', description: 'Erst verwirrend, dann plötzlich klar. „Moment, warte… ah."', rarity: 'rare' },
+  { id: 'ai_persona_sarkast', name: 'Sarkast', type: 'persona', cost: 500, value: 'sarkast', icon: '🙃', description: 'Trocken, leicht gemein, aber nie gegen den User.', rarity: 'epic' },
+  { id: 'ai_persona_anime_mentor', name: 'Anime-Mentor', type: 'persona', cost: 550, value: 'anime_mentor', icon: '🗡️', description: '„Diese Technik nennt man…" Power-Ups, Trainings-Arcs.', rarity: 'epic' },
+  { id: 'ai_persona_street_philosoph', name: 'Street-Philosoph', type: 'persona', cost: 450, value: 'street_philosoph', icon: '🚬', description: 'Mathe + Lebensweisheiten. „Wenn du\'s verstehst, hast du\'s."', rarity: 'epic' },
+  { id: 'ai_persona_lehrerin_modern', name: 'Lehrerin (modern)', type: 'persona', cost: 350, value: 'lehrerin_modern', icon: '🍎', description: 'Warm, verständlich, aber modern formuliert. Keine Moralpredigt.', rarity: 'rare' },
+  { id: 'ai_persona_meme_lord', name: 'Meme-Lord', type: 'persona', cost: 500, value: 'meme_lord', icon: '😂', description: 'Erklärt alles über Memes, Vergleiche, Ironie. Sehr kurz.', rarity: 'epic' },
+  { id: 'ai_persona_hacker', name: 'Hacker', type: 'persona', cost: 600, value: 'hacker', icon: '💻', description: 'Terminal-Sprache, Logs, „Bug gefunden", Mathe als System.', rarity: 'epic' },
+  { id: 'ai_persona_zocker_stratege', name: 'Zocker-Stratege', type: 'persona', cost: 500, value: 'zocker_stratege', icon: '🎮', description: 'Mathe = Skilltree, XP, Cooldowns, Builds, Min-Max-Denken.', rarity: 'epic' },
+  { id: 'ai_persona_gym_bro', name: 'Gym-Bro', type: 'persona', cost: 450, value: 'gym_bro', icon: '🏋️‍♂️', description: '„Zahlen sind Gewichte." Motivation, Push-Rhetorik, Fokus auf Durchziehen.', rarity: 'epic' },
+  { id: 'ai_persona_bundeskanzler', name: 'Der Bundeskanzler', type: 'persona', cost: 550, value: 'bundeskanzler', icon: '🎙️', description: 'Seriös, verklausuliert, erklärt selbst Dreisatz wie Koalitionsverhandlungen.', rarity: 'epic' },
 
-  // --- KI-VISUELLE SKINS ---
-  { id: 'ai_skin_default', name: 'Standard Design', type: 'skin', cost: 0, value: 'default', icon: '🎨', description: 'Standard visuelles Design für die KI-Hilfe.', rarity: 'common' },
-  { id: 'ai_skin_neon', name: 'Neon Style', type: 'skin', cost: 400, value: 'neon', icon: '⚡', description: 'Cyber-ähnliches Neon-Design für die KI-Interaktion.', rarity: 'epic' },
-  { id: 'ai_skin_minimal', name: 'Minimalistisch', type: 'skin', cost: 250, value: 'minimal', icon: '✨', description: 'Sauberes, minimalistisches Design.', rarity: 'rare' },
+  // --- KI-VISUELLE SKINS (Chat-Fenster) ---
+  { id: 'ai_chat_skin_default', name: 'Standard Design', type: 'skin', cost: 0, value: 'default', icon: '🎨', description: 'Standard visuelles Design für das KI-Chat-Fenster.', rarity: 'common' },
+  { id: 'ai_chat_skin_neon', name: 'Neon Style', type: 'skin', cost: 300, value: 'neon', icon: '⚡', description: 'Cyber-ähnliches Neon-Design für die KI-Interaktion.', rarity: 'rare' },
+  { id: 'ai_chat_skin_minimal', name: 'Minimalistisch', type: 'skin', cost: 250, value: 'minimal', icon: '✨', description: 'Sauberes, minimalistisches Design für das Chat-Fenster.', rarity: 'rare' },
 
   // --- EFFEKTE ---
   { id: 'eff_rain', name: 'Matrix Rain', type: 'effect', cost: 250, value: 'rain', icon: '📟', description: 'Lass Zahlen auf dem Screen regnen.', rarity: 'rare' },

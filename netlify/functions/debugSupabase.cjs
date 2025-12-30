@@ -1,7 +1,9 @@
 // Debug function to check Supabase configuration
 // Usage: GET /.netlify/functions/debugSupabase
+// Usage: POST /.netlify/functions/debugSupabase (with userId in body or headers)
 
 const { createSupabaseClient } = require('./_supabase.cjs');
+const { getUserIdFromEvent, isUserRegistered } = require('./_utils.cjs');
 
 exports.handler = async function (event, context) {
   const headers = {
@@ -116,6 +118,44 @@ exports.handler = async function (event, context) {
     };
   }
 
+  // Check user registration status (if client is available)
+  if (debug.client.created) {
+    try {
+      const userId = getUserIdFromEvent(event);
+      debug.user = {
+        userId: userId,
+        source: userId.startsWith('anon_') ? 'anonymous' : userId.includes('@') ? 'email' : 'jwt',
+      };
+
+      const client = createSupabaseClient();
+      if (client && userId) {
+        // Check if user exists in database
+        const { data: userData, error: userError } = await client
+          .from('users')
+          .select('id, display_name, coins')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (userError) {
+          debug.user.error = userError.message;
+        } else if (userData) {
+          debug.user.exists = true;
+          debug.user.display_name = userData.display_name;
+          debug.user.coins = userData.coins;
+          debug.user.isRegistered = await isUserRegistered(client, userId);
+        } else {
+          debug.user.exists = false;
+          debug.user.isRegistered = false;
+          debug.user.reason = 'User not found in database';
+        }
+      }
+    } catch (userCheckErr) {
+      debug.user = {
+        error: userCheckErr.message,
+      };
+    }
+  }
+
   return {
     statusCode: 200,
     headers,
@@ -161,6 +201,19 @@ function generateRecommendations(debug) {
     recs.push('Fix: Run docs/migration_fix_schema.sql in Supabase SQL Editor');
     if (debug.schema.fix) {
       recs.push(debug.schema.fix);
+    }
+  }
+
+  // User registration recommendations
+  if (debug.user) {
+    if (!debug.user.exists) {
+      recs.push('🚨 User not found in database. Register via /.netlify/functions/register');
+    } else if (!debug.user.isRegistered) {
+      recs.push(`🚨 User exists but is not registered. display_name: "${debug.user.display_name || 'null'}"`);
+      recs.push('User needs display_name with at least 2 characters (and not "User")');
+      recs.push('Fix: Call /.netlify/functions/register with a username');
+    } else {
+      recs.push(`✅ User is registered: ${debug.user.display_name} (${debug.user.coins} coins)`);
     }
   }
 

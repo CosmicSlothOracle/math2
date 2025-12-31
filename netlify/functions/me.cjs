@@ -241,8 +241,11 @@ exports.handler = async function (event, context) {
 
     // Merge with existing user arrays (for backward compatibility)
     // IMPORTANT: Convert snake_case from Supabase to camelCase for frontend
+    // ALSO set username explicitly for frontend compatibility
     const mergedUser = {
       ...returnedUser,
+      // Explicitly set username for frontend - use display_name from DB
+      username: returnedUser.display_name || returnedUser.username || 'User',
       unlockedItems: Array.isArray(returnedUser.unlocked_items)
         ? returnedUser.unlocked_items
         : (Array.isArray(returnedUser.unlockedItems) ? returnedUser.unlockedItems : []),
@@ -284,7 +287,12 @@ exports.handler = async function (event, context) {
       },
     };
 
-    console.log('[me.js] Success:', { userId: upsertId, progressCount: progressRows.length });
+    console.log('[me.js] Success:', { 
+      userId: upsertId, 
+      display_name: returnedUser.display_name,
+      username_set_to: mergedUser.username,
+      progressCount: progressRows.length 
+    });
 
     // Set cookie for anon ID persistence (if it's an anon ID)
     const headers = { ...baseHeaders };

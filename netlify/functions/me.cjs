@@ -119,76 +119,54 @@ exports.handler = async function (event, context) {
     // Use userId from getUserIdFromEvent (stable anon ID if no JWT)
     const upsertId = userId;
 
-    // Check if user already exists to preserve coins
-    let existingUser = null;
-    try {
-      const { data: existingUserData } = await supabase.from('users').select('coins').eq('id', upsertId).limit(1);
-      existingUser = (existingUserData && existingUserData.length > 0) ? existingUserData[0] : null;
-    } catch (e) {
-      // User doesn't exist yet, that's fine
-      console.warn('[me.js] User check error:', e.message);
-    }
-
-    // Upsert user row - only set coins if user doesn't exist
-    const upsertPayload = {
-      id: upsertId,
-      display_name: displayName,
-    };
-
-    // Only set coins to 250 if this is a new user (starting coins)
-    if (!existingUser) {
-      upsertPayload.coins = 250;
-    }
-
+    // Check if user already exists FIRST
+    // This prevents overwriting display_name with 'User' on every /me call
     let returnedUser;
     try {
-      const { data: upsertResult, error: upsertError } = await supabase.from('users').upsert(upsertPayload, { onConflict: 'id' });
-      if (upsertError) {
-        console.error('[me.js] Supabase upsert error:', upsertError);
-        // Fallback to dev user on error instead of 500
-      const devUser = {
-        id: upsertId, // Use the stable ID even on error
-        display_name: displayName,
-        coins: 2000,
-        perfectStandardQuizUnits: [],
-        perfectBountyUnits: [],
-        completedUnits: [],
-        masteredUnits: []
-      };
-      const headers = { ...baseHeaders };
-      if (upsertId.startsWith('anon_')) {
-        headers['Set-Cookie'] = `mm_anon_id=${upsertId}; Path=/; Max-Age=31536000; SameSite=Lax`;
-      }
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          ok: true,
-          user: devUser,
-          progress: [],
-          serverTime: Date.now(),
-          note: 'dev-fallback-upsert-error',
-          error: upsertError.message,
-          warning: 'Data not persisted - Supabase error'
-        }),
-      };
+      const { data: existingUser, error: fetchError } = await supabase
+        .from('users')
+        .select('id, display_name, coins, unlocked_items, active_effects, calculator_skin, completed_units, mastered_units, pre_cleared_units, ai_persona, ai_skin')
+        .eq('id', upsertId)
+        .maybeSingle();
+
+      if (fetchError) {
+        console.error('[me.js] Fetch existing user error:', fetchError);
       }
 
-      // Handle different response formats from Supabase
-      if (Array.isArray(upsertResult) && upsertResult.length > 0) {
-        returnedUser = upsertResult[0];
-      } else if (upsertResult && typeof upsertResult === 'object') {
-        returnedUser = upsertResult;
+      if (existingUser) {
+        // User exists - don't overwrite their display_name!
+        returnedUser = existingUser;
+        console.log('[me.js] Found existing user:', { id: existingUser.id, display_name: existingUser.display_name });
       } else {
-        // If no user returned, fetch it
-        const { data: fetchedUser } = await supabase.from('users').select('*').eq('id', upsertId).limit(1);
-        returnedUser = (fetchedUser && fetchedUser.length > 0) ? fetchedUser[0] : { id: upsertId, display_name: displayName, coins: 250 };
+        // User doesn't exist - create new user with default display_name
+        const insertPayload = {
+          id: upsertId,
+          display_name: displayName,
+          coins: 250, // Default starting coins
+        };
+
+        const { data: insertResult, error: insertError } = await supabase
+          .from('users')
+          .insert(insertPayload)
+          .select();
+
+        if (insertError) {
+          console.error('[me.js] Insert new user error:', insertError);
+          throw insertError;
+        }
+
+        if (Array.isArray(insertResult) && insertResult.length > 0) {
+          returnedUser = insertResult[0];
+        } else {
+          returnedUser = insertPayload;
+        }
+        console.log('[me.js] Created new user:', { id: upsertId, display_name: displayName });
       }
-    } catch (upsertErr) {
-      console.error('[me.js] Upsert exception:', upsertErr.message);
-      // Fallback to dev user
+    } catch (userErr) {
+      console.error('[me.js] User lookup/create exception:', userErr.message);
+      // Fallback to dev user on any exception
       const devUser = {
-        id: upsertId, // Use the stable ID even on exception
+        id: upsertId,
         display_name: displayName,
         coins: 2000,
         perfectStandardQuizUnits: [],
@@ -208,17 +186,26 @@ exports.handler = async function (event, context) {
           user: devUser,
           progress: [],
           serverTime: Date.now(),
-          note: 'dev-fallback-upsert-exception',
-          error: upsertErr.message,
+          note: 'dev-fallback-user-exception',
+          error: userErr.message,
           warning: 'Data not persisted - Supabase exception'
         }),
       };
     }
 
-    // Fetch progress rows for this user (may be empty)
+    // Ensure coins exist (set default if missing)
+    if (typeof returnedUser.coins !== 'number') {
+      returnedUser.coins = 250;
+    }
+
+    // Fetch progress rows for this user (may be empty) - optimize query
     let progressRows = [];
     try {
-      const { data, error: progressError } = await supabase.from('progress').select('*').eq('user_id', upsertId);
+      // Only select needed columns to reduce payload size
+      const { data, error: progressError } = await supabase
+        .from('progress')
+        .select('unit_id, quest_coins_earned, quest_completed_count, bounty_completed, perfect_standard_quiz, perfect_bounty')
+        .eq('user_id', upsertId);
       if (progressError) {
         console.warn('[me.js] Progress fetch error:', progressError.message);
         // Continue with empty progress array
@@ -237,6 +224,14 @@ exports.handler = async function (event, context) {
     const perfectBountyUnits = progressRows
       .filter((p) => p.perfect_bounty === true)
       .map((p) => p.unit_id);
+
+    // Build questCoinsEarnedByUnit from progress table
+    const questCoinsEarnedByUnit = {};
+    progressRows.forEach((p) => {
+      if (p.unit_id && typeof p.quest_coins_earned === 'number' && p.quest_coins_earned > 0) {
+        questCoinsEarnedByUnit[p.unit_id] = p.quest_coins_earned;
+      }
+    });
 
     // Merge with existing user arrays (for backward compatibility)
     // IMPORTANT: Convert snake_case from Supabase to camelCase for frontend
@@ -277,6 +272,10 @@ exports.handler = async function (event, context) {
           ...progressRows.filter((p) => p.bounty_completed === true).map((p) => p.unit_id)
         ])
       ],
+      questCoinsEarnedByUnit: {
+        ...(returnedUser.questCoinsEarnedByUnit || {}),
+        ...questCoinsEarnedByUnit,
+      },
     };
 
     console.log('[me.js] Success:', { userId: upsertId, progressCount: progressRows.length });

@@ -76,11 +76,10 @@ export function createZahlbereicheQuest(index: number, seed: number): Task {
       // Null einordnen
       question = 'Zu welchen Zahlbereichen gehört die Zahl 0?';
       options = ['Nur zu N und Z', 'Zu Z, Q und R, aber nicht zu N', 'Zu N, Z, Q und R', 'Nur zu R'];
-      answer = '1'; // Index 1 = Z, Q, R aber nicht N (je nach Definition)
       // Hinweis: In manchen Definitionen gehört 0 zu N, in anderen nicht. Wir folgen der deutschen Schuldefinition (0 ∈ N).
-      explanation = 'Die Zahl 0 gehört zu den natürlichen Zahlen (je nach Definition), ganz sicher aber zu Z, Q und R. In der deutschen Schulmathematik gilt oft 0 ∈ N.';
+      answer = '2'; // Index 2 = N, Z, Q, R nach deutscher Schuldefinition
+      explanation = 'Die Zahl 0 gehört nach der deutschen Schuldefinition zu den natürlichen Zahlen (0 ∈ N). Sie gehört also zu N, Z, Q und R. Achtung: In manchen Ländern wird 0 nicht zu N gezählt, aber hier verwenden wir die deutsche Definition.';
       validator = { type: 'exactIndex', correctIndex: 2 }; // N, Z, Q, R nach deutscher Schuldefinition
-      answer = '2';
       break;
     }
   }
@@ -132,7 +131,7 @@ export function createZehnerpotenzenQuest(index: number, seed: number): Task {
       const mantissa = parseFloat(`${firstDigit}.${restDigits || '0'}`).toFixed(restDigits ? restDigits.length : 0);
       question = `Schreibe in wissenschaftlicher Schreibweise: ${num.toLocaleString('de-DE')}`;
       answer = `${mantissa} · 10^${exponent}`;
-      explanation = `Wissenschaftliche Schreibweise: Zahl zwischen 1 und 10 mal Zehnerpotenz. ${num} = ${mantissa} · 10^${exponent}`;
+      explanation = `Die wissenschaftliche Schreibweise hat immer die Form: Zahl zwischen 1 und 10 (Mantisse) · 10^Exponent. Für ${num}: Verschiebe das Komma so, dass eine Zahl zwischen 1 und 10 entsteht (${mantissa}). Du musstest das Komma ${exponent} Stellen nach links verschieben, daher Exponent ${exponent}. Ergebnis: ${mantissa} · 10^${exponent}`;
       validator = {
         type: 'keywords',
         keywordsAll: [mantissa.split('.')[0], '10', String(exponent)],
@@ -149,7 +148,7 @@ export function createZehnerpotenzenQuest(index: number, seed: number): Task {
       const mantissa = parseFloat(numStr.substring(firstNonZero, firstNonZero + 1) + '.' + numStr.substring(firstNonZero + 1)).toFixed(4);
       question = `Schreibe in wissenschaftlicher Schreibweise: ${num.toLocaleString('de-DE', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`;
       answer = `${mantissa} · 10^${exponent}`;
-      explanation = `Wissenschaftliche Schreibweise für kleine Zahlen: ${num} = ${mantissa} · 10^${exponent}`;
+      explanation = `Für kleine Zahlen (kleiner als 1): Verschiebe das Komma so, dass die erste Ziffer ungleich 0 direkt nach dem Komma steht (${mantissa}). Du musstest das Komma ${Math.abs(exponent)} Stellen nach rechts verschieben, daher negativer Exponent ${exponent}. Ergebnis: ${mantissa} · 10^${exponent}`;
       validator = {
         type: 'keywords',
         keywordsAll: [mantissa.split('.')[0], '10', String(exponent)],
@@ -578,9 +577,9 @@ export function createGleichungsknackerQuest(index: number, seed: number): Task 
     question = `Löse die Gleichung: √(${a}x ${bSign} ${b}) = √(${c}x ${dSign} ${d})`;
 
     if (leftRadicand < 0 || rightRadicand < 0) {
-      explanation = `Quadrieren: ${a}x ${bSign} ${b} = ${c}x ${dSign} ${d}, also x = ${answer}. Probe: Radikanden müssen ≥ 0 sein! Keine Lösung.`;
+      explanation = `Schritt 1 - Quadrieren: (√(${a}x ${bSign} ${b}))² = (√(${c}x ${dSign} ${d}))², also ${a}x ${bSign} ${b} = ${c}x ${dSign} ${d}. Schritt 2 - Auflösen: x = ${answer.toFixed(2)}. Schritt 3 - Probe: Setze x = ${answer.toFixed(2)} ein. Radikand links: ${leftRadicand.toFixed(1)}; rechts: ${rightRadicand.toFixed(1)}. ⚠️ Mindestens einer ist negativ → keine Lösung!`;
     } else {
-      explanation = `Quadrieren: ${a}x ${bSign} ${b} = ${c}x ${dSign} ${d}, also x = ${answer.toFixed(2)}. Probe: √${leftRadicand.toFixed(1)} = √${rightRadicand.toFixed(1)} ✓`;
+      explanation = `Schritt 1 - Quadrieren: (√(${a}x ${bSign} ${b}))² = (√(${c}x ${dSign} ${d}))², also ${a}x ${bSign} ${b} = ${c}x ${dSign} ${d}. Schritt 2 - Auflösen: x = ${answer.toFixed(2)}. Schritt 3 - Probe: Setze x = ${answer.toFixed(2)} ein: √${leftRadicand.toFixed(1)} = √${rightRadicand.toFixed(1)} ✓ Beide Radikanden sind ≥ 0 und die Gleichung stimmt!`;
     }
 
     validator = { type: 'numericTolerance', numericAnswer: answer, tolerance: 0.01 };
@@ -598,10 +597,10 @@ export function createGleichungsknackerQuest(index: number, seed: number): Task 
     question = `Löse die Gleichung: √(${a}x ${bSign} ${b}) = ${c}`;
 
     if (radicand < 0) {
-      explanation = `Quadrieren: ${a}x ${bSign} ${b} = ${c * c}, also ${a}x = ${c * c - b}, daher x = ${answer.toFixed(2)}. Probe: Radikand ist negativ, daher keine Lösung!`;
+      explanation = `Schritt 1 - Quadrieren: (√(${a}x ${bSign} ${b}))² = ${c}², also ${a}x ${bSign} ${b} = ${c * c}. Schritt 2 - Auflösen: ${a}x = ${c * c - b}, daher x = ${answer.toFixed(2)}. Schritt 3 - Probe: Setze x = ${answer.toFixed(2)} ein: √(${a}·${answer.toFixed(2)} ${bSign} ${b}) = √${radicand.toFixed(1)} → Fehler! Der Radikand ist negativ, die Wurzel ist nicht definiert. Daher: Keine Lösung! ⚠️`;
       validator = { type: 'keywords', keywordsAny: ['keine', 'lösung', 'ungültig', 'nicht definiert'] };
     } else {
-      explanation = `Quadrieren: ${a}x ${bSign} ${b} = ${c * c}, also ${a}x = ${c * c - b}, daher x = ${answer.toFixed(2)}. Probe: √(${a}·${answer.toFixed(2)} ${bSign} ${b}) = √${radicand.toFixed(1)} = ${c} ✓`;
+      explanation = `Schritt 1 - Quadrieren: (√(${a}x ${bSign} ${b}))² = ${c}², also ${a}x ${bSign} ${b} = ${c * c}. Schritt 2 - Auflösen: ${a}x = ${c * c - b}, daher x = ${answer.toFixed(2)}. Schritt 3 - Probe: Setze x = ${answer.toFixed(2)} ein: √(${a}·${answer.toFixed(2)} ${bSign} ${b}) = √${radicand.toFixed(1)} = ${c} ✓ Die Lösung ist korrekt!`;
       validator = { type: 'numericTolerance', numericAnswer: answer, tolerance: 0.01 };
     }
   }

@@ -28,7 +28,7 @@ export function createParabelBasicsQuest(index: number, seed: number): Task {
       // Normalparabel erkennen
       question = 'Welche Funktion beschreibt eine Normalparabel?';
       answer = 'f(x) = x²';
-      explanation = 'Eine Normalparabel hat die Form f(x) = x². Sie ist nach oben geöffnet und hat ihren Scheitelpunkt im Ursprung S(0|0).';
+      explanation = 'Die Normalparabel ist die einfachste quadratische Funktion: f(x) = x². Sie ist nach oben geöffnet und hat ihren Scheitelpunkt genau im Koordinatenursprung S(0|0). Sie ist außerdem symmetrisch zur y-Achse.';
       validator = {
         type: 'keywords',
         keywordsAll: ['x²', 'x^2'],
@@ -43,7 +43,7 @@ export function createParabelBasicsQuest(index: number, seed: number): Task {
       const aValue = sign * a;
       question = `Ist die Parabel f(x) = ${aValue}x² nach oben oder unten geöffnet?`;
       answer = aValue > 0 ? 'oben' : 'unten';
-      explanation = `Der Koeffizient vor x² ist ${aValue}. Wenn a > 0, ist die Parabel nach oben geöffnet. Wenn a < 0, ist sie nach unten geöffnet.`;
+      explanation = `Der Koeffizient vor x² ist ${aValue}. Merke dir: Wenn a > 0 (positiv), ist die Parabel nach oben geöffnet (wie ein lächelnder Mund 😊). Wenn a < 0 (negativ), ist sie nach unten geöffnet (wie ein trauriger Mund 😞).`;
       validator = {
         type: 'keywords',
         keywordsAny: [answer],
@@ -153,9 +153,11 @@ export function createScheitelpunktQuest(index: number, seed: number): Task {
       // Verschiebung erkennen
       const shiftX = d;
       const shiftY = e;
-      question = `Um wie viel wurde die Normalparabel f(x) = x² verschoben, um f(x) = (x ${d >= 0 ? '-' : '+'} ${Math.abs(d)})² ${e >= 0 ? '+' : '-'} ${Math.abs(e)} zu erhalten?`;
-      answer = `${shiftX >= 0 ? shiftX : shiftX} Einheiten nach ${shiftX >= 0 ? 'rechts' : 'links'}, ${shiftY >= 0 ? shiftY : Math.abs(shiftY)} Einheiten nach ${shiftY >= 0 ? 'oben' : 'unten'}`;
-      explanation = `Die Parabel wurde um ${Math.abs(shiftX)} Einheiten nach ${shiftX >= 0 ? 'rechts' : 'links'} und um ${Math.abs(shiftY)} Einheiten nach ${shiftY >= 0 ? 'oben' : 'unten'} verschoben.`;
+      question = `Die Normalparabel f(x) = x² wurde verschoben zu f(x) = (x ${d >= 0 ? '-' : '+'} ${Math.abs(d)})² ${e >= 0 ? '+' : '-'} ${Math.abs(e)}. Um wie viele Einheiten wurde sie in x-Richtung und y-Richtung verschoben?`;
+      const xRichtung = `${Math.abs(shiftX)} Einheiten nach ${shiftX >= 0 ? 'rechts' : 'links'}`;
+      const yRichtung = `${Math.abs(shiftY)} Einheiten nach ${shiftY >= 0 ? 'oben' : 'unten'}`;
+      answer = `${xRichtung}, ${yRichtung}`;
+      explanation = `In der Scheitelpunktform f(x) = (x - d)² + e zeigt d die Verschiebung nach rechts (d > 0) oder links (d < 0) an, und e die Verschiebung nach oben (e > 0) oder unten (e < 0). Hier: ${xRichtung} und ${yRichtung}.`;
       validator = {
         type: 'keywords',
         keywordsAll: [String(Math.abs(shiftX)), String(Math.abs(shiftY))],
@@ -279,15 +281,18 @@ export function createStreckungQuest(index: number, seed: number): Task {
 /**
  * FORM-TRANSFORMER: Umwandlung zwischen Allgemeiner Form und Scheitelpunktform
  * f(x) = ax² + bx + c <-> f(x) = a(x - d)² + e
+ * Erweitert für a ≠ 1 (Quadratische Ergänzung mit a ausklammern)
  */
 export function createFormTransformQuest(index: number, seed: number): Task {
   const id = `quadratisch-transform-${index}-${seed}`;
-  const scenarioIndex = index % 3;
+  // Für index >= 3 (u_quadratisch_05) verwende a ≠ 1
+  const useComplexA = index >= 3;
+  const scenarioIndex = useComplexA ? (index - 3) % 4 : index % 3;
 
   // Einfache Werte für saubere Umwandlung
   const d = getRandomInt(-3, 3);
   const e = getRandomInt(-3, 3);
-  const a = 1; // Vereinfacht für erste Version
+  const a = useComplexA ? getRandomInt(2, 4) : 1; // Für u_quadratisch_05: a = 2, 3 oder 4
 
   // Allgemeine Form: a(x-d)² + e = a(x² - 2dx + d²) + e = ax² - 2adx + ad² + e
   const b = -2 * a * d;
@@ -298,44 +303,102 @@ export function createFormTransformQuest(index: number, seed: number): Task {
   let explanation: string;
   let validator: any;
 
-  switch (scenarioIndex) {
-    case 0: {
-      // SPF -> AF
-      question = `Wandle die Scheitelpunktform f(x) = (x ${d >= 0 ? '-' : '+'} ${Math.abs(d)})² ${e >= 0 ? '+' : '-'} ${Math.abs(e)} in die allgemeine Form f(x) = ax² + bx + c um.`;
-      answer = `f(x) = x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c}`;
-      explanation = `Ausmultiplizieren: (x ${d >= 0 ? '-' : '+'} ${Math.abs(d)})² ${e >= 0 ? '+' : '-'} ${Math.abs(e)} = x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c}.`;
-      validator = {
-        type: 'keywords',
-        keywordsAll: [String(b), String(c)],
-        keywordsAny: ['x²', 'x^2'],
-      };
-      break;
+  if (useComplexA) {
+    // Erweiterte Aufgaben mit a ≠ 1 (für u_quadratisch_05)
+    switch (scenarioIndex) {
+      case 0: {
+        // SPF -> AF mit a ≠ 1
+        question = `Wandle die Scheitelpunktform f(x) = ${a}(x ${d >= 0 ? '-' : '+'} ${Math.abs(d)})² ${e >= 0 ? '+' : '-'} ${Math.abs(e)} in die allgemeine Form f(x) = ax² + bx + c um.`;
+        answer = `f(x) = ${a}x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c}`;
+        explanation = `Ausmultiplizieren: ${a}(x ${d >= 0 ? '-' : '+'} ${Math.abs(d)})² ${e >= 0 ? '+' : '-'} ${Math.abs(e)} = ${a}(x² ${-2 * d >= 0 ? '+' : ''} ${-2 * d}x + ${d * d}) ${e >= 0 ? '+' : ''} ${e} = ${a}x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c}.`;
+        validator = {
+          type: 'keywords',
+          keywordsAll: [String(a), String(b), String(c)],
+          keywordsAny: ['x²', 'x^2'],
+        };
+        break;
+      }
+      case 1: {
+        // AF -> SPF mit a ≠ 1 (Quadratische Ergänzung - Schritt für Schritt)
+        question = `Wandle die allgemeine Form f(x) = ${a}x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c} in die Scheitelpunktform um. (Tipp: Klammere zuerst ${a} aus!)`;
+        const dSign = d >= 0 ? '-' : '+';
+        const eSign = e >= 0 ? '+' : '-';
+        answer = `f(x) = ${a}(x ${dSign} ${Math.abs(d)})² ${eSign} ${Math.abs(e)}`;
+        explanation = `Schritt 1: ${a} ausklammern: ${a}(x² ${b / a >= 0 ? '+' : ''} ${b / a}x) ${c >= 0 ? '+' : ''} ${c}. Schritt 2: Quadratische Ergänzung: ${a}[(x ${dSign} ${Math.abs(d)})² - ${d * d}] ${c >= 0 ? '+' : ''} ${c} = ${a}(x ${dSign} ${Math.abs(d)})² ${eSign} ${Math.abs(e)}. Scheitelpunkt: S(${d}|${e}).`;
+        validator = {
+          type: 'keywords',
+          keywordsAll: [String(a), String(d), String(e)],
+          keywordsAny: ['(', ')', '²'],
+        };
+        break;
+      }
+      case 2: {
+        // Koeffizienten aus AF mit a ≠ 1 ablesen
+        question = `Gib die Koeffizienten a, b und c der Funktion f(x) = ${a}x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c} an. Format: a = X, b = Y, c = Z`;
+        answer = `a = ${a}, b = ${b}, c = ${c}`;
+        explanation = `In der allgemeinen Form f(x) = ax² + bx + c sind: a = ${a} (Koeffizient vor x²), b = ${b} (Koeffizient vor x), c = ${c} (konstanter Term).`;
+        validator = {
+          type: 'keywords',
+          keywordsAll: [String(a), String(b), String(c)],
+          keywordsAny: ['a =', 'b =', 'c ='],
+        };
+        break;
+      }
+      default: {
+        // Scheitelpunkt aus AF mit a ≠ 1 berechnen (vereinfacht)
+        question = `Eine quadratische Funktion hat die Form f(x) = ${a}x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c}. Der Scheitelpunkt liegt bei x_S = -b/(2a). Berechne x_S.`;
+        const xS = -b / (2 * a);
+        answer = xS.toString();
+        explanation = `Formel: x_S = -b/(2a) = -(${b})/(2·${a}) = ${-b}/${2 * a} = ${xS}. Der Scheitelpunkt liegt bei x = ${xS}.`;
+        validator = {
+          type: 'numericTolerance',
+          numericAnswer: xS,
+          tolerance: 0.01,
+        };
+        break;
+      }
     }
-    case 1: {
-      // AF -> SPF (Quadratische Ergänzung)
-      question = `Wandle die allgemeine Form f(x) = x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c} in die Scheitelpunktform um.`;
-      const dSign = d >= 0 ? '-' : '+';
-      const eSign = e >= 0 ? '+' : '-';
-      answer = `f(x) = (x ${dSign} ${Math.abs(d)})² ${eSign} ${Math.abs(e)}`;
-      explanation = `Quadratische Ergänzung: x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c} = (x ${dSign} ${Math.abs(d)})² ${eSign} ${Math.abs(e)}. Der Scheitelpunkt ist S(${d}|${e}).`;
-      validator = {
-        type: 'keywords',
-        keywordsAll: [String(d), String(e)],
-        keywordsAny: ['(', ')', '²'],
-      };
-      break;
-    }
-    default: {
-      // Koeffizienten aus AF ablesen
-      question = `Gib die Koeffizienten a, b und c der Funktion f(x) = x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c} an. Format: a = X, b = Y, c = Z`;
-      answer = `a = 1, b = ${b}, c = ${c}`;
-      explanation = `In der allgemeinen Form f(x) = ax² + bx + c sind: a = 1 (Koeffizient vor x²), b = ${b} (Koeffizient vor x), c = ${c} (konstanter Term).`;
-      validator = {
-        type: 'keywords',
-        keywordsAll: ['1', String(b), String(c)],
-        keywordsAny: ['a =', 'b =', 'c ='],
-      };
-      break;
+  } else {
+    // Einfache Aufgaben mit a = 1 (für u_quadratisch_04)
+    switch (scenarioIndex) {
+      case 0: {
+        // SPF -> AF
+        question = `Wandle die Scheitelpunktform f(x) = (x ${d >= 0 ? '-' : '+'} ${Math.abs(d)})² ${e >= 0 ? '+' : '-'} ${Math.abs(e)} in die allgemeine Form f(x) = ax² + bx + c um.`;
+        answer = `f(x) = x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c}`;
+        explanation = `Ausmultiplizieren: (x ${d >= 0 ? '-' : '+'} ${Math.abs(d)})² ${e >= 0 ? '+' : '-'} ${Math.abs(e)} = x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c}.`;
+        validator = {
+          type: 'keywords',
+          keywordsAll: [String(b), String(c)],
+          keywordsAny: ['x²', 'x^2'],
+        };
+        break;
+      }
+      case 1: {
+        // AF -> SPF (Quadratische Ergänzung)
+        question = `Wandle die allgemeine Form f(x) = x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c} in die Scheitelpunktform um.`;
+        const dSign = d >= 0 ? '-' : '+';
+        const eSign = e >= 0 ? '+' : '-';
+        answer = `f(x) = (x ${dSign} ${Math.abs(d)})² ${eSign} ${Math.abs(e)}`;
+        explanation = `Quadratische Ergänzung: x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c} = (x ${dSign} ${Math.abs(d)})² ${eSign} ${Math.abs(e)}. Der Scheitelpunkt ist S(${d}|${e}).`;
+        validator = {
+          type: 'keywords',
+          keywordsAll: [String(d), String(e)],
+          keywordsAny: ['(', ')', '²'],
+        };
+        break;
+      }
+      default: {
+        // Koeffizienten aus AF ablesen
+        question = `Gib die Koeffizienten a, b und c der Funktion f(x) = x² ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} ${c} an. Format: a = X, b = Y, c = Z`;
+        answer = `a = 1, b = ${b}, c = ${c}`;
+        explanation = `In der allgemeinen Form f(x) = ax² + bx + c sind: a = 1 (Koeffizient vor x²), b = ${b} (Koeffizient vor x), c = ${c} (konstanter Term).`;
+        validator = {
+          type: 'keywords',
+          keywordsAll: ['1', String(b), String(c)],
+          keywordsAny: ['a =', 'b =', 'c ='],
+        };
+        break;
+      }
     }
   }
 
@@ -345,7 +408,7 @@ export function createFormTransformQuest(index: number, seed: number): Task {
     question,
     correctAnswer: answer,
     explanation,
-    difficultyLevel: 'Schwer',
+    difficultyLevel: useComplexA ? 'Schwer' : 'Mittel',
     validator,
   };
 }

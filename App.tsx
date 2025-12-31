@@ -2300,29 +2300,69 @@ const QuantumAfterimage: React.FC = () => {
 // --- Sub-Components ---
 
 const AuthScreen: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
-  const [name, setName] = useState('');
+  const [isChecking, setIsChecking] = useState(true);
+  const [needsRegistration, setNeedsRegistration] = useState(true);
+
+  // Registration fields
+  const [displayName, setDisplayName] = useState('');
+  const [loginName, setLoginName] = useState('');
+
+  // Login field
+  const [loginNameInput, setLoginNameInput] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = async () => {
-    if (!name.trim()) {
-      setError('Bitte gib einen Namen ein');
+  // Check if user already has login_name
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await bootstrapServerUser();
+        if (res && res.user) {
+          // Check if user has login_name (already registered)
+          const hasLoginName = res.user.login_name || (res.user as any).loginName;
+          setNeedsRegistration(!hasLoginName);
+        }
+      } catch (e) {
+        console.warn('[AuthScreen] bootstrapServerUser failed', e);
+        // Assume needs registration on error
+        setNeedsRegistration(true);
+      } finally {
+        setIsChecking(false);
+      }
+    })();
+  }, []);
+
+  const handleRegister = async () => {
+    if (!displayName.trim()) {
+      setError('Bitte gib einen Display-Namen ein');
       return;
     }
-    if (name.trim().length < 2) {
-      setError('Name muss mindestens 2 Zeichen lang sein');
+    if (displayName.trim().length < 2) {
+      setError('Display-Name muss mindestens 2 Zeichen lang sein');
       return;
     }
-    if (name.trim().length > 30) {
-      setError('Name darf maximal 30 Zeichen lang sein');
+    if (displayName.trim().length > 30) {
+      setError('Display-Name darf maximal 30 Zeichen lang sein');
+      return;
+    }
+    if (!loginName.trim()) {
+      setError('Bitte gib einen Login-Namen ein');
+      return;
+    }
+    if (loginName.trim().length < 4) {
+      setError('Login-Name muss mindestens 4 Zeichen lang sein');
+      return;
+    }
+    if (loginName.trim().length > 30) {
+      setError('Login-Name darf maximal 30 Zeichen lang sein');
       return;
     }
 
     setLoading(true);
     setError(null);
     try {
-      // Register user (required for battles)
-      const user = await AuthService.register(name.trim());
+      const user = await AuthService.register(displayName.trim(), loginName.trim());
       onLogin(user);
     } catch (err: any) {
       setError(err.message || 'Registrierung fehlgeschlagen');
@@ -2331,19 +2371,105 @@ const AuthScreen: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) =>
     }
   };
 
+  const handleLogin = async () => {
+    if (!loginNameInput.trim()) {
+      setError('Bitte gib deinen Login-Namen ein');
+      return;
+    }
+    if (loginNameInput.trim().length < 4) {
+      setError('Login-Name muss mindestens 4 Zeichen lang sein');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const user = await AuthService.login(loginNameInput.trim());
+      onLogin(user);
+    } catch (err: any) {
+      setError(err.message || 'Login fehlgeschlagen');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (isChecking) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md text-center">
+          <h1 className="text-4xl font-black italic uppercase mb-2 text-indigo-600">MathMaster</h1>
+          <p className="text-slate-400 mb-4">Lade...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (needsRegistration) {
+    // Registration screen
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md text-center">
+          <h1 className="text-4xl font-black italic uppercase mb-2 text-indigo-600">MathMaster</h1>
+          <p className="text-slate-400 mb-2 font-medium">Registriere dich für Battles</p>
+          <p className="text-xs text-slate-400 mb-6">Wähle einen Display-Namen und einen Login-Namen</p>
+
+          <div className="mb-4">
+            <label className="block text-xs font-bold text-slate-600 mb-1 text-left">Display-Name</label>
+            <input
+              value={displayName}
+              onChange={(e) => {
+                setDisplayName(e.target.value);
+                setError(null);
+              }}
+              placeholder="Dein Anzeigename (kann später geändert werden)"
+              className="w-full p-4 bg-slate-100 rounded-xl mb-2 font-bold text-center outline-none focus:ring-2 focus:ring-indigo-500"
+              onKeyDown={(e) => e.key === 'Enter' && handleRegister()}
+              maxLength={30}
+            />
+            <p className="text-xs text-slate-400 text-left">2-30 Zeichen</p>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-xs font-bold text-slate-600 mb-1 text-left">Login-Name</label>
+            <input
+              value={loginName}
+              onChange={(e) => {
+                setLoginName(e.target.value);
+                setError(null);
+              }}
+              placeholder="Dein Login-Name (einzigartig, zum Einloggen)"
+              className="w-full p-4 bg-slate-100 rounded-xl mb-2 font-bold text-center outline-none focus:ring-2 focus:ring-indigo-500"
+              onKeyDown={(e) => e.key === 'Enter' && handleRegister()}
+              maxLength={30}
+            />
+            <p className="text-xs text-slate-400 text-left">Mindestens 4 Zeichen, muss einzigartig sein</p>
+          </div>
+
+          {error && (
+            <p className="text-red-500 text-sm mb-2">{error}</p>
+          )}
+          <Button onClick={handleRegister} isLoading={loading} className="w-full">
+            Registrieren & Starten 🚀
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Login screen
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md text-center">
         <h1 className="text-4xl font-black italic uppercase mb-2 text-indigo-600">MathMaster</h1>
-        <p className="text-slate-400 mb-2 font-medium">Registriere dich für Battles</p>
-        <p className="text-xs text-slate-400 mb-6">Wähle einen Benutzernamen (2-30 Zeichen)</p>
+        <p className="text-slate-400 mb-2 font-medium">Willkommen zurück!</p>
+        <p className="text-xs text-slate-400 mb-6">Gib deinen Login-Namen ein</p>
         <input
-          value={name}
+          value={loginNameInput}
           onChange={(e) => {
-            setName(e.target.value);
+            setLoginNameInput(e.target.value);
             setError(null);
           }}
-          placeholder="Benutzername eingeben..."
+          placeholder="Login-Name eingeben..."
           className="w-full p-4 bg-slate-100 rounded-xl mb-2 font-bold text-center outline-none focus:ring-2 focus:ring-indigo-500"
           onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
           maxLength={30}
@@ -2352,7 +2478,7 @@ const AuthScreen: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) =>
           <p className="text-red-500 text-sm mb-2">{error}</p>
         )}
         <Button onClick={handleLogin} isLoading={loading} className="w-full">
-          Registrieren & Starten 🚀
+          Einloggen 🚀
         </Button>
       </div>
     </div>
@@ -2533,7 +2659,171 @@ const ChatView: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   );
 };
 
-// Blood Dome User Modal - Lamborghini-styled user card
+// Mini Matrix Rain Effect for player cards
+const MiniMatrixRain: React.FC<{ containerRef: React.RefObject<HTMLDivElement> }> = ({ containerRef }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const size = useContainerSize(containerRef);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !containerRef.current) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = containerRef.current.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
+    const fontSize = 12;
+    const columns = Math.floor(canvas.width / fontSize);
+    const drops: number[] = new Array(columns).fill(0).map(() => Math.random() * -50);
+    const speeds: number[] = new Array(columns).fill(0).map(() => 0.3 + Math.random() * 0.7);
+    const chars = "0123456789+-×÷=√π";
+
+    const draw = () => {
+      ctx.fillStyle = 'rgba(0, 8, 0, 0.1)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = 0; i < drops.length; i++) {
+        const x = i * fontSize;
+        const y = drops[i] * fontSize;
+        const char = chars[Math.floor(Math.random() * chars.length)];
+
+        if (y > 0 && y < canvas.height) {
+          ctx.save();
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = '#00ff88';
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+          ctx.fillText(char, x, y);
+          ctx.restore();
+        }
+
+        const trailLength = 8;
+        for (let j = 1; j < trailLength; j++) {
+          const trailY = y - j * fontSize;
+          if (trailY > 0 && trailY < canvas.height) {
+            const alpha = Math.max(0, 1 - j / trailLength);
+            const green = Math.floor(255 * alpha);
+            ctx.fillStyle = `rgba(0, ${green}, ${Math.floor(green * 0.4)}, ${alpha * 0.6})`;
+            ctx.font = `${fontSize}px 'Courier New', monospace`;
+            ctx.fillText(chars[Math.floor(Math.random() * chars.length)], x, trailY);
+          }
+        }
+
+        drops[i] += speeds[i];
+        if (drops[i] * fontSize > canvas.height + 100) {
+          drops[i] = Math.random() * -10;
+          speeds[i] = 0.3 + Math.random() * 0.7;
+        }
+      }
+    };
+
+    const interval = setInterval(draw, 50);
+    return () => clearInterval(interval);
+  }, [size, containerRef]);
+
+  return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none opacity-60" />;
+};
+
+// Mini Electric Storm Effect for player cards
+const MiniElectricStorm: React.FC<{ containerRef: React.RefObject<HTMLDivElement> }> = ({ containerRef }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const size = useContainerSize(containerRef);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !containerRef.current) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = containerRef.current.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
+    interface Bolt {
+      path: {x: number, y: number}[];
+      life: number;
+      width: number;
+      hue: number;
+    }
+
+    const bolts: Bolt[] = [];
+    let globalEnergy = 50;
+
+    function createBolt(x: number, y: number, length: number) {
+      const path = [{x, y}];
+      const baseAngle = Math.random() * Math.PI * 2;
+      let currX = x;
+      let currY = y;
+      const segments = Math.floor(length / 3);
+
+      for(let i=0; i<segments; i++) {
+        const jitter = 8;
+        currX += Math.cos(baseAngle) * 3 + (Math.random() - 0.5) * jitter;
+        currY += Math.sin(baseAngle) * 3 + (Math.random() - 0.5) * jitter;
+        path.push({x: currX, y: currY});
+      }
+
+      bolts.push({
+        path,
+        life: 1.0,
+        width: 1 + Math.random(),
+        hue: 180 + Math.random() * 60,
+      });
+    }
+
+    const draw = () => {
+      globalEnergy *= 0.95;
+      ctx.fillStyle = `rgba(5, 10, 25, 0.1)`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (Math.random() < 0.05 + globalEnergy * 0.001) {
+        createBolt(
+          Math.random() * canvas.width,
+          Math.random() * canvas.height,
+          30 + Math.random() * 40
+        );
+        globalEnergy = Math.min(globalEnergy + 10, 100);
+      }
+
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      for (let i = bolts.length - 1; i >= 0; i--) {
+        const b = bolts[i];
+        if (b.path.length < 2) {
+          bolts.splice(i, 1);
+          continue;
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(b.path[0].x, b.path[0].y);
+        for (let j = 1; j < b.path.length; j++) {
+          ctx.lineTo(b.path[j].x, b.path[j].y);
+        }
+
+        ctx.strokeStyle = `hsla(${b.hue}, 100%, 70%, ${b.life * 0.6})`;
+        ctx.lineWidth = b.width * b.life;
+        ctx.shadowBlur = 8 * b.life;
+        ctx.shadowColor = `hsl(${b.hue}, 100%, 60%)`;
+        ctx.stroke();
+
+        b.life -= 0.05;
+        if (b.life <= 0) bolts.splice(i, 1);
+      }
+
+      ctx.shadowBlur = 0;
+    };
+
+    const interval = setInterval(draw, 50);
+    return () => clearInterval(interval);
+  }, [size, containerRef]);
+
+  return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none opacity-50" />;
+};
+
+// Blood Dome User Modal - Enhanced with visual effects and progress system
 const BloodDomeUserModal: React.FC<{
   user: User & { battleStats?: { total: number; wins: number; win_rate: number } };
   currentUserId: string;
@@ -2542,9 +2832,10 @@ const BloodDomeUserModal: React.FC<{
   currentUser?: User;
   isLoading?: boolean;
 }> = ({ user, currentUserId, onChallenge, isDarkMode = false, currentUser, isLoading = false }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const rarity = getAvatarRarity(user.avatar);
   const battleStats = user.battleStats || { total: 0, wins: 0, win_rate: 0 };
-  const perfectQuests = (user as any).perfectBountyUnits?.length || 0;
+  const perfectBounties = (user as any).perfectBountyUnits?.length || 0;
   const isCurrentUser = user.id === currentUserId;
 
   // Check if current user can challenge (registered and has enough coins)
@@ -2555,22 +2846,54 @@ const BloodDomeUserModal: React.FC<{
     Number.isFinite(currentUser.coins) &&
     currentUser.coins >= 25; // Minimum stake for battles
 
-  // Rarity-based glow classes
-  const rarityClasses = {
-    common: 'border-slate-400 shadow-slate-400/20',
-    rare: 'border-blue-500 shadow-blue-500/30',
-    epic: 'border-purple-500 shadow-purple-500/40',
-    legendary: 'border-amber-500 shadow-amber-500/50',
+  // Coin-based styling (more coins = more golden/saturated)
+  const coins = user.coins || 0;
+  const coinTier = coins < 500 ? 'bronze' : coins < 2000 ? 'silver' : coins < 5000 ? 'gold' : coins < 10000 ? 'platinum' : 'diamond';
+  const coinStyles: Record<string, { bg: string; text: string; icon: string; size: string; glow?: string }> = {
+    bronze: { bg: 'bg-amber-100 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300', icon: 'text-lg', size: 'text-base' },
+    silver: { bg: 'bg-slate-100 dark:bg-slate-700/30', text: 'text-slate-700 dark:text-slate-300', icon: 'text-xl', size: 'text-lg' },
+    gold: { bg: 'bg-amber-200 dark:bg-amber-800/40', text: 'text-amber-800 dark:text-amber-200', icon: 'text-2xl', size: 'text-xl font-extrabold' },
+    platinum: { bg: 'bg-gradient-to-r from-amber-200 to-amber-300 dark:from-amber-800/50 dark:to-amber-700/50', text: 'text-amber-900 dark:text-amber-100', icon: 'text-2xl', size: 'text-xl font-black' },
+    diamond: { bg: 'bg-gradient-to-r from-cyan-200 via-amber-200 to-cyan-200 dark:from-cyan-800/60 dark:via-amber-800/60 dark:to-cyan-800/60', text: 'text-amber-950 dark:text-amber-50', icon: 'text-3xl', size: 'text-2xl font-black', glow: 'shadow-[0_0_20px_rgba(251,191,36,0.6)]' },
   };
+  const coinStyle = coinStyles[coinTier];
 
-  const rarityGlow = rarityClasses[rarity];
+  // Progress-based border (belt system: light blue → chrom)
+  const beltLevel = Math.min(Math.floor(perfectBounties / 3), 8); // 0-8 levels
+  const beltColors = [
+    { border: 'border-blue-200', glow: 'shadow-blue-200/30' }, // Level 0-1: Light Blue
+    { border: 'border-blue-300', glow: 'shadow-blue-300/40' },
+    { border: 'border-blue-400', glow: 'shadow-blue-400/50' }, // Level 2-3: Blue
+    { border: 'border-indigo-400', glow: 'shadow-indigo-400/50' },
+    { border: 'border-purple-400', glow: 'shadow-purple-400/60' }, // Level 4-5: Purple
+    { border: 'border-purple-500', glow: 'shadow-purple-500/70' },
+    { border: 'border-amber-400', glow: 'shadow-amber-400/70' }, // Level 6-7: Gold
+    { border: 'border-amber-500', glow: 'shadow-amber-500/80' },
+    { border: 'border-cyan-300', glow: 'shadow-[0_0_30px_rgba(34,211,238,0.8)]' }, // Level 8: Chrom
+  ];
+  const beltStyle = beltColors[Math.min(beltLevel, beltColors.length - 1)];
+
+  // Active effects
+  const activeEffects = user.activeEffects || [];
+  const hasRain = activeEffects.includes('rain');
+  const hasStorm = activeEffects.includes('storm');
+
+  // Unlocked tools/features for icon bar
+  const unlockedTools = user.unlockedTools || [];
+  const hasFormelRechner = unlockedTools.includes('formel_rechner');
+  const hasSchrittLoeser = unlockedTools.includes('schritt_loeser');
+  const hasSpickerTrainer = unlockedTools.includes('spicker_trainer');
+  const hasScheitelCoach = unlockedTools.includes('scheitel_coach');
+  const hasFormelsammlung = user.formelsammlungSkin && user.formelsammlungSkin !== 'base';
+  const hasPersona = user.aiPersona && user.aiPersona !== 'insight';
 
   return (
     <div
+      ref={containerRef}
       className={`
-        relative p-6 rounded-lg backdrop-blur-md transition-all hover:scale-105
+        relative p-6 rounded-lg backdrop-blur-md transition-all hover:scale-105 overflow-hidden
         ${isDarkMode ? 'bg-slate-900/50' : 'bg-white/80'}
-        border-2 ${rarityGlow}
+        border-4 ${beltStyle.border} ${beltStyle.glow}
         shadow-lg hover:shadow-xl
         ${isCurrentUser ? 'ring-2 ring-indigo-500' : ''}
       `}
@@ -2578,62 +2901,81 @@ const BloodDomeUserModal: React.FC<{
         clipPath: 'polygon(10% 0%, 90% 0%, 100% 15%, 100% 85%, 90% 100%, 10% 100%, 0% 85%, 0% 15%)',
       }}
     >
-      {/* Avatar */}
-      <div className="flex justify-center mb-4">
-        <div className={`text-6xl bg-slate-100 rounded-full w-20 h-20 flex items-center justify-center border-4 ${isDarkMode ? 'border-slate-700' : 'border-white'} shadow-lg`}>
-          {user.avatar}
-        </div>
-      </div>
+      {/* Visual Effects Overlay */}
+      {hasRain && <MiniMatrixRain containerRef={containerRef} />}
+      {hasStorm && <MiniElectricStorm containerRef={containerRef} />}
 
-      {/* Username (where "Lamborghini" text would be) */}
-      <div className="text-center mb-4">
-        <h3 className="font-black italic uppercase text-lg tracking-wider text-slate-900 dark:text-white">
-          {user.username}
-        </h3>
-      </div>
+      {/* Content (relative z-index to appear above effects) */}
+      <div className="relative z-10">
+        {/* Avatar - Prominently displayed */}
+        <div className="flex justify-center mb-4">
+          <div className={`text-6xl bg-slate-100 dark:bg-slate-800 rounded-full w-20 h-20 flex items-center justify-center border-4 ${isDarkMode ? 'border-slate-700' : 'border-white'} shadow-lg`}>
+            {user.avatar}
+          </div>
+        </div>
 
-      {/* Coins */}
-      <div className="text-center mb-4">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 dark:bg-amber-900/30 rounded-full">
-          <span className="text-xl">🪙</span>
-          <span className="font-black text-amber-900 dark:text-amber-200">{user.coins}</span>
+        {/* Username */}
+        <div className="text-center mb-3">
+          <h3 className="font-black italic uppercase text-lg tracking-wider text-slate-900 dark:text-white">
+            {user.username}
+          </h3>
         </div>
-      </div>
 
-      {/* Stats */}
-      <div className="space-y-2 mb-4 text-xs">
-        <div className="flex justify-between items-center">
-          <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Battles</span>
-          <span className="font-black text-slate-900 dark:text-white">{battleStats.total}</span>
+        {/* Coins - Scaled by amount */}
+        <div className="text-center mb-4">
+          <div className={`inline-flex items-center gap-2 px-4 py-2 ${coinStyle.bg} rounded-full ${coinStyle.glow || ''}`}>
+            <span className={coinStyle.icon}>🪙</span>
+            <span className={`font-black ${coinStyle.text} ${coinStyle.size}`}>{coins.toLocaleString()}</span>
+          </div>
         </div>
-        <div className="flex justify-between items-center">
-          <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Win Rate</span>
-          <span className="font-black text-slate-900 dark:text-white">{battleStats.win_rate}%</span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Perfect Quests</span>
-          <span className="font-black text-slate-900 dark:text-white">{perfectQuests}</span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">XP</span>
-          <span className="font-black text-slate-900 dark:text-white">{user.xp || 0}</span>
-        </div>
-      </div>
 
-      {/* VS Button */}
-      {!isCurrentUser && (
-        <div className="mt-4">
-          <Button
-            onClick={() => onChallenge(user)}
-            disabled={isLoading || !canChallenge}
-            className="w-full font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-            size="sm"
-            title={!canChallenge ? (currentUser && (!currentUser.username || currentUser.username === 'User' || currentUser.username.trim().length < 2) ? 'Registrierung erforderlich' : 'Nicht genug Coins (min. 25)') : undefined}
-          >
-            {isLoading ? 'Wird erstellt...' : '⚔️ VS'}
-          </Button>
+        {/* Stats */}
+        <div className="space-y-2 mb-4 text-xs">
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Battles</span>
+            <span className="font-black text-slate-900 dark:text-white">{battleStats.total}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Win Rate</span>
+            <span className="font-black text-slate-900 dark:text-white">{battleStats.win_rate}%</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Perfect Bounties</span>
+            <span className="font-black text-slate-900 dark:text-white">{perfectBounties}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">XP</span>
+            <span className="font-black text-slate-900 dark:text-white">{user.xp || 0}</span>
+          </div>
         </div>
-      )}
+
+        {/* VS Button */}
+        {!isCurrentUser && (
+          <div className="mt-4 mb-3">
+            <Button
+              onClick={() => onChallenge(user)}
+              disabled={isLoading || !canChallenge}
+              className="w-full font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              size="sm"
+              title={!canChallenge ? (currentUser && (!currentUser.username || currentUser.username === 'User' || currentUser.username.trim().length < 2) ? 'Registrierung erforderlich' : 'Nicht genug Coins (min. 25)') : undefined}
+            >
+              {isLoading ? 'Wird erstellt...' : '⚔️ VS'}
+            </Button>
+          </div>
+        )}
+
+        {/* Icon Bar - Tools & Features */}
+        {(hasFormelRechner || hasSchrittLoeser || hasSpickerTrainer || hasScheitelCoach || hasFormelsammlung || hasPersona) && (
+          <div className="flex flex-wrap justify-center gap-2 mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+            {hasFormelRechner && <span className="text-lg" title="Formel-Rechner">🧮</span>}
+            {hasSchrittLoeser && <span className="text-lg" title="Schritt-für-Schritt-Loeser">📝</span>}
+            {hasSpickerTrainer && <span className="text-lg" title="Spicker-Coach">🧠</span>}
+            {hasScheitelCoach && <span className="text-lg" title="Scheitel-Coach">📈</span>}
+            {hasFormelsammlung && <span className="text-lg" title="Formelsammlung">📚</span>}
+            {hasPersona && <span className="text-lg" title="KI-Persona">🤖</span>}
+          </div>
+        )}
+      </div>
 
       {/* Rarity glow effect */}
       <div
@@ -4551,11 +4893,11 @@ const AppContent = () => {
 
   // Toast System
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const addToast = (message: string, type: ToastType = 'info') => {
+  const addToast = useCallback((message: string, type: ToastType = 'info') => {
     const id = Date.now().toString();
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
-  };
+  }, []);
 
   const refreshBattles = useCallback(async () => {
     if (!user) return;
@@ -4580,10 +4922,14 @@ const AppContent = () => {
     }
   }, [user, addToast]);
 
+  // Refresh battles when community tab is active - use ref to avoid re-triggering on refreshBattles recreation
+  const refreshBattlesRef = useRef(refreshBattles);
+  refreshBattlesRef.current = refreshBattles;
+
   useEffect(() => {
     if (!user || activeTab !== 'community') return;
-    refreshBattles();
-  }, [user, activeTab, refreshBattles]);
+    refreshBattlesRef.current();
+  }, [user, activeTab]);
 
 
   const triggerCoinAnimation = () => {

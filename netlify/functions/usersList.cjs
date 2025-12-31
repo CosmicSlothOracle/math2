@@ -52,11 +52,10 @@ exports.handler = async function (event) {
       };
     }
 
-    // Fetch all users with unique display names
-    // Only query core columns that definitely exist: id, display_name, coins, created_at
+    // Fetch all users with unique display names and all relevant fields for Blood Dome display
     const { data: users, error: usersError } = await supabase
       .from("users")
-      .select("id, display_name, coins, created_at")
+      .select("id, display_name, coins, avatar, active_effects, completed_units, mastered_units, perfect_bounty_units, unlocked_items, unlocked_tools, calculator_skin, formelsammlung_skin, ai_persona, created_at")
       .not("display_name", "is", null)
       .order("coins", { ascending: false });
 
@@ -107,11 +106,16 @@ exports.handler = async function (event) {
 
         return {
           ...user,
-          avatar: "👤", // Default avatar
-          active_effects: [],
-          completed_units: [],
-          mastered_units: [],
-          perfect_bounty_units: [],
+          avatar: user.avatar || "👤", // Use actual avatar or default
+          active_effects: user.active_effects || [],
+          completed_units: user.completed_units || [],
+          mastered_units: user.mastered_units || [],
+          perfect_bounty_units: user.perfect_bounty_units || [],
+          unlocked_items: user.unlocked_items || [],
+          unlocked_tools: user.unlocked_tools || [],
+          calculator_skin: user.calculator_skin || 'default',
+          formelsammlung_skin: user.formelsammlung_skin || 'base',
+          ai_persona: user.ai_persona || 'insight',
           battle_stats: { total, wins, win_rate },
         };
       })

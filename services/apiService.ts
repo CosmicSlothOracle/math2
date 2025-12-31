@@ -85,6 +85,7 @@ function normalizeUser(serverUser: any): User {
     questCoinsEarnedByUnit: serverUser.questCoinsEarnedByUnit || {},
     bountyPayoutClaimed: serverUser.bountyPayoutClaimed || {},
     username: serverUser.username || serverUser.display_name || 'User',
+    login_name: serverUser.login_name || serverUser.loginName || undefined,
     avatar: serverUser.avatar || '👤',
     calculatorSkin: serverUser.calculatorSkin || serverUser.calculator_skin || 'default',
     formelsammlungSkin: serverUser.formelsammlungSkin || serverUser.formelsammlung_skin || 'base',
@@ -95,38 +96,44 @@ function normalizeUser(serverUser: any): User {
 
 export const AuthService = {
   /**
-   * Register a user with a username.
+   * Register a user with display name and login name.
    * This is required before participating in battles.
    */
-  async register(username: string): Promise<User> {
+  async register(displayName: string, loginName: string): Promise<User> {
     try {
       const headers = getApiHeaders();
       const resp = await fetch('/.netlify/functions/register', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ username }),
+        body: JSON.stringify({ displayName, loginName }),
       });
 
       persistAnonId(resp);
 
       if (!resp.ok) {
         const json = await resp.json();
-        if (json.error === 'USERNAME_TAKEN') {
-          throw new Error('This username is already taken');
+        if (json.error === 'LOGIN_NAME_TAKEN') {
+          throw new Error('Dieser Login-Name ist bereits vergeben');
         }
-        throw new Error(json.message || `Registration failed: ${resp.status}`);
+        if (json.error === 'INVALID_LOGIN_NAME') {
+          throw new Error('Login-Name muss mindestens 4 Zeichen lang sein');
+        }
+        if (json.error === 'INVALID_DISPLAY_NAME') {
+          throw new Error('Display-Name muss mindestens 2 Zeichen lang sein');
+        }
+        throw new Error(json.message || `Registrierung fehlgeschlagen: ${resp.status}`);
       }
 
       const json = await resp.json();
       if (!json.user) {
-        throw new Error('No user in registration response');
+        throw new Error('Kein User in Registrierungsantwort');
       }
 
       const user = normalizeUser(json.user);
-      user.username = username; // Ensure username is set
+      user.username = displayName; // Ensure username is set
       db.set('mm_current_user', user);
 
-      console.log('[AuthService.register] Success:', { userId: user.id, username });
+      console.log('[AuthService.register] Success:', { userId: user.id, displayName, loginName });
       return user;
     } catch (err) {
       console.error('[AuthService.register] Error:', err);
@@ -135,25 +142,28 @@ export const AuthService = {
   },
 
   /**
-   * Login now calls /me endpoint to get or create user on server.
-   * Username is stored as display_name in the backend.
-   * For battles, users should use register() instead.
+   * Login with login name (no password required).
+   * Searches for user by login_name in the backend.
    */
-  async login(username: string): Promise<User> {
+  async login(loginName: string): Promise<User> {
     try {
-      console.log('[AuthService.login] Calling /me with username:', username);
+      console.log('[AuthService.login] Calling /login with loginName:', loginName);
       const headers = getApiHeaders();
 
-      // Call /me endpoint which will create user if needed
-      const resp = await fetch('/.netlify/functions/me', {
-        method: 'GET',
+      const resp = await fetch('/.netlify/functions/login', {
+        method: 'POST',
         headers,
+        body: JSON.stringify({ loginName }),
       });
 
       persistAnonId(resp);
 
       if (!resp.ok) {
-        throw new Error(`/me failed: ${resp.status}`);
+        const json = await resp.json();
+        if (json.error === 'USER_NOT_FOUND') {
+          throw new Error('Kein Benutzer mit diesem Login-Namen gefunden');
+        }
+        throw new Error(json.message || `Login fehlgeschlagen: ${resp.status}`);
       }
 
       const json = await resp.json();
@@ -164,7 +174,7 @@ export const AuthService = {
         // In dev mode without backend, create local user
         const localUser: User = {
           id: `local_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-          username,
+          username: 'Dev',
           avatar: '👤',
           coins: 2000, // Dev mode coins
           totalEarned: 2000,
@@ -189,53 +199,18 @@ export const AuthService = {
       }
 
       if (!json.user) {
-        throw new Error('No user in /me response');
+        throw new Error('Kein User in Login-Antwort');
       }
 
       // Normalize and cache user
       const user = normalizeUser(json.user);
-
-      // Update username/display_name if needed
-      if (user.username !== username) {
-        user.username = username;
-        // TODO: Optionally call a /setDisplayName endpoint
-      }
-
       db.set('mm_current_user', user);
-      if (json.progress) {
-        db.set('mm_progress', json.progress);
-      }
 
-      console.log('[AuthService.login] Success:', { userId: user.id, coins: user.coins });
+      console.log('[AuthService.login] Success:', { userId: user.id, username: user.username });
       return user;
     } catch (err) {
       console.error('[AuthService.login] Error:', err);
-
-      // Fallback to local user in case of network failure
-      const localUser: User = {
-        id: `local_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-        username,
-        avatar: '👤',
-        coins: 250,
-        totalEarned: 250,
-        completedUnits: [],
-        masteredUnits: [],
-        preClearedUnits: [],
-        perfectStandardQuizUnits: [],
-        perfectBountyUnits: [],
-        unlockedItems: ['av_1', 'calc_default'],
-        unlockedTools: [],
-        calculatorGadgets: [],
-        formelsammlungSkin: 'base',
-        activeEffects: [],
-        calculatorSkin: 'default',
-        xp: 0,
-        solvedQuestionIds: [],
-        questCoinsEarnedByUnit: {},
-        bountyPayoutClaimed: {},
-      };
-      db.set('mm_current_user', localUser);
-      return localUser;
+      throw err;
     }
   },
 
@@ -337,8 +312,11 @@ export const SocialService = {
             masteredUnits: masteredUnits || [],
             preClearedUnits: u.pre_cleared_units || [],
             unlockedItems: u.unlocked_items || [],
+            unlockedTools: u.unlocked_tools || [],
             activeEffects: u.active_effects || [],
             calculatorSkin: u.calculator_skin || 'default',
+            formelsammlungSkin: u.formelsammlung_skin || 'base',
+            aiPersona: u.ai_persona || 'insight',
             xp,
             solvedQuestionIds: [],
             // Battle stats

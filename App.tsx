@@ -2891,11 +2891,12 @@ const BloodDomeUserModal: React.FC<{
     <div
       ref={containerRef}
       className={`
-        relative p-6 rounded-lg backdrop-blur-md transition-all hover:scale-105 overflow-hidden
-        ${isDarkMode ? 'bg-slate-900/50' : 'bg-white/80'}
+        relative p-5 sm:p-6 rounded-lg backdrop-blur-md transition-all hover:scale-[1.02] overflow-visible
+        ${isDarkMode ? 'bg-slate-900/60' : 'bg-white/90'}
         border-4 ${beltStyle.border} ${beltStyle.glow}
-        shadow-lg hover:shadow-xl
-        ${isCurrentUser ? 'ring-2 ring-indigo-500' : ''}
+        shadow-xl hover:shadow-2xl
+        ${isCurrentUser ? 'ring-4 ring-indigo-500 ring-opacity-60' : ''}
+        min-h-[420px] flex flex-col
       `}
       style={{
         clipPath: 'polygon(10% 0%, 90% 0%, 100% 15%, 100% 85%, 90% 100%, 10% 100%, 0% 85%, 0% 15%)',
@@ -2906,56 +2907,56 @@ const BloodDomeUserModal: React.FC<{
       {hasStorm && <MiniElectricStorm containerRef={containerRef} />}
 
       {/* Content (relative z-index to appear above effects) */}
-      <div className="relative z-10">
+      <div className="relative z-10 flex flex-col flex-1">
         {/* Avatar - Prominently displayed */}
-        <div className="flex justify-center mb-4">
-          <div className={`text-6xl bg-slate-100 dark:bg-slate-800 rounded-full w-20 h-20 flex items-center justify-center border-4 ${isDarkMode ? 'border-slate-700' : 'border-white'} shadow-lg`}>
+        <div className="flex justify-center mb-4 mt-2">
+          <div className={`text-5xl sm:text-6xl bg-slate-100 dark:bg-slate-800 rounded-full w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center border-4 ${isDarkMode ? 'border-slate-700' : 'border-white'} shadow-xl`}>
             {user.avatar}
           </div>
         </div>
 
         {/* Username */}
-        <div className="text-center mb-3">
-          <h3 className="font-black italic uppercase text-lg tracking-wider text-slate-900 dark:text-white">
+        <div className="text-center mb-3 px-2">
+          <h3 className="font-black italic uppercase text-base sm:text-lg tracking-wider text-slate-900 dark:text-white break-words">
             {user.username}
           </h3>
         </div>
 
         {/* Coins - Scaled by amount */}
-        <div className="text-center mb-4">
-          <div className={`inline-flex items-center gap-2 px-4 py-2 ${coinStyle.bg} rounded-full ${coinStyle.glow || ''}`}>
+        <div className="text-center mb-4 px-2">
+          <div className={`inline-flex items-center gap-2 px-3 sm:px-4 py-2 ${coinStyle.bg} rounded-full ${coinStyle.glow || ''} shadow-md`}>
             <span className={coinStyle.icon}>🪙</span>
-            <span className={`font-black ${coinStyle.text} ${coinStyle.size}`}>{coins.toLocaleString()}</span>
+            <span className={`font-black ${coinStyle.text} ${coinStyle.size} whitespace-nowrap`}>{coins.toLocaleString()}</span>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="space-y-2 mb-4 text-xs">
+        <div className="space-y-2 mb-4 text-xs sm:text-sm px-2 flex-1">
           <div className="flex justify-between items-center">
-            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Battles</span>
-            <span className="font-black text-slate-900 dark:text-white">{battleStats.total}</span>
+            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px] sm:text-xs">Battles</span>
+            <span className="font-black text-slate-900 dark:text-white text-xs sm:text-sm">{battleStats.total}</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Win Rate</span>
-            <span className="font-black text-slate-900 dark:text-white">{battleStats.win_rate}%</span>
+            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px] sm:text-xs">Win Rate</span>
+            <span className="font-black text-slate-900 dark:text-white text-xs sm:text-sm">{battleStats.win_rate}%</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">Perfect Bounties</span>
-            <span className="font-black text-slate-900 dark:text-white">{perfectBounties}</span>
+            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px] sm:text-xs">Perfect Bounties</span>
+            <span className="font-black text-slate-900 dark:text-white text-xs sm:text-sm">{perfectBounties}</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase">XP</span>
-            <span className="font-black text-slate-900 dark:text-white">{user.xp || 0}</span>
+            <span className="text-slate-500 dark:text-slate-400 font-bold uppercase text-[10px] sm:text-xs">XP</span>
+            <span className="font-black text-slate-900 dark:text-white text-xs sm:text-sm">{user.xp || 0}</span>
           </div>
         </div>
 
         {/* VS Button */}
         {!isCurrentUser && (
-          <div className="mt-4 mb-3">
+          <div className="mt-auto mb-3 px-2">
             <Button
               onClick={() => onChallenge(user)}
               disabled={isLoading || !canChallenge}
-              className="w-full font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm py-2"
               size="sm"
               title={!canChallenge ? (currentUser && (!currentUser.username || currentUser.username === 'User' || currentUser.username.trim().length < 2) ? 'Registrierung erforderlich' : 'Nicht genug Coins (min. 25)') : undefined}
             >
@@ -2966,13 +2967,13 @@ const BloodDomeUserModal: React.FC<{
 
         {/* Icon Bar - Tools & Features */}
         {(hasFormelRechner || hasSchrittLoeser || hasSpickerTrainer || hasScheitelCoach || hasFormelsammlung || hasPersona) && (
-          <div className="flex flex-wrap justify-center gap-2 mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-            {hasFormelRechner && <span className="text-lg" title="Formel-Rechner">🧮</span>}
-            {hasSchrittLoeser && <span className="text-lg" title="Schritt-für-Schritt-Loeser">📝</span>}
-            {hasSpickerTrainer && <span className="text-lg" title="Spicker-Coach">🧠</span>}
-            {hasScheitelCoach && <span className="text-lg" title="Scheitel-Coach">📈</span>}
-            {hasFormelsammlung && <span className="text-lg" title="Formelsammlung">📚</span>}
-            {hasPersona && <span className="text-lg" title="KI-Persona">🤖</span>}
+          <div className="flex flex-wrap justify-center gap-2 mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 px-2">
+            {hasFormelRechner && <span className="text-base sm:text-lg" title="Formel-Rechner">🧮</span>}
+            {hasSchrittLoeser && <span className="text-base sm:text-lg" title="Schritt-für-Schritt-Loeser">📝</span>}
+            {hasSpickerTrainer && <span className="text-base sm:text-lg" title="Spicker-Coach">🧠</span>}
+            {hasScheitelCoach && <span className="text-base sm:text-lg" title="Scheitel-Coach">📈</span>}
+            {hasFormelsammlung && <span className="text-base sm:text-lg" title="Formelsammlung">📚</span>}
+            {hasPersona && <span className="text-base sm:text-lg" title="KI-Persona">🤖</span>}
           </div>
         )}
       </div>
@@ -3048,16 +3049,17 @@ const BloodDomeLeaderboard: React.FC<{ currentUser: User; onChallenge: (u: User)
 
   return (
     <GlassCard className="h-full flex flex-col !p-0 overflow-hidden">
-      <div className="p-4 border-b bg-slate-50/50 dark:bg-slate-800/50 backdrop-blur-md">
-        <CardTitle>Blood Dome</CardTitle>
+      <div className="p-4 sm:p-5 border-b bg-gradient-to-r from-red-900/30 via-slate-50/50 to-red-900/30 dark:from-red-900/50 dark:via-slate-800/50 dark:to-red-900/50 backdrop-blur-md">
+        <CardTitle className="text-xl sm:text-2xl font-black text-red-600 dark:text-red-400 mb-2">⚔️ BLOOD DOME</CardTitle>
+        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mb-3">Herausforderung & Rangliste</p>
 
         {/* Sorting Controls */}
-        <div className="mt-3 flex flex-wrap gap-2 items-center">
-          <span className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Sort:</span>
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-[10px] sm:text-xs font-black uppercase text-slate-500 dark:text-slate-400">Sort:</span>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
-            className="text-xs font-bold px-2 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded"
+            className="text-xs sm:text-sm font-bold px-2 sm:px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded shadow-sm"
           >
             <option value="coins">Coins</option>
             <option value="xp">XP</option>
@@ -3066,20 +3068,20 @@ const BloodDomeLeaderboard: React.FC<{ currentUser: User; onChallenge: (u: User)
           </select>
           <button
             onClick={() => setSortAsc(!sortAsc)}
-            className="text-xs font-black px-2 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"
+            className="text-xs sm:text-sm font-black px-2 sm:px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded shadow-sm transition-colors"
           >
             {sortAsc ? '↑' : '↓'}
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
         {loading ? (
-          <div className="text-center py-8 text-slate-400">Loading...</div>
+          <div className="text-center py-12 text-slate-400">Loading...</div>
         ) : sortedUsers.length === 0 ? (
-          <div className="text-center py-8 text-slate-400">No users found</div>
+          <div className="text-center py-12 text-slate-400">No users found</div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 sm:gap-6 max-w-7xl mx-auto">
             {sortedUsers.map((u) => (
               <BloodDomeUserModal
                 key={u.id}
@@ -5553,9 +5555,11 @@ const AppContent = () => {
             )}
           {activeTab === 'community' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto lg:h-[70vh]">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto">
                 <ChatView currentUser={user} />
-                <BloodDomeLeaderboard currentUser={user} onChallenge={handleChallengeUser} isDarkMode={isDarkMode} isLoading={isBattleSyncLoading} />
+                <div className="lg:col-span-2">
+                  <BloodDomeLeaderboard currentUser={user} onChallenge={handleChallengeUser} isDarkMode={isDarkMode} isLoading={isBattleSyncLoading} />
+                </div>
               </div>
               <BattleLobby currentUser={user} />
             <BattlePanel

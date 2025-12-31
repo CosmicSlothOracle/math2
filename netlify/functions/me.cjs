@@ -136,7 +136,13 @@ exports.handler = async function (event, context) {
       if (existingUser) {
         // User exists - don't overwrite their display_name!
         returnedUser = existingUser;
-        console.log('[me.js] Found existing user:', { id: existingUser.id, display_name: existingUser.display_name });
+        console.log('[me.js] Found existing user:', { 
+          id: existingUser.id, 
+          display_name: existingUser.display_name,
+          display_name_type: typeof existingUser.display_name,
+          display_name_null: existingUser.display_name === null,
+          display_name_undefined: existingUser.display_name === undefined,
+        });
       } else {
         // User doesn't exist - create new user with default display_name
         const insertPayload = {

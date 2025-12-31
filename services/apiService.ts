@@ -121,7 +121,18 @@ export const AuthService = {
         if (json.error === 'INVALID_DISPLAY_NAME') {
           throw new Error('Display-Name muss mindestens 2 Zeichen lang sein');
         }
-        throw new Error(json.message || `Registrierung fehlgeschlagen: ${resp.status}`);
+        if (json.error === 'DISPLAY_NAME_TOO_LONG') {
+          throw new Error('Display-Name darf maximal 30 Zeichen lang sein');
+        }
+        if (json.error === 'LOGIN_NAME_TOO_LONG') {
+          throw new Error('Login-Name darf maximal 30 Zeichen lang sein');
+        }
+        // Handle generic error messages - check if it mentions username/display name
+        const errorMsg = json.message || `Registrierung fehlgeschlagen: ${resp.status}`;
+        if (errorMsg.toLowerCase().includes('username') && errorMsg.toLowerCase().includes('2')) {
+          throw new Error('Display-Name muss mindestens 2 Zeichen lang sein');
+        }
+        throw new Error(errorMsg);
       }
 
       const json = await resp.json();

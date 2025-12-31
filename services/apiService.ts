@@ -202,11 +202,15 @@ export const AuthService = {
         throw new Error('Kein User in Login-Antwort');
       }
 
-      // Normalize and cache user
       const user = normalizeUser(json.user);
+      // Ensure username is set from display_name (not login_name)
+      // username is the display name, login_name is for authentication
+      if (!user.username || user.username === 'User' || user.username.trim().length < 2) {
+        user.username = json.user.display_name || json.user.username || 'User';
+      }
       db.set('mm_current_user', user);
 
-      console.log('[AuthService.login] Success:', { userId: user.id, username: user.username });
+      console.log('[AuthService.login] Success:', { userId: user.id, loginName, username: user.username, display_name: json.user.display_name });
       return user;
     } catch (err) {
       console.error('[AuthService.login] Error:', err);

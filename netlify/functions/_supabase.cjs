@@ -54,9 +54,9 @@ function createSupabaseClient() {
       auth: { persistSession: false },
       global: {
         fetch: (url, options = {}) => {
-          // Add AbortController for timeout
+          // Add AbortController for timeout (reduced for faster response)
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+          const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
           return fetch(url, { ...options, signal: controller.signal }).finally(
             () => clearTimeout(timeoutId)
           );

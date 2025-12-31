@@ -136,8 +136,8 @@ exports.handler = async function (event, context) {
       if (existingUser) {
         // User exists - don't overwrite their display_name!
         returnedUser = existingUser;
-        console.log('[me.js] Found existing user:', { 
-          id: existingUser.id, 
+        console.log('[me.js] Found existing user:', {
+          id: existingUser.id,
           display_name: existingUser.display_name,
           display_name_type: typeof existingUser.display_name,
           display_name_null: existingUser.display_name === null,
@@ -287,11 +287,11 @@ exports.handler = async function (event, context) {
       },
     };
 
-    console.log('[me.js] Success:', { 
-      userId: upsertId, 
+    console.log('[me.js] Success:', {
+      userId: upsertId,
       display_name: returnedUser.display_name,
       username_set_to: mergedUser.username,
-      progressCount: progressRows.length 
+      progressCount: progressRows.length
     });
 
     // Set cookie for anon ID persistence (if it's an anon ID)

@@ -18,6 +18,8 @@ create table if not exists users (
   pre_cleared_units text[] default array[]::text[],
   perfect_standard_quiz_units text[] default array[]::text[],
   perfect_bounty_units text[] default array[]::text[],
+  ai_persona text default 'insight',
+  ai_skin text default 'default',
   created_at timestamp with time zone default now()
 );
 
@@ -36,6 +38,8 @@ create table if not exists progress (
 create index if not exists idx_progress_user_id on progress(user_id);
 create index if not exists idx_progress_perfect_standard on progress(user_id, perfect_standard_quiz) where perfect_standard_quiz = true;
 create index if not exists idx_progress_perfect_bounty on progress(user_id, perfect_bounty) where perfect_bounty = true;
+create index if not exists idx_users_ai_persona on users(ai_persona);
+create index if not exists idx_users_ai_skin on users(ai_skin);
 
 -- 4) messages (chat)
 create table if not exists messages (

@@ -12,6 +12,103 @@ const getRandomInt = (min: number, max: number) =>
   Math.floor(Math.random() * (max - min + 1)) + min;
 
 /**
+ * ZAHLEN-SORTIERER: Zahlbereiche erkennen und zuordnen
+ * Basierend auf: Diagnosebogen HSG 9 KA 1 - Aufgabe 1
+ */
+export function createZahlbereicheQuest(index: number, seed: number): Task {
+  const id = `potenzen-zahlbereiche-${index}-${seed}`;
+  const scenarioIndex = index % 6;
+
+  let question: string;
+  let answer: string;
+  let explanation: string;
+  let validator: any;
+  let options: string[] | undefined;
+  let taskType: 'input' | 'choice' = 'choice';
+
+  switch (scenarioIndex) {
+    case 0: {
+      // Zahl einem Zahlbereich zuordnen
+      question = 'Zu welchem kleinsten Zahlbereich gehört die Zahl √5?';
+      options = ['N (Natürliche Zahlen)', 'Z (Ganze Zahlen)', 'Q (Rationale Zahlen)', 'I (Irrationale Zahlen)'];
+      answer = '3'; // Index 3 = Irrationale Zahlen
+      explanation = '√5 ist irrational, da 5 keine Quadratzahl ist. √5 ≈ 2,236... ist eine nicht-abbrechende, nicht-periodische Dezimalzahl.';
+      validator = { type: 'exactIndex', correctIndex: 3 };
+      break;
+    }
+    case 1: {
+      // Irrationale Zahlen erkennen
+      question = 'Welche dieser Zahlen ist irrational?';
+      options = ['3/4', '√9', '√7', '-5'];
+      answer = '2'; // Index 2 = √7
+      explanation = '√7 ist irrational, da 7 keine Quadratzahl ist. √9 = 3 ist rational. 3/4 und -5 sind ebenfalls rational.';
+      validator = { type: 'exactIndex', correctIndex: 2 };
+      break;
+    }
+    case 2: {
+      // Mengeninklusion verstehen
+      question = 'Welche Aussage ist korrekt?';
+      options = ['Q ⊂ Z (Q ist Teilmenge von Z)', 'N ⊂ Z ⊂ Q (N ist Teilmenge von Z, Z ist Teilmenge von Q)', 'I ⊂ Q (I ist Teilmenge von Q)', 'R ⊂ Q (R ist Teilmenge von Q)'];
+      answer = '1'; // Index 1 = N ⊂ Z ⊂ Q
+      explanation = 'Die Zahlbereiche bilden eine Hierarchie: N ⊂ Z ⊂ Q ⊂ R. Jede natürliche Zahl ist auch ganz, jede ganze auch rational, usw.';
+      validator = { type: 'exactIndex', correctIndex: 1 };
+      break;
+    }
+    case 3: {
+      // Rationale Zahlen erkennen
+      question = 'Ist die Zahl -9/4 rational oder irrational?';
+      options = ['Rational', 'Irrational'];
+      answer = '0'; // Index 0 = Rational
+      explanation = '-9/4 ist ein Bruch aus zwei ganzen Zahlen, daher rational. Rationale Zahlen sind alle Zahlen, die als Bruch darstellbar sind.';
+      validator = { type: 'exactIndex', correctIndex: 0 };
+      break;
+    }
+    case 4: {
+      // √9 richtig einordnen
+      question = 'Zu welchem Zahlbereich gehört √9?';
+      options = ['Nur zu R (Reelle Zahlen)', 'Zu N, Z, Q und R', 'Nur zu I (Irrationale Zahlen)', 'Nur zu Q (Rationale Zahlen)'];
+      answer = '1'; // Index 1 = N, Z, Q, R
+      explanation = '√9 = 3 ist eine natürliche Zahl. Natürliche Zahlen gehören auch zu Z, Q und R. Also: N ⊂ Z ⊂ Q ⊂ R.';
+      validator = { type: 'exactIndex', correctIndex: 1 };
+      break;
+    }
+    default: {
+      // Null einordnen
+      question = 'Zu welchen Zahlbereichen gehört die Zahl 0?';
+      options = ['Nur zu N und Z', 'Zu Z, Q und R, aber nicht zu N', 'Zu N, Z, Q und R', 'Nur zu R'];
+      answer = '1'; // Index 1 = Z, Q, R aber nicht N (je nach Definition)
+      // Hinweis: In manchen Definitionen gehört 0 zu N, in anderen nicht. Wir folgen der deutschen Schuldefinition (0 ∈ N).
+      explanation = 'Die Zahl 0 gehört zu den natürlichen Zahlen (je nach Definition), ganz sicher aber zu Z, Q und R. In der deutschen Schulmathematik gilt oft 0 ∈ N.';
+      validator = { type: 'exactIndex', correctIndex: 2 }; // N, Z, Q, R nach deutscher Schuldefinition
+      answer = '2';
+      break;
+    }
+  }
+
+  if (options) {
+    return {
+      id,
+      type: 'choice',
+      question,
+      options,
+      correctAnswer: parseInt(answer),
+      explanation,
+      difficultyLevel: 'Mittel',
+    };
+  }
+
+  return {
+    id,
+    type: 'input',
+    question,
+    correctAnswer: answer,
+    explanation,
+    difficultyLevel: 'Mittel',
+    validator,
+  };
+}
+
+/**
  * ZEHNERPOTENZEN-MASTER: Wissenschaftliche Schreibweise und Zehnerpotenzen
  * Basierend auf: Lern_kanon 2025-09-09, 2025-10-09
  */

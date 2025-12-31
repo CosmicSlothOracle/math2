@@ -16,6 +16,7 @@ import {
   createWurzelLaborQuest,
   createGleichungsknackerQuest,
   createZehnerpotenzenQuest,
+  createZahlbereicheQuest,
 } from './potenzenQuests';
 import {
   createParabelBasicsQuest,
@@ -601,11 +602,12 @@ export const TaskFactory = {
         ...Array.from({ length: 3 }, (_, i) => createPythagorasQuest(i, seed)),
       ];
       // Potenzen & Reelle Zahlen
-      case 'u_potenzen_01': return Array.from({ length: 6 }, (_, i) => createZehnerpotenzenQuest(i, seed)); // Zehnerpotenzen & wissenschaftliche Schreibweise
+      case 'u_potenzen_01': return Array.from({ length: 6 }, (_, i) => createZahlbereicheQuest(i, seed)); // Zahlen-Sortierer
       case 'u_potenzen_02': return Array.from({ length: 8 }, (_, i) => createPotenzgesetzeQuest(i, seed)); // Erweitert von 6 auf 8
       case 'u_potenzen_03': return Array.from({ length: 6 }, (_, i) => createTermTunerQuest(i, seed)); // Erweitert von 4 auf 6
       case 'u_potenzen_04': return Array.from({ length: 6 }, (_, i) => createWurzelLaborQuest(i, seed)); // Erweitert von 4 auf 6
       case 'u_potenzen_05': return Array.from({ length: 4 }, (_, i) => createGleichungsknackerQuest(i, seed));
+      case 'u_potenzen_06': return Array.from({ length: 6 }, (_, i) => createZehnerpotenzenQuest(i, seed)); // Zehnerpotenzen-Master
       case 'u_potenzen_bounty_proof':
       case 'u_potenzen_bounty_heron':
       case 'u_potenzen_bounty_science': return []; // Bounty-only units

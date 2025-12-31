@@ -36,7 +36,7 @@ async function applyCoinDelta(supabase, {
 
   const prev = await fetchUserCoins(supabase, userId);
   console.log('[coins] applyCoinDelta starting:', { userId, delta, prev });
-  
+
   const next = prev + delta;
   if (next < 0) {
     const err = new Error('INSUFFICIENT_COINS');
@@ -46,11 +46,11 @@ async function applyCoinDelta(supabase, {
   }
 
   const safeNext = Math.max(0, next);
-  
+
   // Try optimistic locking first to prevent race conditions
   // IMPORTANT: Use .select() to get updated data, otherwise data will always be null
   let updateData, updateError;
-  
+
   // First attempt: optimistic lock with prev value check
   const result1 = await supabase
     .from('users')
@@ -59,7 +59,7 @@ async function applyCoinDelta(supabase, {
     .eq('coins', prev) // Only update if coins haven't changed
     .select()
     .limit(1);
-  
+
   updateData = result1.data;
   updateError = result1.error;
 
@@ -72,7 +72,7 @@ async function applyCoinDelta(supabase, {
   // This can happen if coins changed between read and update, OR if coins column is NULL
   if (!updateData || (Array.isArray(updateData) && updateData.length === 0)) {
     console.warn('[coins] Optimistic lock failed, trying direct update:', { userId, prev, safeNext });
-    
+
     // Second attempt: check current value and update without optimistic lock
     // This handles the case where coins column might be NULL
     const { data: currentUser, error: fetchError } = await supabase
@@ -80,30 +80,30 @@ async function applyCoinDelta(supabase, {
       .select('coins')
       .eq('id', userId)
       .maybeSingle();
-    
+
     if (fetchError) {
       console.error('[coins] Failed to fetch current user for retry:', fetchError);
       throw fetchError;
     }
-    
+
     if (!currentUser) {
       const err = new Error('USER_NOT_FOUND');
       err.code = 'USER_NOT_FOUND';
       throw err;
     }
-    
+
     const actualPrev = currentUser.coins ?? 0; // Handle NULL case
     const actualNext = actualPrev + delta;
-    
+
     if (actualNext < 0) {
       const err = new Error('INSUFFICIENT_COINS');
       err.code = 'INSUFFICIENT_COINS';
       err.previous = actualPrev;
       throw err;
     }
-    
+
     const safeActualNext = Math.max(0, actualNext);
-    
+
     // Update without optimistic lock (we accept the race condition here since it's a retry)
     const result2 = await supabase
       .from('users')
@@ -111,19 +111,19 @@ async function applyCoinDelta(supabase, {
       .eq('id', userId)
       .select()
       .limit(1);
-    
+
     if (result2.error) {
       console.error('[coins] Direct update failed:', result2.error);
       throw result2.error;
     }
-    
+
     if (!result2.data || (Array.isArray(result2.data) && result2.data.length === 0)) {
       const err = new Error('COIN_UPDATE_CONFLICT');
       err.code = 'COIN_UPDATE_CONFLICT';
       err.previous = actualPrev;
       throw err;
     }
-    
+
     updateData = result2.data;
     console.log('[coins] Direct update succeeded:', { userId, from: actualPrev, to: safeActualNext });
   }

@@ -65,7 +65,8 @@ exports.handler = async function (event) {
       };
     }
 
-    // Check if username is already taken
+    // Optimize: Check username AND get user in one query if possible
+    // First check if username is taken by another user
     const { data: existingUsers, error: checkError } = await supabase
       .from('users')
       .select('id, display_name')
@@ -74,11 +75,12 @@ exports.handler = async function (event) {
 
     if (checkError) {
       console.error('[register] Username check error:', checkError);
+      // Continue - will be caught by upsert if there's a constraint
     }
 
     if (existingUsers && existingUsers.length > 0) {
       const existingId = existingUsers[0].id;
-      // If it's the same user, allow them to "re-register"
+      // If it's the same user, allow them to "re-register" (update display_name)
       if (existingId !== userId) {
         return {
           statusCode: 409,
@@ -92,13 +94,13 @@ exports.handler = async function (event) {
       }
     }
 
-    // Get existing user to preserve coins
+    // Get existing user to preserve coins (optimize: only if username check passed)
     const { data: existingUser } = await supabase
       .from('users')
       .select('coins')
       .eq('id', userId)
       .limit(1)
-      .single();
+      .maybeSingle(); // Use maybeSingle to avoid error if not found
 
     // Upsert user with display_name
     const upsertPayload = {

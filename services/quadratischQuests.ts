@@ -514,6 +514,23 @@ export function createAnwendungQuest(index: number, seed: number): Task {
       };
       break;
     }
+    case 2: {
+      // Wurfparabel - Flugzeit berechnen
+      const v0 = getRandomInt(10, 20); // Anfangsgeschwindigkeit
+      const h0 = 0; // Starthöhe
+      // h(t) = -5t² + v0*t + h0
+      // Nullstellen bei t = 0 und t = v0/5
+      const tLanding = v0 / 5;
+      question = `Ein Ball wird senkrecht nach oben geworfen. Die Höhe ist gegeben durch h(t) = -5t² + ${v0}t. Nach wie vielen Sekunden landet der Ball wieder am Boden? (auf eine Nachkommastelle runden)`;
+      answer = tLanding.toFixed(1);
+      explanation = `Setze h(t) = 0: -5t² + ${v0}t = 0. Ausklammern: t(-5t + ${v0}) = 0. Also t = 0 (Start) oder t = ${v0}/5 = ${tLanding.toFixed(1)} s (Landung).`;
+      validator = {
+        type: 'numericTolerance',
+        numericAnswer: tLanding,
+        tolerance: 0.1,
+      };
+      break;
+    }
     case 3: {
       // Brückenbogen - Scheitelpunkt
       const spannweite = getRandomInt(20, 40);

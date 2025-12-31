@@ -132,9 +132,10 @@ REGELN:
 3. Hilf dem Schüler, den nächsten Denkschritt selbst zu finden.
 4. Maximal 3 Sätze.`;
 
+    // gemini-pro is deprecated/not available - removed from default list
     const preferredModelsEnv =
       process.env.GEMINI_MODELS ||
-      'gemini-1.5-flash,gemini-1.5-pro,gemini-pro';
+      'gemini-1.5-flash,gemini-1.5-pro';
     const modelCandidates = preferredModelsEnv
       .split(',')
       .map((m) => m.trim())

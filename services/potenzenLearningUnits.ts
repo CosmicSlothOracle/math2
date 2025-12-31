@@ -192,6 +192,34 @@ export const POTENZEN_LEARNING_UNITS: LearningUnit[] = [
     definitionId: 'potenzen',
   },
   {
+    id: 'u_potenzen_06',
+    group: 'B',
+    category: 'Berechnung',
+    title: 'Zehnerpotenzen-Master',
+    description: 'Wissenschaftliche Schreibweise und Zehnerpotenzen',
+    detailedInfo:
+      'Lerne die wissenschaftliche Schreibweise kennen und beherrsche Rechenoperationen mit Zehnerpotenzen. Das ist essenziell für Naturwissenschaften und Technik!',
+    examples: [
+      '123.000 = 1,23 · 10⁵',
+      '0,0045 = 4,5 · 10⁻³',
+      '(2 · 10³) · (3 · 10⁴) = 6 · 10⁷',
+    ],
+    difficulty: 'Mittel',
+    coinsReward: 85,
+    bounty: 200,
+    keywords: [
+      'zehnerpotenzen',
+      'wissenschaftliche schreibweise',
+      'mantisse',
+      'exponent',
+      'multiplikation',
+      'division',
+      'potenzen',
+    ],
+    tasks: [], // Werden dynamisch generiert
+    definitionId: 'potenzen',
+  },
+  {
     id: 'u_potenzen_bounty_science',
     group: 'C',
     category: 'Modellierung',

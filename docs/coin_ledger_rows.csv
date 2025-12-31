@@ -1,0 +1,6 @@
+id,user_id,delta,reason,ref_type,ref_id,created_at
+2ebb226e-07e7-41b9-b3d6-27408d2cd003,test-user-123,50,test_reward,unit,u1,2025-12-29 20:12:01.338197+00
+5c0a37b1-885c-436f-9d82-fb850cdee46f,anon_1766704887837_ix66ibv,0,shop_purchase,shop_item,ai_persona_default,2025-12-29 19:52:36.522618+00
+b6a3d2b1-72e1-41c0-b5e3-f463e46726dd,anon_1766811044623_k1wf03w,-300,shop_purchase,shop_item,ai_chat_skin_neon,2025-12-29 20:13:21.099286+00
+dbe7a16a-309d-4a00-b603-70ac0c9e8f6e,anon_1766811044623_k1wf03w,50,quest_reward,unit,u1,2025-12-29 20:11:59.402756+00
+dc19c45a-2c39-4325-a537-7b4331b37d34,test-user-123,-10,test_deduct,unit,u1,2025-12-29 20:12:02.320349+00

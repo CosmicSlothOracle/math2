@@ -18,7 +18,7 @@ export const ANWENDUNG_BOUNTIES: Task[] = [
       'Ein Ball wird mit einer Anfangsgeschwindigkeit von 20 m/s von einer Höhe von 2 m senkrecht nach oben geworfen. Die Höhe wird beschrieben durch h(t) = -5t² + 20t + 2.\na) Nach welcher Zeit erreicht der Ball seine maximale Höhe?\nb) Wie hoch fliegt der Ball maximal?\nc) Nach welcher Zeit landet der Ball auf dem Boden?\n\nGib die Antworten in der Form: a) X s, b) Y m, c) Z s',
     correctAnswer: 'a) 2 s, b) 22 m, c) 4,1 s',
     explanation:
-      'a) Maximum bei v(t) = -10t + 20 = 0 → t = 2 s\nb) h(2) = -5·4 + 20·2 + 2 = 22 m\nc) h(t) = 0: -5t² + 20t + 2 = 0 → t ≈ 4,1 s (pq-Formel)',
+      'a) Die maximale Höhe liegt beim Scheitelpunkt. Für h(t) = -5t² + 20t + 2 gilt: t_S = -b/(2a) = -20/(2·(-5)) = 2 s. Alternativ: Scheitelpunktform h(t) = -5(t-2)² + 22.\nb) h(2) = -5·4 + 20·2 + 2 = -20 + 40 + 2 = 22 m\nc) h(t) = 0: -5t² + 20t + 2 = 0. Mit pq-Formel (nach Division durch -5): t² - 4t - 0,4 = 0 → t ≈ 4,1 s',
     difficultyLevel: 'Schwer',
     validator: {
       type: 'keywords',
@@ -77,7 +77,7 @@ export const ANWENDUNG_BOUNTIES: Task[] = [
       'Ein Bauer möchte einen rechteckigen Hühnerstall mit einem Zaun von 60 m Länge bauen. Eine Seite wird durch eine Scheune begrenzt, sodass nur 3 Seiten eingezäunt werden müssen.\na) Welche Abmessungen maximieren die Fläche?\nb) Wie groß ist die maximale Fläche?\n\nFormat: a) Breite X m, Länge Y m, b) Z m²',
     correctAnswer: 'a) Breite 15 m, Länge 30 m, b) 450 m²',
     explanation:
-      'Sei x die Breite (parallel zur Scheune), dann ist die Länge 60 - 2x. Fläche: A(x) = x(60-2x) = 60x - 2x². Maximum bei A\'(x) = 60 - 4x = 0 → x = 15 m. Länge: 60 - 30 = 30 m. Maximale Fläche: A(15) = 450 m².',
+      'Sei x die Breite (parallel zur Scheune), dann ist die Länge 60 - 2x. Fläche: A(x) = x(60-2x) = 60x - 2x² = -2x² + 60x. Das ist eine nach unten geöffnete Parabel. Maximum bei x = -b/(2a) = -60/(2·(-2)) = 15 m. Länge: 60 - 2·15 = 30 m. Maximale Fläche: A(15) = 15 · 30 = 450 m².',
     difficultyLevel: 'Schwer',
     validator: {
       type: 'keywords',

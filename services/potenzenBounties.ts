@@ -39,7 +39,7 @@ export const HERON_BOUNTIES: Task[] = [
       'Bestimme √7 mithilfe des Heron-Verfahrens auf 3 Nachkommastellen genau. Startwert: x₀ = 2. Führe mindestens 3 Iterationen durch. Gib das Ergebnis an (z.B. 2.646).',
     correctAnswer: '2.646',
     explanation:
-      'x₁ = (2 + 7/2)/2 = 2.75, x₂ = (2.75 + 7/2.75)/2 ≈ 2.648, x₃ = (2.648 + 7/2.648)/2 ≈ 2.646. Nach 3-4 Iterationen erhältst du √7 ≈ 2.646.',
+      'Heron-Verfahren: x_{n+1} = (x_n + a/x_n)/2. Start: x₀ = 2.\nSchritt 1: x₁ = (2 + 7/2)/2 = (2 + 3,5)/2 = 2,75\nSchritt 2: x₂ = (2,75 + 7/2,75)/2 ≈ (2,75 + 2,545)/2 ≈ 2,648\nSchritt 3: x₃ = (2,648 + 7/2,648)/2 ≈ (2,648 + 2,644)/2 ≈ 2,646\nNach 3-4 Iterationen erhältst du √7 ≈ 2,646.',
     difficultyLevel: 'Schwer',
     validator: {
       type: 'numericTolerance',
@@ -54,7 +54,7 @@ export const HERON_BOUNTIES: Task[] = [
       'Bestimme √13 mithilfe des Heron-Verfahrens auf 3 Nachkommastellen genau. Startwert: x₀ = 3. Führe mindestens 3 Iterationen durch. Gib das Ergebnis an (z.B. 3.606).',
     correctAnswer: '3.606',
     explanation:
-      'x₁ = (3 + 13/3)/2 = 3.667, x₂ = (3.667 + 13/3.667)/2 ≈ 3.606, x₃ = (3.606 + 13/3.606)/2 ≈ 3.606. Nach 3-4 Iterationen erhältst du √13 ≈ 3.606.',
+      'Heron-Verfahren: x_{n+1} = (x_n + a/x_n)/2. Start: x₀ = 3.\nSchritt 1: x₁ = (3 + 13/3)/2 = (3 + 4,333...)/2 ≈ 3,667\nSchritt 2: x₂ = (3,667 + 13/3,667)/2 ≈ (3,667 + 3,545)/2 ≈ 3,606\nSchritt 3: x₃ = (3,606 + 13/3,606)/2 ≈ (3,606 + 3,606)/2 ≈ 3,606\nNach 3-4 Iterationen erhältst du √13 ≈ 3,606.',
     difficultyLevel: 'Schwer',
     validator: {
       type: 'numericTolerance',
@@ -72,10 +72,10 @@ export const SCIENCE_BOUNTIES: Task[] = [
     id: 'potenzen-bounty-science-volumen',
     type: 'input',
     question:
-      'Das Volumen der Erde beträgt etwa 1,41 · 10¹⁸ km³, das Volumen der Sonne etwa 1,08 · 10²¹ m³. Wie viele Erden passen in die Sonne? (Gib das Ergebnis als ganze Zahl an)',
+      'Das Volumen der Erde beträgt etwa 1,08 · 10²¹ m³, das Volumen der Sonne etwa 1,41 · 10²⁷ m³. Wie viele Erden passen in die Sonne? (Gib das Ergebnis als ganze Zahl an)',
     correctAnswer: '1305556',
     explanation:
-      'Zuerst Einheiten angleichen: 1,41 · 10¹⁸ km³ = 1,41 · 10²⁷ m³. Dann: (1,41 · 10²⁷) / (1,08 · 10²¹) ≈ 1.305.556 Erden passen in die Sonne.',
+      'Da beide Volumina in m³ gegeben sind, können wir direkt dividieren: (1,41 · 10²⁷) / (1,08 · 10²¹) = (1,41 / 1,08) · 10^(27-21) = 1,306 · 10⁶ ≈ 1.306.556. Es passen also etwa 1,3 Millionen Erden in die Sonne.',
     difficultyLevel: 'Schwer',
     validator: {
       type: 'numericTolerance',

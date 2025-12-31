@@ -550,7 +550,7 @@ export function createAnwendungQuest(index: number, seed: number): Task {
       const hMax = -5 * tMax * tMax + v0 * tMax + h0;
       question = `Ein Ball wird mit einer Anfangsgeschwindigkeit von ${v0} m/s von einer Höhe von ${h0} m geworfen. Die Höhe wird beschrieben durch h(t) = -5t² + ${v0}t + ${h0}. Wie hoch fliegt der Ball maximal? (in m)`;
       answer = hMax.toFixed(1);
-      explanation = `Die maximale Höhe wird erreicht, wenn die Ableitung (Geschwindigkeit) null ist: v(t) = -10t + ${v0} = 0 → t = ${tMax.toFixed(1)} s. Einsetzen: h(${tMax.toFixed(1)}) = ${hMax.toFixed(1)} m.`;
+      explanation = `Die maximale Höhe liegt beim Scheitelpunkt der Parabel. Umwandlung in Scheitelpunktform: h(t) = -5(t - ${tMax.toFixed(1)})² + ${hMax.toFixed(1)}. Der Scheitelpunkt liegt bei t = ${tMax.toFixed(1)} s mit h(${tMax.toFixed(1)}) = ${hMax.toFixed(1)} m. Alternativ: Maximum bei t = -b/(2a) = -${v0}/(2·(-5)) = ${tMax.toFixed(1)} s.`;
       validator = {
         type: 'numericTolerance',
         numericAnswer: hMax,
@@ -622,7 +622,7 @@ export function createAnwendungQuest(index: number, seed: number): Task {
       const dSign = d >= 0 ? '-' : '+';
       const eSign = e >= 0 ? '+' : '-';
       answer = `f(x) = (x ${dSign} ${Math.abs(d)})² ${eSign} ${Math.abs(e)}`;
-      explanation = `Da der Scheitelpunkt S(${d}|${e}) ist, lautet die Scheitelpunktform: f(x) = (x ${dSign} ${Math.abs(d)})² ${eSign} ${Math.abs(e)}.`;
+      explanation = `Die Scheitelpunktform hat die Form f(x) = (x - d)² + e mit Scheitelpunkt S(d|e). Da der Scheitelpunkt S(${d}|${e}) gegeben ist, setzen wir d = ${d} und e = ${e} ein: f(x) = (x ${dSign} ${Math.abs(d)})² ${eSign} ${Math.abs(e)}.`;
       validator = {
         type: 'keywords',
         keywordsAll: [String(d), String(e)],

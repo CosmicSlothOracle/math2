@@ -335,8 +335,15 @@ exports.handler = async (event) => {
             lastError = err;
           }
         } else {
-          // Other errors shouldn't be retried
-          throw err;
+          // Other errors shouldn't be retried - break out of loop
+          console.error("[aiAssistant] Unexpected coin error:", {
+            message: err.message,
+            code: err.code,
+            name: err.name,
+            hint: err.hint,
+          });
+          lastError = err;
+          break;
         }
       }
     }
@@ -354,9 +361,18 @@ exports.handler = async (event) => {
           message:
             "Fehler beim Aktualisieren der Coins. Bitte versuche es erneut.",
           details: lastError?.message || "Unknown error",
+          // Include more debug info in production logs
+          debug: {
+            code: lastError?.code,
+            name: lastError?.name,
+            hint: lastError?.hint,
+          },
         }),
       };
     }
+  } else {
+    // No supabase client - skip coin deduction but log warning
+    console.warn("[aiAssistant] No Supabase client available, skipping coin deduction");
   }
 
   // Call OpenAI API

@@ -216,12 +216,26 @@ export const AuthService = {
       const user = normalizeUser(json.user);
       // Ensure username is set from display_name (not login_name)
       // username is the display name, login_name is for authentication
+      // CRITICAL: If display_name is missing or invalid, this is a data integrity issue
       if (!user.username || user.username === 'User' || user.username.trim().length < 2) {
-        user.username = json.user.display_name || json.user.username || 'User';
+        const displayName = json.user.display_name || json.user.username;
+        if (displayName && displayName.trim().length >= 2) {
+          user.username = displayName.trim();
+        } else {
+          // This should not happen if registration worked correctly
+          console.error('[AuthService.login] WARNING: User has login_name but no valid display_name!', { 
+            userId: user.id, 
+            login_name: user.login_name, 
+            display_name: json.user.display_name,
+            username: user.username 
+          });
+          // Still allow login but set a temporary username
+          user.username = 'User_' + user.login_name.substring(0, 6);
+        }
       }
       db.set('mm_current_user', user);
 
-      console.log('[AuthService.login] Success:', { userId: user.id, loginName, username: user.username, display_name: json.user.display_name });
+      console.log('[AuthService.login] Success:', { userId: user.id, loginName, username: user.username, display_name: json.user.display_name, login_name: user.login_name });
       return user;
     } catch (err) {
       console.error('[AuthService.login] Error:', err);

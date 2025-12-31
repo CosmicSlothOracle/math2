@@ -5242,8 +5242,10 @@ const AppContent = () => {
   // Show auth screen if no user OR if user has default name "User" (not properly registered)
   // IMPORTANT: This must be AFTER all hooks to avoid React Error #300
   // Check if user needs registration: must have login_name (for login) AND display_name/username (for display)
-  // If user has login_name but no valid username, they can still use the app but should set display_name
-  const needsRegistration = !user || !user.login_name || !user.username || user.username === 'User' || (user.username && user.username.trim().length < 2);
+  // Note: login_name is required for login, display_name/username is required for display
+  const hasLoginName = user?.login_name && user.login_name.trim().length >= 4;
+  const hasValidDisplayName = user?.username && user.username.trim().length >= 2 && user.username !== 'User';
+  const needsRegistration = !user || !hasLoginName || !hasValidDisplayName;
   if (needsRegistration) return <AuthScreen onLogin={setUser} />;
 
   const startQuest = (unit: LearningUnit, type: 'pre' | 'standard' | 'bounty', options?: { timeLimit?: number; noCheatSheet?: boolean }) => {

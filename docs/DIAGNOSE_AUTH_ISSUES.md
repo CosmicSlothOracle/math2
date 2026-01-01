@@ -66,3 +66,4 @@ SELECT * FROM users WHERE login_name = 'testlogin123';
 #### Issue: Permission denied
 **Solution**: Check if the `SUPABASE_ANON_KEY` has write permissions. You might need to use the service role key for server-side operations.
 
+

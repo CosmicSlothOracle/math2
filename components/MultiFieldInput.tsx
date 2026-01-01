@@ -69,8 +69,18 @@ export const MultiFieldInput: React.FC<MultiFieldInputProps> = ({
           ) : (
             <input
               type="text"
+              inputMode={field.validator?.type === 'coordinatePair' ? 'text' : 'numeric'}
               value={values[field.id] || ''}
-              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+              onChange={(e) => {
+                // For coordinate pairs, allow pipe character and other special chars
+                if (field.validator?.type === 'coordinatePair') {
+                  handleFieldChange(field.id, e.target.value);
+                } else {
+                  // For numeric inputs, allow comma as decimal separator but don't remove it
+                  // The sanitizer will convert comma to dot during validation
+                  handleFieldChange(field.id, e.target.value);
+                }
+              }}
               placeholder={field.placeholder || 'Antwort eingeben...'}
               disabled={disabled}
               className={`w-full p-4 text-lg font-medium rounded-xl border-2 outline-none transition-all ${

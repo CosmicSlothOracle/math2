@@ -8,6 +8,7 @@ create extension if not exists "pgcrypto";
 create table if not exists users (
   id text primary key,
   display_name text,
+  login_name text unique,  -- Einzigartiger Login-Name (mind. 4 Zeichen, zum Einloggen ohne Passwort)
   coins int default 250,
   unlocked_items text[] default array[]::text[],  -- Für Shop-Käufe
   avatar text,
@@ -40,6 +41,22 @@ create index if not exists idx_progress_perfect_standard on progress(user_id, pe
 create index if not exists idx_progress_perfect_bounty on progress(user_id, perfect_bounty) where perfect_bounty = true;
 create index if not exists idx_users_ai_persona on users(ai_persona);
 create index if not exists idx_users_ai_skin on users(ai_skin);
+
+-- Note: If the users table already exists, run migration_add_login_name.sql first
+-- to add the login_name column before creating this index
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'users'
+        AND column_name = 'login_name'
+    ) THEN
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_login_name
+        ON users(login_name)
+        WHERE login_name IS NOT NULL;
+    END IF;
+END $$;
 
 -- 4) messages (chat)
 create table if not exists messages (

@@ -95,11 +95,17 @@ exports.handler = async function (event) {
 
     console.log('[login] User found:', { id: user.id, display_name: user.display_name, login_name: user.login_name });
 
-    // Set cookie for anon ID persistence (if it's an anon ID)
+    // CRITICAL FIX: Always set cookie with the user's ID from database
+    // This ensures that bootstrapServerUser() will load the correct user
+    // regardless of what anon ID was in the cookie before login
     const headers = { ...HEADERS };
     const userId = user.id;
-    if (userId && userId.startsWith('anon_')) {
+
+    // Always set cookie with the user's actual ID from database
+    // This overwrites any previous anon ID cookie
+    if (userId) {
       headers['Set-Cookie'] = `mm_anon_id=${userId}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      console.log('[login] Set cookie with user ID:', userId);
     }
 
     return {

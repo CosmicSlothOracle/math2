@@ -117,18 +117,33 @@ export function hasNegation(text: string): boolean {
 
 export function parseCoordinatePair(raw: string): { x: number; y: number } | null {
   if (!raw) return null;
-  const matches = raw.match(/-?\d+(?:[.,]\d+)?/g);
-  if (!matches || matches.length < 2) {
-    return null;
+
+  // Für Koordinatenpaare erwarten wir explizit Pipe-Zeichen oder Klammern
+  // Format: "(x|y)" oder "x|y" - Komma wird NICHT als Trennzeichen akzeptiert
+  const pipeMatch = raw.match(/\(?\s*(-?\d+(?:[.,]\d+)?)\s*[|]\s*(-?\d+(?:[.,]\d+)?)\s*\)?/);
+  if (pipeMatch) {
+    const x = sanitizeNumberInput(pipeMatch[1].replace(',', '.'));
+    const y = sanitizeNumberInput(pipeMatch[2].replace(',', '.'));
+    if (x === null || y === null) {
+      return null;
+    }
+    return { x, y };
   }
 
-  const [first, second] = matches;
-  const x = sanitizeNumberInput(first.replace(',', '.'));
-  const y = sanitizeNumberInput(second.replace(',', '.'));
-  if (x === null || y === null) {
-    return null;
+  // Fallback: Wenn kein Pipe gefunden, versuche es mit Komma (für andere Formate)
+  // Aber nur wenn explizit kein Pipe vorhanden ist
+  if (!raw.includes('|')) {
+    const commaMatch = raw.match(/-?\d+(?:[.,]\d+)?/g);
+    if (commaMatch && commaMatch.length >= 2) {
+      const x = sanitizeNumberInput(commaMatch[0].replace(',', '.'));
+      const y = sanitizeNumberInput(commaMatch[1].replace(',', '.'));
+      if (x !== null && y !== null) {
+        return { x, y };
+      }
+    }
   }
-  return { x, y };
+
+  return null;
 }
 
 export function evaluateFreeformAnswer(
@@ -172,9 +187,16 @@ export function validateAnswer(value: string, config: InputValidatorConfig): boo
   switch (config.type) {
     case 'keywords': {
       if (!value) return false;
+      // First check if keywords match
+      const keywordsMatch =
+        (config.keywordsAll && matchKeywords(value, config.keywordsAll, 'all')) ||
+        (config.keywordsAny && matchKeywords(value, config.keywordsAny, 'any'));
+
+      if (!keywordsMatch) return false;
+
+      // If requireNegation is set, check that negation is present
       if (config.requireNegation && !hasNegation(value)) return false;
-      if (config.keywordsAll && !matchKeywords(value, config.keywordsAll, 'all')) return false;
-      if (config.keywordsAny && !matchKeywords(value, config.keywordsAny, 'any')) return false;
+
       return true;
     }
     case 'boolean': {
@@ -199,6 +221,7 @@ export function validateAnswer(value: string, config: InputValidatorConfig): boo
       const parsed = sanitizeNumberInput(value);
       if (parsed === null || config.numericAnswer === undefined) return false;
       const tolerance = config.tolerance ?? 0.1; // Default tolerance of 0.1 if not specified
+      // Verwende strikte <= Prüfung (inklusive Grenze)
       return Math.abs(parsed - config.numericAnswer) <= tolerance;
     }
     case 'coordinatePair': {

@@ -38,14 +38,28 @@ function getApiHeaders(): Record<string, string> {
 }
 
 // Helper to persist anon ID from response
-function persistAnonId(resp: Response): void {
+// CRITICAL: This ensures the cookie/localStorage is updated with the correct user ID
+function persistAnonId(resp: Response, userId?: string): void {
   try {
+    // Try to get user ID from Set-Cookie header first
     const setCookie = resp.headers.get('set-cookie');
     if (setCookie) {
       const match = setCookie.match(/mm_anon_id=([^;]+)/);
       if (match && match[1]) {
-        localStorage.setItem('mm_anon_id', match[1]);
+        const cookieUserId = match[1];
+        localStorage.setItem('mm_anon_id', cookieUserId);
+        // Also set cookie directly (for immediate use)
+        document.cookie = `mm_anon_id=${cookieUserId}; Path=/; Max-Age=31536000; SameSite=Lax`;
+        console.log('[persistAnonId] Updated cookie/localStorage with user ID from Set-Cookie:', cookieUserId);
+        return;
       }
+    }
+
+    // Fallback: Use userId parameter if provided
+    if (userId) {
+      localStorage.setItem('mm_anon_id', userId);
+      document.cookie = `mm_anon_id=${userId}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      console.log('[persistAnonId] Updated cookie/localStorage with provided user ID:', userId);
     }
   } catch (e) {
     console.warn('[persistAnonId] Error persisting anon ID:', e);
@@ -142,6 +156,10 @@ export const AuthService = {
 
       const user = normalizeUser(json.user);
       user.username = displayName; // Ensure username is set
+
+      // CRITICAL FIX: Ensure cookie/localStorage is updated with the correct user ID
+      // This ensures bootstrapServerUser() will load the correct user
+      persistAnonId(resp, user.id);
       db.set('mm_current_user', user);
 
       console.log('[AuthService.register] Success:', { userId: user.id, displayName, loginName });
@@ -223,16 +241,20 @@ export const AuthService = {
           user.username = displayName.trim();
         } else {
           // This should not happen if registration worked correctly
-          console.error('[AuthService.login] WARNING: User has login_name but no valid display_name!', { 
-            userId: user.id, 
-            login_name: user.login_name, 
+          console.error('[AuthService.login] WARNING: User has login_name but no valid display_name!', {
+            userId: user.id,
+            login_name: user.login_name,
             display_name: json.user.display_name,
-            username: user.username 
+            username: user.username
           });
           // Still allow login but set a temporary username
           user.username = 'User_' + user.login_name.substring(0, 6);
         }
       }
+
+      // CRITICAL FIX: Ensure cookie/localStorage is updated with the correct user ID
+      // This ensures bootstrapServerUser() will load the correct user
+      persistAnonId(resp, user.id);
       db.set('mm_current_user', user);
 
       console.log('[AuthService.login] Success:', { userId: user.id, loginName, username: user.username, display_name: json.user.display_name, login_name: user.login_name });

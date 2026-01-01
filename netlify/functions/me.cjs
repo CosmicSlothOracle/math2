@@ -125,7 +125,7 @@ exports.handler = async function (event, context) {
     try {
       const { data: existingUser, error: fetchError } = await supabase
         .from('users')
-        .select('id, display_name, coins, unlocked_items, active_effects, calculator_skin, completed_units, mastered_units, pre_cleared_units, ai_persona, ai_skin')
+        .select('id, display_name, login_name, coins, unlocked_items, active_effects, calculator_skin, completed_units, mastered_units, pre_cleared_units, ai_persona, ai_skin')
         .eq('id', upsertId)
         .maybeSingle();
 

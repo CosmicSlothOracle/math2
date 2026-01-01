@@ -24,15 +24,26 @@ function parseFraction(raw: string): number | null {
 
 /**
  * Sanitizes math input by removing formatting, currency symbols, and normalizing decimals
- * Also handles fraction notation (e.g., "1/216")
+ * Also handles fraction notation (e.g., "1/216") and coordinate pairs (e.g., "3|4")
  *
  * @param raw - Raw input string from user
- * @returns Sanitized numeric string (may contain decimal point, minus sign, or fraction)
+ * @returns Sanitized numeric string (may contain decimal point, minus sign, fraction, or pipe for coordinates)
  */
 export function sanitizeMathInput(raw: string): string {
   if (!raw || typeof raw !== 'string') return '';
 
   const trimmed = raw.trim();
+
+  // Check if it's a coordinate pair (contains pipe separator)
+  if (trimmed.includes('|')) {
+    // Allow coordinate format: (x|y) or x|y
+    return trimmed
+      .replace(/[()]/g, '') // Remove parentheses
+      .replace(/\s+/g, '') // Remove whitespace
+      .replace(/,/g, '.') // Replace comma with dot for decimal
+      // Keep digits, dots, minus signs, and pipe
+      .replace(/[^\d.|-]/g, '');
+  }
 
   // Check if it's a fraction first (before sanitizing removes the slash)
   if (trimmed.includes('/')) {

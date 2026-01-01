@@ -136,3 +136,6 @@ WHERE table_name = 'messages'
 3. In den meisten Fällen: Nur `migration_add_ai_columns.sql` nötig
 
 
+
+
+

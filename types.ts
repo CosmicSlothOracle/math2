@@ -251,6 +251,7 @@ export interface AIMessage {
 export interface User {
   id: string;
   username: string;
+  login_name?: string; // Einzigartiger Login-Name (mind. 4 Zeichen, zum Einloggen ohne Passwort)
   avatar: string;
   coins: number;
   totalEarned: number;

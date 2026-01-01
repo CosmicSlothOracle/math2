@@ -15,7 +15,6 @@ exports.handler = async function (event) {
   }
 
   try {
-    const userId = getUserIdFromEvent(event);
     const supabase = createSupabaseClient();
     const body = event.body ? JSON.parse(event.body) : {};
     const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : null;
@@ -74,13 +73,14 @@ exports.handler = async function (event) {
     // Dev fallback
     if (!supabase) {
       console.warn('[register] Dev fallback - Supabase unavailable');
+      const fallbackUserId = getUserIdFromEvent(event);
       return {
         statusCode: 200,
         headers: HEADERS,
         body: JSON.stringify({
           ok: true,
           user: {
-            id: userId,
+            id: fallbackUserId,
             username: displayName,
             display_name: displayName,
             login_name: loginName,
@@ -92,41 +92,45 @@ exports.handler = async function (event) {
       };
     }
 
-    // Check if login_name is already taken by another user
+    // CRITICAL FIX: Check if login_name already exists FIRST
+    // If it exists, use that user's ID (allow re-registration/update)
+    // If it doesn't exist, generate a NEW user ID (don't use anon ID from cookie)
     const { data: existingLoginName, error: loginNameCheckError } = await supabase
       .from('users')
-      .select('id, login_name')
+      .select('id, login_name, coins')
       .eq('login_name', loginName)
-      .limit(1);
+      .limit(1)
+      .maybeSingle();
 
     if (loginNameCheckError) {
       console.error('[register] Login name check error:', loginNameCheckError);
-      // Continue - will be caught by upsert if there's a constraint
+      return {
+        statusCode: 500,
+        headers: HEADERS,
+        body: JSON.stringify({
+          ok: false,
+          error: 'REGISTRATION_FAILED',
+          message: 'Failed to check if login name exists: ' + (loginNameCheckError.message || 'Unknown error'),
+        }),
+      };
     }
 
-    if (existingLoginName && existingLoginName.length > 0) {
-      const existingId = existingLoginName[0].id;
-      // If it's the same user, allow them to "re-register" (update login_name)
-      if (existingId !== userId) {
-        return {
-          statusCode: 409,
-          headers: HEADERS,
-          body: JSON.stringify({
-            ok: false,
-            error: 'LOGIN_NAME_TAKEN',
-            message: 'This login name is already taken',
-          }),
-        };
-      }
-    }
+    let userId;
+    let existingUser = null;
 
-    // Get existing user to preserve coins (optimize: only if username check passed)
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('coins')
-      .eq('id', userId)
-      .limit(1)
-      .maybeSingle(); // Use maybeSingle to avoid error if not found
+    if (existingLoginName) {
+      // Login name exists - use that user's ID (allow re-registration/update)
+      userId = existingLoginName.id;
+      existingUser = existingLoginName;
+      console.log('[register] Login name exists, using existing user ID:', userId);
+    } else {
+      // Login name doesn't exist - generate NEW user ID
+      // CRITICAL: Don't use anon ID from cookie, generate a fresh one
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(2, 9);
+      userId = `anon_${timestamp}_${random}`;
+      console.log('[register] New login name, generating new user ID:', userId);
+    }
 
     // Upsert user with display_name and login_name
     const upsertPayload = {
@@ -135,13 +139,13 @@ exports.handler = async function (event) {
       login_name: loginName,
     };
 
-    // Only set coins if new user
+    // Only set coins if new user (preserve coins for existing users)
     if (!existingUser) {
       upsertPayload.coins = 250;
     }
 
     console.log('[register] Attempting upsert with payload:', { id: upsertPayload.id, display_name: upsertPayload.display_name, login_name: upsertPayload.login_name });
-    
+
     const { data: upsertResult, error: upsertError } = await supabase
       .from('users')
       .upsert(upsertPayload, { onConflict: 'id' })
@@ -179,10 +183,12 @@ exports.handler = async function (event) {
       returnedUser = fetched || upsertPayload;
     }
 
-    // Set cookie for persistence
+    // CRITICAL FIX: Always set cookie with the user's ID
+    // This ensures that bootstrapServerUser() will load the correct user
     const headers = { ...HEADERS };
-    if (userId.startsWith('anon_')) {
+    if (userId) {
       headers['Set-Cookie'] = `mm_anon_id=${userId}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      console.log('[register] Set cookie with user ID:', userId);
     }
 
     return {

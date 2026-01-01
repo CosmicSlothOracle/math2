@@ -172,9 +172,9 @@ export const KOERPER_BOUNTIES: Task[] = [
     type: 'input',
     question:
       'Kegelstumpf: r₁ = 8 cm, r₂ = 4 cm, h = 10 cm.\n a) Volumen (π≈3,14, auf ganze cm³)?\n b) Mantelfläche (auf ganze cm²)?',
-    correctAnswer: '1173; 314',
+    correctAnswer: '1173; 406',
     explanation:
-      'V = (πh/3)(r₁² + r₁r₂ + r₂²) = (3,14×10/3)(64+32+16) ≈ 1173 cm³. Mantel = π(r₁+r₂)s mit s = √((8-4)²+10²) = √116 ≈ 10,77 → M ≈ 314 cm².',
+      'V = (πh/3)(r₁² + r₁r₂ + r₂²) = (3,14×10/3)(64+32+16) ≈ 1173 cm³. Mantel = π(r₁+r₂)s mit s = √((8-4)²+10²) = √116 ≈ 10,77 → M = 3,14 × 12 × 10,77 ≈ 406 cm².',
     difficultyLevel: 'Schwer',
     multiInputFields: [
       {
@@ -185,7 +185,7 @@ export const KOERPER_BOUNTIES: Task[] = [
       {
         id: 'mantel',
         label: 'b) Mantelfläche (cm²)',
-        validator: { type: 'numericTolerance', numericAnswer: 314, tolerance: 10 },
+        validator: { type: 'numericTolerance', numericAnswer: 406, tolerance: 10 },
       },
     ],
   },

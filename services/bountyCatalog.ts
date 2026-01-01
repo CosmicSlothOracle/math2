@@ -334,13 +334,13 @@ const BASE_BOUNTIES: Record<UnitId, Task[]> = {
       type: 'input',
       question:
         'Zusammengesetztes Prisma: Quader (6×6×10 cm) + Dreiecksprisma (Grundfläche: rechtwinkliges Dreieck mit Katheten 6 cm und 4 cm, Höhe 8 cm).\n a) Gesamtvolumen?\n b) Oberfläche des zusammengesetzten Körpers (Kontaktfläche zählt nicht, auf ganze Zahl runden)?',
-      correctAnswer: '456 cm³; 472 cm²',
+      correctAnswer: '456 cm³; 426 cm²',
       explanation:
-        'a) V = 6·6·10 + (6·4/2)·8 = 360 + 96 = 456 cm³. b) O = Quader 312 + Dreiecksprisma 160 ≈ 472 cm² (vereinfacht).',
+        'a) V = 6·6·10 + (6·4/2)·8 = 360 + 96 = 456 cm³. b) Quader O ohne Kontaktfläche: 312 - 36 = 276 cm². Dreiecksprisma O ohne Kontaktfläche: Mantel + Deckfläche = (6+4+√52)×8 + 12 = 161,68 - 12 = 149,68 cm². Gesamt: 276 + 149,68 ≈ 426 cm².',
       difficultyLevel: 'Schwer',
       multiInputFields: [
         { id: 'volume', label: 'a) Volumen (cm³)', validator: { type: 'numeric', numericAnswer: 456 } },
-        { id: 'surface', label: 'b) Oberfläche (cm²)', validator: { type: 'numericTolerance', numericAnswer: 472, tolerance: 5 } },
+        { id: 'surface', label: 'b) Oberfläche (cm²)', validator: { type: 'numericTolerance', numericAnswer: 426, tolerance: 10 } },
       ],
     },
   ],
@@ -472,7 +472,7 @@ const BASE_BOUNTIES: Record<UnitId, Task[]> = {
       ],
     },
     {
-      id: 'u3-bounty-kreissektor',
+      id: 'u6-bounty-kreissektor',
       type: 'input',
       question:
         'Tortenstück (Kreissektor): Radius r = 8 cm, Mittelpunktswinkel α = 90°.\n a) Flächeninhalt des Kreissektors?\n b) Länge des zugehörigen Kreisbogens?',
@@ -496,7 +496,7 @@ const BASE_BOUNTIES: Record<UnitId, Task[]> = {
       difficultyLevel: 'Schwer',
       multiInputFields: [
         { id: 'height', label: 'a) Höhe (cm)', validator: { type: 'numeric', numericAnswer: 6 } },
-        { id: 'cathetus', label: 'b) Kathete a (cm)', validator: { type: 'numericTolerance', numericAnswer: 7.21, tolerance: 0.2 } },
+        { id: 'cathetus', label: 'b) Kathete a (cm)', validator: { type: 'numericTolerance', numericAnswer: 7.21, tolerance: 0.1 } },
       ],
     },
   ],

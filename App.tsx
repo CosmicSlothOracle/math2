@@ -17,6 +17,28 @@ import {
   BattleSummaryPayload,
 } from './types.ts';
 import { AuthService, DataService, SocialService, bootstrapServerUser } from './services/apiService.ts';
+
+// Helper to get API headers with anon ID (for bounty evaluation)
+function getApiHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  try {
+    const cookies = document.cookie.split(';');
+    for (const cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'mm_anon_id' && value) {
+        headers['x-anon-id'] = value;
+        break;
+      }
+    }
+    if (!headers['x-anon-id']) {
+      const stored = localStorage.getItem('mm_anon_id');
+      if (stored) headers['x-anon-id'] = stored;
+    }
+  } catch (e) {
+    console.warn('[getApiHeaders] Error reading anon ID:', e);
+  }
+  return headers;
+}
 import { sanitizeMathInput } from './utils/inputSanitizer.ts';
 import { getRealtimeClient } from './services/realtimeClient.ts';
 import { QuestService } from './services/questService.ts';
@@ -4069,6 +4091,13 @@ const QuestExecutionView: React.FC<{
     const [isAutoHintLoading, setIsAutoHintLoading] = useState(false);
     const [hoverAngle, setHoverAngle] = useState<number | null>(null);
     const [hoverPosition, setHoverPosition] = useState<{ x: number; y: number } | null>(null);
+    const [evaluationResult, setEvaluationResult] = useState<{
+        isFullyCorrect: boolean;
+        correctSubTasks: number[];
+        incorrectSubTasks: Array<{ subTaskNumber: number; reason: string; correctAnswer: string }>;
+        overallFeedback: string;
+    } | null>(null);
+    const [isEvaluating, setIsEvaluating] = useState(false);
 
     const runStartRef = useRef(Date.now());
 
@@ -4103,9 +4132,128 @@ const QuestExecutionView: React.FC<{
         setIsAutoHintLoading(false);
     }, [currentIdx]);
 
-    const handleVerify = () => {
+    const handleVerify = async () => {
         const task = tasks[currentIdx];
         let isCorrect = false;
+
+        // For Bounty mode with input tasks, use OpenAI evaluation
+        if (isBountyMode && (task.type === 'input' || task.type === 'shorttext')) {
+            setIsEvaluating(true);
+            setEvaluationResult(null);
+
+            try {
+                const userAnswer = task.multiInputFields && task.multiInputFields.length > 0
+                    ? Object.entries(multiFieldValues)
+                        .map(([id, value]) => {
+                            const field = task.multiInputFields!.find(f => f.id === id);
+                            return field ? `${field.label}: ${value}` : '';
+                        })
+                        .filter(Boolean)
+                        .join('\n')
+                    : textInput;
+
+                if (!userAnswer.trim()) {
+                    setIsEvaluating(false);
+                    return;
+                }
+
+                const headers = getApiHeaders();
+                const response = await fetch('/.netlify/functions/bountyEvaluate', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        question: task.question,
+                        userAnswer: userAnswer,
+                        correctAnswer: task.correctAnswer,
+                        explanation: task.explanation || '',
+                        multiInputFields: task.multiInputFields || [],
+                    }),
+                });
+
+                if (!response.ok) {
+                    let errorData;
+                    try {
+                        errorData = await response.json();
+                    } catch (e) {
+                        errorData = { error: 'UNKNOWN_ERROR', message: `HTTP ${response.status}` };
+                    }
+                    console.error('[bountyEvaluate] Error:', errorData);
+                    setIsEvaluating(false);
+                    // For Bounty mode, show error message but allow user to continue
+                    setFeedback('wrong');
+                    setMistakes(m => m + 1);
+                    setEvaluationResult({
+                        isFullyCorrect: false,
+                        correctSubTasks: [],
+                        incorrectSubTasks: [],
+                        overallFeedback: errorData.message || 'Die Evaluierung ist fehlgeschlagen. Bitte versuche es erneut.',
+                    });
+                    return;
+                }
+
+                let evalData;
+                try {
+                    evalData = await response.json();
+                } catch (parseError) {
+                    console.error('[bountyEvaluate] JSON parse error:', parseError);
+                    setIsEvaluating(false);
+                    setFeedback('wrong');
+                    setMistakes(m => m + 1);
+                    setEvaluationResult({
+                        isFullyCorrect: false,
+                        correctSubTasks: [],
+                        incorrectSubTasks: [],
+                        overallFeedback: 'Fehler beim Verarbeiten der Evaluierung. Bitte versuche es erneut.',
+                    });
+                    return;
+                }
+
+                // Validate response structure
+                if (!evalData || typeof evalData.isFullyCorrect !== 'boolean') {
+                    console.error('[bountyEvaluate] Invalid response structure:', evalData);
+                    setIsEvaluating(false);
+                    setFeedback('wrong');
+                    setMistakes(m => m + 1);
+                    setEvaluationResult({
+                        isFullyCorrect: false,
+                        correctSubTasks: [],
+                        incorrectSubTasks: [],
+                        overallFeedback: 'Ungültige Antwort von der Evaluierung. Bitte versuche es erneut.',
+                    });
+                    return;
+                }
+
+                setEvaluationResult(evalData);
+                isCorrect = evalData.isFullyCorrect || false;
+                setIsEvaluating(false);
+
+                if (isCorrect) {
+                    setFeedback('correct');
+                    setCorrectAnswers(c => c + 1);
+                    onTaskCorrect(task, 0);
+                } else {
+                    setFeedback('wrong');
+                    setMistakes(m => m + 1);
+                    requestAdaptiveHint(task, userAnswer);
+                }
+                return;
+            } catch (error) {
+                console.error('[bountyEvaluate] Exception:', error);
+                setIsEvaluating(false);
+                // Show error feedback to user
+                setFeedback('wrong');
+                setMistakes(m => m + 1);
+                setEvaluationResult({
+                    isFullyCorrect: false,
+                    correctSubTasks: [],
+                    incorrectSubTasks: [],
+                    overallFeedback: `Fehler bei der Evaluierung: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}. Bitte versuche es erneut.`,
+                });
+                return;
+            }
+        }
+
+        // Standard validation (for non-bounty tasks or fallback)
 
         // Evaluate dragDrop classification
         if (task.type === 'dragDrop' && task.dragDropData) {
@@ -4245,6 +4393,8 @@ const QuestExecutionView: React.FC<{
             setMultiFieldValues({});
             setAdaptiveHint(null);
             setIsAutoHintLoading(false);
+            setEvaluationResult(null);
+            setIsEvaluating(false);
             // Don't reset correctAnswers - we want to track total across all tasks
         } else {
             // Calculate percentage of correct answers
@@ -4779,7 +4929,20 @@ const QuestExecutionView: React.FC<{
                             )}
                             {(task.type === 'input' || task.type === 'shorttext') && (
                                 <div className="relative z-10">
-                                    {task.multiInputFields && task.multiInputFields.length > 0 ? (
+                                    {isBountyMode ? (
+                                        // Bounty mode: Always use textarea for free-text answers
+                                        <textarea
+                                            value={textInput}
+                                            onChange={(e) => setTextInput(e.target.value)}
+                                            placeholder={task.placeholder || "Gib hier deine vollständige Antwort ein. Erkläre deine Lösung Schritt für Schritt..."}
+                                            disabled={!!feedback || isEvaluating}
+                                            readOnly={!!feedback}
+                                            rows={8}
+                                            autoFocus
+                                            className={`w-full p-6 text-lg font-medium rounded-2xl border-4 outline-none transition-all resize-y bounty-input ${feedback ? 'opacity-50 cursor-not-allowed' : 'cursor-text'}`}
+                                            style={{ pointerEvents: feedback ? 'none' : 'auto', WebkitUserSelect: 'text', userSelect: 'text' }}
+                                        />
+                                    ) : task.multiInputFields && task.multiInputFields.length > 0 ? (
                                         <MultiFieldInput
                                             fields={task.multiInputFields}
                                             values={multiFieldValues}
@@ -4809,22 +4972,87 @@ const QuestExecutionView: React.FC<{
                                             style={{ pointerEvents: feedback ? 'none' : 'auto', WebkitUserSelect: 'text', userSelect: 'text' }}
                                         />
                                     )}
-                                    {isBountyMode && !task.multiInputFields && <div className="absolute -top-3 left-6 px-2 bg-slate-900 text-amber-500 text-[10px] font-black uppercase tracking-widest">Eingabe erforderlich</div>}
+                                    {isBountyMode && <div className="absolute -top-3 left-6 px-2 bg-slate-900 text-amber-500 text-[10px] font-black uppercase tracking-widest">Freitext-Antwort erforderlich</div>}
                                 </div>
                             )}
                         </div>
 
                         <div className="mt-auto pt-4 pb-4 sticky bottom-0 bg-white dark:bg-slate-900 z-10">
-                            {!feedback ? (
+                            {!feedback && !isEvaluating ? (
                                 <Button onClick={handleVerify} size="lg" className={`w-full ${isBountyMode ? 'bounty-button' : ''}`}>
-                                    Überprüfen (NEWBUILD!)
+                                    Überprüfen
                                 </Button>
+                            ) : isEvaluating ? (
+                                <div className={`p-8 rounded-[2rem] border-2 ${isBountyMode ? 'bg-amber-900/40 border-amber-500' : 'bg-indigo-50 border-indigo-100'}`}>
+                                    <div className={`text-xl font-black mb-3 ${isBountyMode ? 'text-amber-400' : 'text-indigo-600'}`}>
+                                        Antwort wird evaluiert...
+                                    </div>
+                                    <p className={`text-sm font-medium ${isBountyMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                                        Bitte warte, während deine Antwort von der KI bewertet wird.
+                                    </p>
+                                </div>
                             ) : (
                                 <div className={`p-8 rounded-[2rem] border-2 animate-in zoom-in-95 duration-200 ${feedback === 'correct' ? (isBountyMode ? 'bg-emerald-900/40 border-emerald-500' : 'bg-emerald-50 border-emerald-100') : (isBountyMode ? 'bg-rose-900/40 border-rose-500' : 'bg-rose-50 border-rose-100')}`}>
                                     <div className={`text-2xl font-black italic mb-3 uppercase tracking-tighter ${feedback === 'correct' ? (isBountyMode ? 'text-emerald-400' : 'text-emerald-600') : (isBountyMode ? 'text-rose-400' : 'text-rose-600')}`}>
                                         {feedback === 'correct' ? 'Richtig! 🎉' : 'Leider falsch... 💀'}
                                     </div>
-                                    <p className={`text-sm font-bold leading-relaxed mb-4 ${isBountyMode ? 'text-slate-300' : 'text-slate-600'}`}>{task.explanation}</p>
+
+                                    {/* Bounty mode: Show structured evaluation feedback */}
+                                    {isBountyMode && evaluationResult && (
+                                        <div className="mb-4 space-y-3">
+                                            {evaluationResult.overallFeedback && (
+                                                <p className={`text-sm font-bold leading-relaxed ${isBountyMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                                                    {evaluationResult.overallFeedback}
+                                                </p>
+                                            )}
+
+                                            {evaluationResult.correctSubTasks && evaluationResult.correctSubTasks.length > 0 && (
+                                                <div className={`p-3 rounded-xl ${isBountyMode ? 'bg-emerald-900/30 border border-emerald-500/30' : 'bg-emerald-50 border border-emerald-100'}`}>
+                                                    <div className={`text-xs font-black uppercase mb-1 ${isBountyMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                                                        ✅ Korrekte Teilaufgaben:
+                                                    </div>
+                                                    <p className={`text-sm font-semibold ${isBountyMode ? 'text-emerald-200' : 'text-emerald-700'}`}>
+                                                        {evaluationResult.correctSubTasks.map(num => {
+                                                            const field = task.multiInputFields?.[num - 1];
+                                                            return field ? field.label : `Teilaufgabe ${num}`;
+                                                        }).join(', ')}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {evaluationResult.incorrectSubTasks && evaluationResult.incorrectSubTasks.length > 0 && (
+                                                <div className={`p-3 rounded-xl ${isBountyMode ? 'bg-rose-900/30 border border-rose-500/30' : 'bg-rose-50 border border-rose-100'}`}>
+                                                    <div className={`text-xs font-black uppercase mb-2 ${isBountyMode ? 'text-rose-400' : 'text-rose-600'}`}>
+                                                        ❌ Falsche Teilaufgaben:
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        {evaluationResult.incorrectSubTasks.map((item, idx) => {
+                                                            const field = task.multiInputFields?.[item.subTaskNumber - 1];
+                                                            return (
+                                                                <div key={idx} className={`text-sm ${isBountyMode ? 'text-rose-200' : 'text-rose-700'}`}>
+                                                                    <div className="font-bold">
+                                                                        {field ? field.label : `Teilaufgabe ${item.subTaskNumber}`}:
+                                                                    </div>
+                                                                    <div className="text-xs mt-1 opacity-90">
+                                                                        <strong>Warum falsch:</strong> {item.reason}
+                                                                    </div>
+                                                                    <div className="text-xs mt-1 opacity-90">
+                                                                        <strong>Richtig wäre:</strong> {item.correctAnswer}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Standard mode: Show explanation */}
+                                    {!isBountyMode && (
+                                        <p className={`text-sm font-bold leading-relaxed mb-4 ${isBountyMode ? 'text-slate-300' : 'text-slate-600'}`}>{task.explanation}</p>
+                                    )}
+
                                     {feedback === 'wrong' && isAutoHintLoading && !adaptiveHint && (
                                         <p className={`text-xs font-medium mb-2 ${isBountyMode ? 'text-amber-200' : 'text-slate-500'}`}>Tipp wird geladen...</p>
                                     )}
@@ -4833,7 +5061,7 @@ const QuestExecutionView: React.FC<{
                                             💡 {adaptiveHint}
                                         </div>
                                     )}
-                                    {feedback === 'wrong' && (
+                                    {feedback === 'wrong' && !isBountyMode && (
                                         <p className={`text-xs font-medium mb-4 ${isBountyMode ? 'text-slate-400' : 'text-slate-500'}`}>
                                             💡 Tipp: Lies die Frage nochmal genau durch. Überlege, welche Formel oder welches Konzept hier angewendet werden muss.
                                         </p>
@@ -5433,7 +5661,8 @@ const AppContent = () => {
           updatedUser.unlockedTools = [...new Set([...(user.unlockedTools || []), item.value])];
         }
         if (item.type === 'calc_gadget') {
-          updatedUser.calculatorGadgets = [...new Set([...(user.calculatorGadgets || []), item.value])];
+          // Calculator upgrade enables advanced features: Scheitelpunkt, Wurzeln, Potenzen
+          updatedUser.calculatorUpgrades = [...new Set([...(user.calculatorUpgrades || []), item.value])];
         }
         setUser(updatedUser);
         await DataService.updateUser(updatedUser);
@@ -5459,7 +5688,7 @@ const AppContent = () => {
         coins: json.coins,
         unlockedItems: json.unlockedItems || [...new Set([...user.unlockedItems, item.id])],
         unlockedTools: json.unlockedTools || user.unlockedTools || [],
-        calculatorGadgets: json.calculatorGadgets || user.calculatorGadgets || []
+        calculatorUpgrades: json.calculatorUpgrades || user.calculatorUpgrades || []
       };
       if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
       if (item.type === 'formelsammlung') updatedUser.formelsammlungSkin = item.value;
@@ -5470,8 +5699,9 @@ const AppContent = () => {
         updatedUser.unlockedTools = json.unlockedTools || [...new Set([...(user.unlockedTools || []), item.value])];
       }
       if (item.type === 'calc_gadget') {
-        // Ensure gadget is added if not already in server response
-        updatedUser.calculatorGadgets = json.calculatorGadgets || [...new Set([...(user.calculatorGadgets || []), item.value])];
+        // Ensure calculator upgrade is added if not already in server response
+        // Calculator upgrades enable advanced features: Scheitelpunkt, Wurzeln, Potenzen
+        updatedUser.calculatorUpgrades = json.calculatorUpgrades || [...new Set([...(user.calculatorUpgrades || []), item.value])];
       }
 
       // Refresh from server to ensure consistency (this will update user with all fields)
@@ -5512,7 +5742,7 @@ const AppContent = () => {
     <div className={`min-h-screen transition-all ${isDarkMode ? 'bg-slate-950 text-white' : 'bg-[#f8fafc] text-slate-900'}`}>
       <ToastContainer toasts={toasts} />
       <CoinFlightAnimation isActive={isFlyingCoinActive} onComplete={() => setIsFlyingCoinActive(false)} />
-      {isCalculatorOpen && <CalculatorWidget skin={user.calculatorSkin} gadgets={user.calculatorGadgets || []} onClose={() => setIsCalculatorOpen(false)} />}
+      {isCalculatorOpen && <CalculatorWidget skin={user.calculatorSkin} gadgets={user.calculatorUpgrades || []} onClose={() => setIsCalculatorOpen(false)} />}
       {isFormelsammlungOpen && (
         <ModalOverlay onClose={() => setIsFormelsammlungOpen(false)}>
           <FormelsammlungView onClose={() => setIsFormelsammlungOpen(false)} skin={user.formelsammlungSkin as any} />

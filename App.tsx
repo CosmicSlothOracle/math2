@@ -41,8 +41,8 @@ import { CurrentTaskProvider, useCurrentTask } from '@/src/contexts/CurrentTaskC
 import { AIMessage } from '@/src/types';
 import { FormelRechner } from './components/FormelRechner.tsx';
 import { SchrittLoeser } from './components/SchrittLoeser.tsx';
-import { SpickerTrainer } from './components/SpickerTrainer.tsx';
 import { ScheitelCoach } from './components/ScheitelCoach.tsx';
+import { SpickerTrainer } from './components/SpickerTrainer.tsx';
 import { HeaderBar } from './components/HeaderBar.tsx';
 
 // --- Theme Helpers ---
@@ -3005,9 +3005,20 @@ const BloodDomeLeaderboard: React.FC<{ currentUser: User; onChallenge: (u: User)
       setLoading(true);
       try {
         const allUsers = await SocialService.getAllUsers();
-        setUsers(allUsers);
+        // Filter out invalid users and ensure they have required fields
+        const validUsers = allUsers.filter(u =>
+          u &&
+          u.id &&
+          u.username &&
+          u.username.trim().length > 0 &&
+          u.username !== 'Anonym' &&
+          u.username !== 'User'
+        );
+        console.log('[BloodDomeLeaderboard] Loaded users:', validUsers.length, 'out of', allUsers.length);
+        setUsers(validUsers);
       } catch (err) {
         console.error('[BloodDomeLeaderboard] Failed to load users:', err);
+        setUsers([]);
       } finally {
         setLoading(false);
       }
@@ -3016,7 +3027,9 @@ const BloodDomeLeaderboard: React.FC<{ currentUser: User; onChallenge: (u: User)
   }, []);
 
   const sortedUsers = useMemo(() => {
-    const sorted = [...users];
+    // Filter out users without valid usernames
+    const validUsers = users.filter(u => u && u.id && u.username && u.username.trim().length > 0);
+    const sorted = [...validUsers];
     sorted.sort((a, b) => {
       let aVal: number, bVal: number;
 
@@ -3076,10 +3089,13 @@ const BloodDomeLeaderboard: React.FC<{ currentUser: User; onChallenge: (u: User)
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
-        {loading ? (
+        {loading || isLoading ? (
           <div className="text-center py-12 text-slate-400">Loading...</div>
         ) : sortedUsers.length === 0 ? (
-          <div className="text-center py-12 text-slate-400">No users found</div>
+          <div className="text-center py-12 text-slate-400">
+            <p className="text-sm font-bold mb-2">Keine User gefunden</p>
+            <p className="text-xs text-slate-500">Registriere dich, um in der Rangliste zu erscheinen!</p>
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 sm:gap-6 max-w-7xl mx-auto">
             {sortedUsers.map((u) => (
@@ -4033,7 +4049,8 @@ const QuestExecutionView: React.FC<{
   onTaskCorrect: (task: Task, wager: number) => void;
   onComplete: (isPerfect: boolean, percentage?: number, summary?: QuestRunSummary) => void;
   onCancel: () => void;
-}> = ({ unit, tasks, isBountyMode, timeLimit, noCheatSheet = false, user, onTaskCorrect, onComplete, onCancel }) => {
+  onOpenTool?: (toolId: 'formel_rechner' | 'schritt_loeser' | 'spicker_trainer' | 'scheitel_coach') => void;
+}> = ({ unit, tasks, isBountyMode, timeLimit, noCheatSheet = false, user, onTaskCorrect, onComplete, onCancel, onOpenTool }) => {
     const { setCurrentTask } = useCurrentTask();
     const [currentIdx, setCurrentIdx] = useState(0);
     const [mistakes, setMistakes] = useState(0);
@@ -4041,7 +4058,7 @@ const QuestExecutionView: React.FC<{
     const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
     const [selectedOption, setSelectedOption] = useState<any>(null);
     const [textInput, setTextInput] = useState('');
-    const [timeLeft, setTimeLeft] = useState(timeLimit || 60);
+    const [timeLeft, setTimeLeft] = useState(timeLimit && timeLimit > 0 ? timeLimit : Infinity);
     const [wager, setWager] = useState<number>(0);
     const [classification, setClassification] = useState<Record<string, string>>({});
     const [angleInput, setAngleInput] = useState('');
@@ -4060,8 +4077,9 @@ const QuestExecutionView: React.FC<{
     }, [tasks]);
 
     useEffect(() => {
-        if (isBountyMode && !feedback && tasks.length > 0) {
-            setTimeLeft(timeLimit || 60);
+        // Zeitlimit nur wenn explizit gesetzt (nicht mehr automatisch im Bounty-Modus)
+        if (!feedback && tasks.length > 0 && timeLimit && timeLimit > 0) {
+            setTimeLeft(timeLimit);
             const timer = setInterval(() => {
                 setTimeLeft(prev => {
                     if (prev <= 1) {
@@ -4073,8 +4091,11 @@ const QuestExecutionView: React.FC<{
                 });
             }, 1000);
             return () => clearInterval(timer);
+        } else if (!timeLimit || timeLimit <= 0) {
+            // Kein Zeitlimit - setze auf unendlich
+            setTimeLeft(Infinity);
         }
-    }, [isBountyMode, feedback, currentIdx, tasks.length, timeLimit]);
+    }, [feedback, currentIdx, tasks.length, timeLimit]);
 
     useEffect(() => {
         // Reset hint when task changes
@@ -4123,12 +4144,16 @@ const QuestExecutionView: React.FC<{
 
                     // Use validator if available
                     if (field.validator) {
-                        const fieldValid = validateAnswer(userValue, field.validator);
+                        // Sanitize input before validation (convert comma to dot for numeric inputs)
+                        const sanitizedValue = field.validator.type === 'coordinatePair'
+                            ? userValue
+                            : sanitizeMathInput(userValue);
+                        const fieldValid = validateAnswer(sanitizedValue, field.validator);
                         if (!fieldValid) {
                             // Also check against expected value if validator fails
                             if (expectedValue) {
                                 const clean = (s: string) => s.replace(/\s+/g, '').toLowerCase();
-                                const userClean = clean(userValue);
+                                const userClean = clean(sanitizedValue);
                                 const expectedClean = clean(String(expectedValue));
                                 if (!userClean.includes(expectedClean) && !expectedClean.includes(userClean)) {
                                     allFieldsValid = false;
@@ -4153,13 +4178,13 @@ const QuestExecutionView: React.FC<{
 
                 isCorrect = allFieldsValid;
             } else {
-                // Sanitize input before validation
-                const sanitizedInput = sanitizeMathInput(textInput);
+                // For coordinate pairs, use raw input; otherwise sanitize
+                const inputToValidate = task.validator?.type === 'coordinatePair' ? textInput : sanitizeMathInput(textInput);
                 if (task.validator) {
-                    isCorrect = validateAnswer(sanitizedInput, task.validator);
+                    isCorrect = validateAnswer(inputToValidate, task.validator);
                 } else {
                     const clean = (s: string) => s.replace(/\s+/g, '').toLowerCase();
-                    const userAns = clean(sanitizedInput);
+                    const userAns = clean(inputToValidate);
 
                     if (userAns === '') {
                         isCorrect = false;
@@ -4212,7 +4237,7 @@ const QuestExecutionView: React.FC<{
             setSelectedOption(null);
             setTextInput('');
             setWager(0);
-            setTimeLeft(timeLimit || 60);
+            setTimeLeft(timeLimit && timeLimit > 0 ? timeLimit : Infinity);
             setClassification({});
             setAngleInput('');
             setSliderValue(1);
@@ -4409,9 +4434,51 @@ const QuestExecutionView: React.FC<{
                     </div>
                 </div>
                 <div className={`font-mono font-bold w-16 text-right ${isBountyMode ? 'text-amber-400' : 'text-slate-400'}`}>
-                    {isBountyMode ? `${timeLeft}s` : '∞'}
+                    {timeLimit && timeLimit > 0 ? `${timeLeft}s` : '∞'}
                 </div>
             </div>
+
+            {/* Tools available during quest */}
+            {user && onOpenTool && (
+                <div className="px-4 py-2 border-b bg-slate-50 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                    {user.unlockedTools?.includes('formel_rechner') && (
+                        <button
+                            onClick={() => onOpenTool('formel_rechner')}
+                            className="px-3 py-1.5 bg-emerald-100 rounded-lg hover:bg-emerald-200 transition-colors text-xs font-bold shrink-0"
+                            title="Formel-Rechner"
+                        >
+                            🧮 Formel-Rechner
+                        </button>
+                    )}
+                    {user.unlockedTools?.includes('schritt_loeser') && (
+                        <button
+                            onClick={() => onOpenTool('schritt_loeser')}
+                            className="px-3 py-1.5 bg-purple-100 rounded-lg hover:bg-purple-200 transition-colors text-xs font-bold shrink-0"
+                            title="Schritt-für-Schritt-Loeser"
+                        >
+                            📝 Schritt-Loeser
+                        </button>
+                    )}
+                    {user.unlockedTools?.includes('spicker_trainer') && (
+                        <button
+                            onClick={() => onOpenTool('spicker_trainer')}
+                            className="px-3 py-1.5 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors text-xs font-bold shrink-0"
+                            title="Spicker-Coach"
+                        >
+                            🧠 Spicker-Coach
+                        </button>
+                    )}
+                    {user.unlockedTools?.includes('scheitel_coach') && (
+                        <button
+                            onClick={() => onOpenTool('scheitel_coach')}
+                            className="px-3 py-1.5 bg-orange-100 rounded-lg hover:bg-orange-200 transition-colors text-xs font-bold shrink-0"
+                            title="Scheitel-Coach"
+                        >
+                            📈 Scheitel-Coach
+                        </button>
+                    )}
+                </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-4xl mx-auto w-full flex flex-col">
                 {isBountyMode && (
@@ -4723,11 +4790,16 @@ const QuestExecutionView: React.FC<{
                                     ) : (
                                         <input
                                             type="text"
-                                            inputMode="numeric"
+                                            inputMode={task.validator?.type === 'coordinatePair' ? 'text' : 'numeric'}
                                             value={textInput}
                                             onChange={(e) => {
-                                                const sanitized = sanitizeMathInput(e.target.value);
-                                                setTextInput(sanitized);
+                                                // For coordinate pairs, allow pipe character
+                                                if (task.validator?.type === 'coordinatePair') {
+                                                    setTextInput(e.target.value);
+                                                } else {
+                                                    const sanitized = sanitizeMathInput(e.target.value);
+                                                    setTextInput(sanitized);
+                                                }
                                             }}
                                             placeholder={task.placeholder || "Deine Antwort hier..."}
                                             disabled={!!feedback}
@@ -4742,7 +4814,7 @@ const QuestExecutionView: React.FC<{
                             )}
                         </div>
 
-                        <div className="mt-auto">
+                        <div className="mt-auto pt-4 pb-4 sticky bottom-0 bg-white dark:bg-slate-900 z-10">
                             {!feedback ? (
                                 <Button onClick={handleVerify} size="lg" className={`w-full ${isBountyMode ? 'bounty-button' : ''}`}>
                                     Überprüfen (NEWBUILD!)
@@ -4866,6 +4938,13 @@ const AppContent = () => {
   const [isSchrittLoeserOpen, setIsSchrittLoeserOpen] = useState(false);
   const [isSpickerTrainerOpen, setIsSpickerTrainerOpen] = useState(false);
   const [isScheitelCoachOpen, setIsScheitelCoachOpen] = useState(false);
+
+  // Check if user has unlocked tools
+  const hasFormelRechner = user?.unlockedTools?.includes('formel_rechner') ?? false;
+  const hasSchrittLoeser = user?.unlockedTools?.includes('schritt_loeser') ?? false;
+  const hasSpickerTrainer = user?.unlockedTools?.includes('spicker_trainer') ?? false;
+  const hasScheitelCoach = user?.unlockedTools?.includes('scheitel_coach') ?? false;
+
   const overlayOpeners = {
     formelsammlung: () => setIsFormelsammlungOpen(true),
     formel_rechner: () => setIsFormelRechnerOpen(true),
@@ -5378,25 +5457,40 @@ const AppContent = () => {
       const updatedUser = {
         ...user,
         coins: json.coins,
-        unlockedItems: json.unlockedItems || [...new Set([...user.unlockedItems, item.id])]
+        unlockedItems: json.unlockedItems || [...new Set([...user.unlockedItems, item.id])],
+        unlockedTools: json.unlockedTools || user.unlockedTools || [],
+        calculatorGadgets: json.calculatorGadgets || user.calculatorGadgets || []
       };
       if (item.type === 'calculator') updatedUser.calculatorSkin = item.value;
       if (item.type === 'formelsammlung') updatedUser.formelsammlungSkin = item.value;
       if (item.type === 'persona') updatedUser.aiPersona = item.value;
       if (item.type === 'skin' && item.id.startsWith('ai_chat_skin_')) updatedUser.aiSkin = item.value;
       if (item.type === 'tool') {
-        updatedUser.unlockedTools = [...new Set([...(user.unlockedTools || []), item.value])];
+        // Ensure tool is added if not already in server response
+        updatedUser.unlockedTools = json.unlockedTools || [...new Set([...(user.unlockedTools || []), item.value])];
       }
       if (item.type === 'calc_gadget') {
-        updatedUser.calculatorGadgets = [...new Set([...(user.calculatorGadgets || []), item.value])];
+        // Ensure gadget is added if not already in server response
+        updatedUser.calculatorGadgets = json.calculatorGadgets || [...new Set([...(user.calculatorGadgets || []), item.value])];
       }
-      setUser(updatedUser);
-      await DataService.updateUser(updatedUser);
+
+      // Refresh from server to ensure consistency (this will update user with all fields)
+      try {
+        const res = await bootstrapServerUser();
+        if (res && res.user) {
+          setUser(res.user);
+        } else {
+          // Fallback to local update if server refresh fails
+          setUser(updatedUser);
+          await DataService.updateUser(updatedUser);
+        }
+      } catch (err) {
+        console.warn('[handleBuy] Failed to refresh from server, using local update:', err);
+        setUser(updatedUser);
+        await DataService.updateUser(updatedUser);
+      }
 
       addToast(`"${item.name}" gekauft!`, 'success');
-
-      // Refresh from server to ensure consistency
-      await bootstrapServerUser();
     } catch (err) {
       console.error('[handleBuy] Exception:', err);
       addToast("Kauf fehlgeschlagen - Netzwerkfehler", 'error');
@@ -5438,19 +5532,24 @@ const AppContent = () => {
           initialTopic={aiChatInitialTopic}
         />
       )}
-      {isFormelRechnerOpen && user.unlockedTools?.includes('formel_rechner') && (
+      {isFormelRechnerOpen && hasFormelRechner && (
         <ModalOverlay onClose={() => setIsFormelRechnerOpen(false)}>
           <FormelRechner onClose={() => setIsFormelRechnerOpen(false)} />
         </ModalOverlay>
       )}
-      {isSchrittLoeserOpen && user.unlockedTools?.includes('schritt_loeser') && (
+      {isSchrittLoeserOpen && hasSchrittLoeser && (
         <ModalOverlay onClose={() => setIsSchrittLoeserOpen(false)}>
           <SchrittLoeser onClose={() => setIsSchrittLoeserOpen(false)} />
         </ModalOverlay>
       )}
-      {isSpickerTrainerOpen && user.unlockedTools?.includes('spicker_trainer') && (
+      {isSpickerTrainerOpen && hasSpickerTrainer && (
         <ModalOverlay onClose={() => setIsSpickerTrainerOpen(false)}>
           <SpickerTrainer onClose={() => setIsSpickerTrainerOpen(false)} />
+        </ModalOverlay>
+      )}
+      {isScheitelCoachOpen && hasScheitelCoach && (
+        <ModalOverlay onClose={() => setIsScheitelCoachOpen(false)}>
+          <ScheitelCoach onClose={() => setIsScheitelCoachOpen(false)} />
         </ModalOverlay>
       )}
       {isScheitelCoachOpen && user.unlockedTools?.includes('scheitel_coach') && (
@@ -5482,6 +5581,10 @@ const AppContent = () => {
           onOpenAIChat={handleOpenAIChat}
           onOpenFormelsammlung={() => setIsFormelsammlungOpen(true)}
           onOpenCalculator={() => setIsCalculatorOpen(true)}
+          onOpenFormelRechner={hasFormelRechner ? () => setIsFormelRechnerOpen(true) : undefined}
+          onOpenSchrittLoeser={hasSchrittLoeser ? () => setIsSchrittLoeserOpen(true) : undefined}
+          onOpenSpickerTrainer={hasSpickerTrainer ? () => setIsSpickerTrainerOpen(true) : undefined}
+          onOpenScheitelCoach={hasScheitelCoach ? () => setIsScheitelCoachOpen(true) : undefined}
         />
       )}
 
@@ -5639,7 +5742,7 @@ const AppContent = () => {
           <QuestExecutionView
               unit={currentQuest.unit}
               tasks={tasksForCurrentQuest}
-              isBountyMode={currentQuest.type === 'bounty' || !!currentQuest.options?.timeLimit}
+              isBountyMode={currentQuest.type === 'bounty'}
               timeLimit={currentQuest.options?.timeLimit}
               noCheatSheet={currentQuest.options?.noCheatSheet}
               user={user}
@@ -5648,6 +5751,12 @@ const AppContent = () => {
               onCancel={() => {
                 setIsQuestActive(false);
                 setCurrentTask(null, null);
+              }}
+              onOpenTool={(toolId) => {
+                if (toolId === 'formel_rechner') setIsFormelRechnerOpen(true);
+                else if (toolId === 'schritt_loeser') setIsSchrittLoeserOpen(true);
+                else if (toolId === 'spicker_trainer') setIsSpickerTrainerOpen(true);
+                else if (toolId === 'scheitel_coach') setIsScheitelCoachOpen(true);
               }}
           />
       )}
@@ -5758,8 +5867,6 @@ const UnitView: React.FC<{
 }> = ({ unit, user, bountyCompleted, onClose, onStartQuest, overlayOpeners }) => {
     const [activeTab, setActiveTab] = useState<'info' | 'pre' | 'standard' | 'bounty'>('info');
     const [isStartingBounty, setIsStartingBounty] = useState(false);
-    const [bountyTimeLimit, setBountyTimeLimit] = useState<number>(60);
-    const [lockCheatSheet, setLockCheatSheet] = useState(true);
     const definition = GEOMETRY_DEFINITIONS.find(d => d.id === unit.definitionId);
     const entryFee = computeEntryFee(unit.bounty);
     const userCoins = Number.isFinite(user.coins) ? user.coins : 0;
@@ -5775,7 +5882,7 @@ const UnitView: React.FC<{
         try {
             // Small delay to ensure state updates
             await new Promise(resolve => setTimeout(resolve, 100));
-            await onStartQuest(unit, 'bounty', { timeLimit: bountyTimeLimit, noCheatSheet: lockCheatSheet });
+            await onStartQuest(unit, 'bounty', {});
             // Reset after transition
             setTimeout(() => setIsStartingBounty(false), 500);
         } catch (error) {
@@ -5890,7 +5997,7 @@ const UnitView: React.FC<{
                         <div className="text-7xl">🏴‍☠️</div>
                         <h4 className="text-2xl font-black italic text-amber-400">Bounty Hunt</h4>
                         <p className="font-bold text-slate-400 text-sm max-w-sm mx-auto uppercase italic">
-                          Zeitlimit & Extra-Schwer.<br />
+                          Extra-Schwer.<br />
                           Extra Reward: <span className="text-amber-400 font-black">+{unit.bounty} Coins</span> (einmalig).
                         </p>
                         <p className="text-xs font-black tracking-widest text-slate-300">
@@ -5909,29 +6016,6 @@ const UnitView: React.FC<{
                             Bounty bereits abgeschlossen – keine weitere Auszahlung. Snooze runs kosten weiterhin Entry Fee.
                           </p>
                         )}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left text-[11px] font-black uppercase text-slate-300">
-                          <div>
-                            <span className="block mb-1">Zeitlimit</span>
-                            <select
-                              className="w-full bg-slate-800 rounded-xl px-3 py-2 border border-amber-500/30 text-amber-200 font-bold"
-                              value={bountyTimeLimit}
-                              onChange={e => setBountyTimeLimit(Number(e.target.value))}
-                            >
-                              {[45, 60, 75, 90].map(limit => (
-                                <option key={limit} value={limit}>{limit} Sekunden</option>
-                              ))}
-                            </select>
-                          </div>
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              className="w-4 h-4"
-                              checked={lockCheatSheet}
-                              onChange={e => setLockCheatSheet(e.target.checked)}
-                            />
-                            <span>Tipps sperren (no cheats)</span>
-                          </label>
-                        </div>
                         <Button
                           variant="danger"
                           onClick={handleBountyStart}
